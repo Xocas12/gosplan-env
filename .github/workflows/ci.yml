@@ -42,7 +42,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up uv and Python 3.12
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.12"
           # setup-uv's own cache, keyed on the lock file; no actions/cache step needed.
@@ -74,7 +74,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up uv and Python 3.12
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.12"
           enable-cache: true
@@ -154,7 +154,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up uv and Python 3.12
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.12"
           enable-cache: true
@@ -190,7 +190,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up uv and Python 3.12
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.12"
           enable-cache: true
