@@ -1,0 +1,9 @@
+* text=auto eol=lf
+*.ipynb text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.png binary
+*.zip binary
+*.parquet binary
+*.npz binary
+*.pkl binary

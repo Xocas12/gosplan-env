@@ -1,0 +1,41 @@
+# PLAN.md is the build instruction for this repository ("gosplan-env — Build Plan v1.0").
+# It is supplied out of band, is not the output of any work order, and is deliberately
+# untracked. Never un-ignore it and never commit it.
+PLAN.md
+
+# --- python (house convention, verbatim from forensics-core) ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+htmlcov/
+build/
+dist/
+.ipynb_checkpoints/
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# --- uv / virtualenvs (uv.lock is tracked: pinned deps are part of the manifest,
+#     CONTRACT rule 10) ---
+/venv/
+/.uv/
+.env
+
+# --- generated run artefacts (PLAN section 8: runs/ holds one directory per run
+#     hash; only manifests and reports are worth tracking) ---
+runs/**/*.parquet
+runs/**/*.png
+runs/**/*.pkl
+runs/**/*.npz
+!runs/.gitkeep
+
+# --- golden files are generated from the reference dynamics by ref/gen_golden.py
+#     (PLAN section 11), not hand-written ---
+tests/golden/*.json
+!tests/golden/.gitkeep

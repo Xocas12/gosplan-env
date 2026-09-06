@@ -1,0 +1,88 @@
+[project]
+name = "gosplan-env"
+version = "0.1.0"
+description = "Multi-agent environment for Soviet-style plan fulfilment: rule-based planner, learning enterprises, and pre-registered measurement of emergent misreporting (PLAN sections 1-4)."
+requires-python = ">=3.12"
+license = { text = "MIT" }
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "pandas>=2.1",
+    # The ledger is written as parquet (PLAN section 10, Ledger.to_parquet).
+    "pyarrow>=15.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+# JAX port and parity test: PLAN section 12.4 WO-029, required for the Sobol design
+# of PLAN section 4.3.
+jax = [
+    "jax>=0.4.30",
+    "jaxlib>=0.4.30",
+]
+# Regime-map figures: runs/regime_map/{regime.png, bhat.png}, PLAN section 12.3 WO-015.
+viz = [
+    "matplotlib>=3.8",
+]
+# IQM with stratified bootstrap CIs over the contrasts of PLAN section 4.3.
+stats = [
+    "rliable>=1.2.0",
+]
+# Expected-value MIP oracle (HiGHS/CBC via OR-Tools), PLAN section 6.2.
+solver = [
+    "ortools>=9.10",
+]
+# Estimator coupling of PLAN section 7.3 is deliberately NOT declared here.
+# forensics-core is not published to PyPI, and PLAN section 7.3 does not fix its
+# interface until gate G1 ("to agree with the forensics_core owner at G1; vendored
+# fallback in gosplan/metrics/_fallback.py with identical signatures until then").
+# Declaring it would make the lock file unresolvable on any machine without the
+# sibling checkout. Until G1, gosplan/metrics/_fallback.py supplies the identical
+# signatures and every import of forensics_core stays inside the try/except
+# ImportError that gosplan/metrics/__init__.py owns. To use the real library before
+# then, install it from the sibling checkout out of band:
+#     uv pip install -e ../forensics-core
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "hypothesis>=6.100",
+    "ruff>=0.6",
+    "pre-commit>=3.7",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+# Flat layout: PLAN section 8 puts gosplan/ at the repository root, not under src/.
+packages = ["gosplan"]
+
+[tool.pytest.ini_options]
+# CONTRACT rule 13 (TESTS ARE NOT EXPERIMENTS): tests/acceptance/ holds the lead-run
+# gate experiments G0-G4 (PLAN section 13). It is not on any work order's must-pass
+# list and is NEVER collected -- by CI or by an implementer session. Only the three
+# frozen categories of PLAN section 11 are collected here.
+testpaths = ["tests/unit", "tests/behavioural", "tests/golden"]
+addopts = "-ra"
+markers = [
+    "skeleton: stub test -- asserts only that the skeleton imports and exposes the PLAN section 10 surface; no behavioural expectation",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "NPY", "PD", "RUF"]
+# UP007/UP045: spec/spec.py deliberately spells optional arguments `Optional[X]`,
+# matching the interface skeleton of PLAN section 10 verbatim. RUF022: `__all__` follows
+# that same section's declaration order (enums, config, state, rng, production, planner,
+# reporting/reward, env, agents, DP, ledger, P2 sketches), not alphabetical order.
+# Both are frozen surfaces under CONTRACT rule 1; the linter must not rewrite them.
+ignore = ["E501", "RUF012", "UP007", "UP045", "RUF022"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B011", "PD"]

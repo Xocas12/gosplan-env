@@ -1,0 +1,12 @@
+# CONTRACT rule 1 freezes spec/spec.py; rule 2 freezes tests/unit, tests/behavioural and
+# tests/golden. A hook that edits those files would change a frozen surface without any
+# session deciding to, so the linter here REPORTS ONLY (no --fix) and both hooks exclude
+# the frozen paths. Changes to spec/spec.py go through the lead and spec/CHANGELOG.md.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        exclude: '^(spec/spec\.py|tests/(unit|behavioural|golden)/)'
+      - id: ruff-format
+        exclude: '^(spec/spec\.py|tests/(unit|behavioural|golden)/)'
