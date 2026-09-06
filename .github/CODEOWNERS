@@ -1,0 +1,51 @@
+# CODEOWNERS - gosplan-env
+#
+# Everything in this repository is reviewed by the lead. The paths listed below the catch-all are
+# not extra reviewers: they are called out because they are the CONTRACT rule 1 and rule 2 FROZEN
+# SURFACES, and a diff that touches one of them is a different kind of change from a diff that
+# does not.
+#
+#   Rule 1  FROZEN SPEC.  spec/spec.py is provisional (v0) until gate G1 and frozen (v1)
+#           thereafter. After v1, only the LEAD may change it, and only with a spec/CHANGELOG.md
+#           entry (version, reason, affected work orders). No other session edits spec/spec.py.
+#
+#   Rule 2  FROZEN TESTS. tests/unit, tests/behavioural and tests/golden are read-only for
+#           implementers. If a test looks wrong, file an AMBIGUITY REPORT; do not edit it, do not
+#           skip it, do not special-case the implementation to pass it.
+#
+# An implementer PR that changes any path below is rejected without review. The correct action on
+# noticing a problem in one of them is an ambiguity report (CONTRACT rule 3), never an edit.
+
+*                       @Xocas12
+
+# --- CONTRACT rule 1: the frozen interface -----------------------------------------------------
+/spec/                  @Xocas12
+
+# --- CONTRACT rule 2: the frozen test surface --------------------------------------------------
+# Golden files are generated from ref/gen_golden.py and are never hand-edited; regenerating them
+# is a LEAD act that requires a spec/CHANGELOG.md entry (WO-013).
+#
+# ONE CARVE-OUT: tests/unit/test_contract_guard.py is the test for the CI guard, not for the
+# environment, and is not part of the frozen surface rule 2 protects (scripts/README.md,
+# 'The rule-2 exemption'; CONTRIBUTING.md section 6). Whoever edits scripts/contract_guard.py
+# edits it. The guard skips it structurally (FROZEN_TEST_NON_FROZEN_PATHS), so it needs no
+# .github/FROZEN_TEST_EXEMPTION entry - a standing entry there would be a permanently
+# disabled rule. That file stays the mechanism for temporary LEAD edits to genuinely frozen
+# tests; never CONTRACT_ALLOW_FROZEN_TESTS=1 in a workflow. Every other file under the three
+# directories below is frozen, with no exception.
+/tests/unit/            @Xocas12
+/tests/behavioural/     @Xocas12
+/tests/golden/          @Xocas12
+
+# --- The binding text and the authorisation system ---------------------------------------------
+# CONTRACT.md is PLAN §9 reproduced verbatim. workorders/ is where a file gets an owning card at
+# all: editing a card silently changes what some future session is allowed to do (CONTRACT
+# rule 12), so cards are amended by the lead, in the open, before the card is picked up.
+/CONTRACT.md            @Xocas12
+/workorders/            @Xocas12
+
+# --- Also lead-owned, for the same reason ------------------------------------------------------
+# ref/ is the test oracle behind the golden matrix; tests/acceptance/ holds the gate experiments,
+# which are never run by an implementer session (CONTRACT rule 13).
+/ref/                   @Xocas12
+/tests/acceptance/      @Xocas12

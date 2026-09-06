@@ -1,0 +1,128 @@
+name: Ambiguity report
+description: >-
+  The spec, the card and the whitelist do not determine a choice. Filing this is CORRECT
+  behaviour under CONTRACT rule 3 and is never treated as failure.
+title: "AMB-###: <one-line question>"
+labels:
+  - ambiguity
+  - blocked
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Filing this is a success, not a failure
+
+        CONTRACT rule 3: *"When the spec, the work order and the whitelisted files do not
+        determine a choice, emit an AMBIGUITY REPORT (`workorders/AMBIGUITY_TEMPLATE.md`) and end
+        the session. Fluent invention is the failure mode this rule exists to prevent. Choosing
+        'the reasonable default' is a violation."*
+
+        A session that files a well-formed ambiguity report and stops has **done its job**. A
+        session that guesses plausibly and ships a green test run has **invalidated its own
+        output** (CONTRACT preamble). No reviewer will hold this issue against you; the whole
+        skeleton exists so that gaps surface here instead of being quietly filled in code.
+
+        After filing: link this issue from the work-order issue, apply `blocked` to the work
+        order, **and end the session**. Do not continue on the parts you think are unaffected -
+        the answer may move them.
+
+        The fields below are `workorders/AMBIGUITY_TEMPLATE.md` (PLAN §12.1) exactly. Committed
+        examples to imitate: `workorders/AMBIGUITY-001.md`, `workorders/AMBIGUITY-002.md`.
+
+        **Title this issue `AMB-###: <one-line question>`.** One report, one number, one
+        question: take the next unused number, zero-padded to three digits. The card the
+        lead commits for it is `workorders/AMBIGUITY-###.md` with the *same* number -
+        `AMB-001` pairs with `workorders/AMBIGUITY-001.md`, `AMB-002` with
+        `workorders/AMBIGUITY-002.md`, so the next report is `AMB-003`. Do not invent a
+        third prefix and do not renumber an existing report (CONTRIBUTING.md section 5).
+  - type: input
+    id: work_order
+    attributes:
+      label: Work order
+      description: The card (or cards) this blocks, and the issue number.
+      placeholder: "WO-005 (#12)"
+    validations:
+      required: true
+  - type: input
+    id: site
+    attributes:
+      label: file:function
+      description: The exact site where the decision would have to be made.
+      placeholder: "gosplan/env/production.py:coverage"
+    validations:
+      required: true
+  - type: textarea
+    id: question
+    attributes:
+      label: Question (one sentence)
+      description: >-
+        One sentence, ending in a question mark. If it takes two sentences, you are asking two
+        questions: file two reports.
+      placeholder: >-
+        Which coverage ratio does need_ikj == 0 contribute when theta is infinite?
+    validations:
+      required: true
+  - type: textarea
+    id: spec_says
+    attributes:
+      label: What the spec says / does not say (quote)
+      description: >-
+        QUOTE the relevant text - PLAN section number and words, CONTRACT rule, spec docstring,
+        card line - and then say precisely what it stops short of deciding. A report with no
+        quotation cannot be adjudicated.
+      placeholder: |
+        PLAN §2.6 gives the aggregator as ... and says nothing about ...
+        The card says "handle explicitly rather than by an epsilon" but does not state ...
+    validations:
+      required: true
+  - type: textarea
+    id: options
+    attributes:
+      label: Options considered (A/B/...), and why the spec does not decide
+      description: >-
+        At least two named options, each with the consequence of taking it, then one sentence on
+        WHY the written material is silent. If one option is obviously right, say so and explain
+        why that is still not the same as the spec deciding it.
+      placeholder: |
+        A. ... - consequence ...
+        B. ... - consequence ...
+        The spec does not decide because §X names the quantity while §Y, the only place it is
+        given a value, omits this case.
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact if the wrong option is picked
+      description: >-
+        Concretely: which numbers move, which invariants break, which claim is affected. Say so
+        plainly if the answer is "no dynamics, metric or result changes" - that is useful
+        information for whoever prioritises this.
+    validations:
+      required: true
+  - type: textarea
+    id: tests_blocked
+    attributes:
+      label: Tests blocked
+      description: >-
+        The verbatim test ids and files that cannot pass until this is answered, or "None" plus
+        what is nonetheless blocked. Also record the skeleton status of the affected files.
+      placeholder: |
+        tests/unit/test_production.py T-U7
+    validations:
+      required: true
+  - type: checkboxes
+    id: acknowledgements
+    attributes:
+      label: Acknowledgements
+      options:
+        - label: >-
+            I did not implement a "reasonable default" for this question anywhere in the working
+            tree.
+          required: true
+        - label: >-
+            I have linked this issue from the work-order issue and applied `blocked` to it.
+          required: true
+        - label: >-
+            I ended the session after filing this, rather than continuing on the rest of the card.
+          required: true

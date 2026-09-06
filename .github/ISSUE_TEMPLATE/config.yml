@@ -1,0 +1,18 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Read CONTRIBUTING.md first
+    url: https://github.com/Xocas12/gosplan-env/blob/main/CONTRIBUTING.md
+    about: >-
+      The operating manual for this repository: the contract, the work-order loop, the stop rule,
+      what is frozen, the gates and the label taxonomy. Read it before opening anything.
+  - name: CONTRACT.md - the 13 binding rules
+    url: https://github.com/Xocas12/gosplan-env/blob/main/CONTRACT.md
+    about: >-
+      The binding text. Violations invalidate a session's output. If your question is "may I ...",
+      the answer is here.
+  - name: Not sure it is a work order? File an ambiguity report
+    url: https://github.com/Xocas12/gosplan-env/issues/new?template=ambiguity-report.yml
+    about: >-
+      Blank issues are disabled on purpose. If the spec, the card and the whitelist do not
+      determine a choice, the correct action is an ambiguity report (CONTRACT rule 3), not a
+      free-form issue and not a reasonable default.

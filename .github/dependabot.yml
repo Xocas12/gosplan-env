@@ -1,0 +1,56 @@
+# Dependabot -- weekly updates for the GitHub Actions used by .github/workflows/ and for
+# the Python dependencies resolved into uv.lock.
+#
+# WHEN A BUMP MAY BE MERGED. A dependency bump rewrites what uv.lock pins, and uv.lock is
+# what CONTRACT rule 10 records in every run manifest (config hash, spec version, git
+# hash, seeds, reference-PPO version, estimator version, LLM model ids and versions,
+# solver version and optimality gap, flags). Two runs of the same gate under different
+# pins are two different experiments, however green CI is on both: numpy/scipy change
+# floating-point results at the 1e-9 tolerance the golden files of PLAN section 11 assert,
+# ortools changes the optimality gap the manifest records, and jax changes the parity
+# check of WO-029.
+#
+# So: never merge a bump PR between the runs of a single gate (G0-G4, PLAN section 13).
+# Merge bumps only in the quiet stretch after a gate has been signed off and before the
+# next gate's runs begin, and re-run the frozen suite -- tests/unit, tests/behavioural,
+# tests/golden -- on the new lock before the next gate starts. If a bump lands mid-gate by
+# accident, the runs on either side of it are not comparable and the gate is re-run whole
+# on one lock, not patched.
+#
+# Bumps to the actions themselves are safe at any time: they do not touch uv.lock and are
+# not recorded in a manifest.
+version: 2
+
+updates:
+  # --- GitHub Actions used by ci.yml and release.yml ---------------------------------
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+    labels:
+      - "dependencies"
+      - "github-actions"
+
+  # --- Python dependencies (pyproject.toml + uv.lock) --------------------------------
+  # Read the note at the top of this file before merging any of these.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps"
+    labels:
+      - "dependencies"
+      - "python"
+      - "changes-uv.lock"
+    groups:
+      # One PR for the dev toolchain: it cannot change a numeric result, only whether
+      # the suite runs and how ruff formats.
+      dev-tooling:
+        dependency-type: "development"

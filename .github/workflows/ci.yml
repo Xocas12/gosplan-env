@@ -1,0 +1,252 @@
+# CI -- the gate every pull request must pass before it can merge into `main`.
+#
+# Branch protection hangs on ONE required check, `ci-ok`, which succeeds only when all
+# four real jobs succeeded. The four stay individually visible so a red build names its
+# own cause. The `name:` of every job below is therefore load-bearing: renaming one
+# silently detaches the branch-protection rule that requires it. Add jobs freely; do not
+# rename `lint`, `test`, `contract`, `build` or `ci-ok`.
+#
+# What CI deliberately does NOT do: run a gate. CONTRACT rule 13 (TESTS ARE NOT
+# EXPERIMENTS) holds gates G0-G4 (PLAN section 13) in tests/acceptance/ as lead-run
+# experiments whose result is a *finding*, not a build status. Collecting one here would
+# turn a finding into a build failure and create the exact pressure the design exists to
+# remove -- the pressure to move a parameter until the build goes green. The `test` job
+# asserts mechanically that nothing under tests/acceptance/ was collected.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Least privilege: nothing in this workflow writes to the repository.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # lint -- ruff, in report-only mode, exactly as `make lint` runs it locally.
+  # ---------------------------------------------------------------------------
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up uv and Python 3.12
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          # setup-uv's own cache, keyed on the lock file; no actions/cache step needed.
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Sync environment
+        run: uv sync --all-extras --dev
+
+      - name: ruff check
+        # --output-format=github turns findings into inline annotations on the diff.
+        run: uv run ruff check --output-format=github .
+
+      - name: ruff format --check
+        run: uv run ruff format --check .
+
+  # ---------------------------------------------------------------------------
+  # test -- the three frozen categories of PLAN section 11 (unit, behavioural,
+  # golden). `testpaths` in pyproject.toml selects them for the `pytest` step. The
+  # rule-13 step below then deliberately collects `tests/` WHOLE, ignoring testpaths,
+  # and proves that walking tests/acceptance/ still yields nothing collectable.
+  # ---------------------------------------------------------------------------
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up uv and Python 3.12
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Sync environment
+        run: uv sync --all-extras --dev
+
+      - name: pytest
+        run: uv run pytest -q --junitxml=junit.xml
+
+      - name: Upload junit.xml
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-${{ github.run_id }}-${{ github.run_attempt }}
+          path: junit.xml
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: CONTRACT rule 13 -- tests/acceptance must not be collected
+        if: always()
+        shell: bash
+        run: |
+          set -uo pipefail
+          # Collection can legitimately end non-zero (exit 5 = nothing collected, or an
+          # import error in a skeleton module), so capture the report and judge it on its
+          # contents rather than on the exit code. Matching the literal path is stable
+          # across pytest versions; matching a "no tests ran" banner is not.
+          #
+          # THE EXPLICIT `tests/` ARGUMENT IS THE POINT OF THIS STEP. A path on the command
+          # line overrides `testpaths`; without one, pyproject.toml's
+          # testpaths = ["tests/unit", "tests/behavioural", "tests/golden"] confines
+          # collection to those three directories, tests/acceptance/ is unreachable by
+          # construction, and the grep below can never match however badly a gate is
+          # misnamed. Collecting `tests/` walks tests/acceptance/ too, so the FIRST guard
+          # the error message names -- gate files are gate_*.py and never test_*.py -- is
+          # the one actually being tested here. The second guard, testpaths itself, is
+          # checked by scripts/contract_guard.py in the `contract` job.
+          uv run pytest --collect-only -q tests/ > collected.txt 2>&1
+          collect_status=$?
+          echo "pytest --collect-only exited ${collect_status}"
+          if [ ! -s collected.txt ]; then
+            echo "::error file=pyproject.toml::pytest --collect-only produced no output, so the CONTRACT rule 13 check could not be evaluated."
+            exit 1
+          fi
+          if grep -n 'tests/acceptance' collected.txt; then
+            echo "::error file=pyproject.toml,line=68::CONTRACT rule 13 violated (TESTS ARE NOT EXPERIMENTS): pytest collected an item under tests/acceptance/. That directory holds the lead-run gate experiments G0-G4 of PLAN section 13; nothing there is a unit test, nothing there is on a work order must-pass list, and no CI run and no implementer session executes it. Restore both guards: every file there is named gate_*.py and never test_*.py, and [tool.pytest.ini_options] testpaths lists only tests/unit, tests/behavioural and tests/golden."
+            exit 1
+          fi
+          echo "OK: nothing collected under tests/acceptance/ (CONTRACT rule 13)."
+
+      - name: Upload collection report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: collected-${{ github.run_id }}-${{ github.run_attempt }}
+          path: collected.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+  # ---------------------------------------------------------------------------
+  # contract -- scripts/contract_guard.py enforces the mechanically checkable
+  # parts of CONTRACT.md (frozen spec, frozen tests, planner blindness, RNG
+  # discipline, and the rest). It exits non-zero on a violation and prints
+  # `::error file=...,line=...::` annotations, so a failure lands on the diff.
+  # ---------------------------------------------------------------------------
+  contract:
+    name: contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history: on a pull request the guard diffs against the base commit.
+          fetch-depth: 0
+
+      - name: Set up uv and Python 3.12
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Sync environment
+        run: uv sync --all-extras --dev
+
+      - name: contract guard (pull request -- diff against the base commit)
+        if: github.event_name == 'pull_request'
+        run: |
+          uv run python scripts/contract_guard.py --all \
+            --base ${{ github.event.pull_request.base.sha }}
+
+      - name: contract guard (push or manual -- whole tree)
+        if: github.event_name != 'pull_request'
+        run: uv run python scripts/contract_guard.py --all
+
+  # ---------------------------------------------------------------------------
+  # build -- `uv build` produces the sdist and the wheel. This is the only "CD"
+  # the repository has: gosplan-env is a research library with no deployment
+  # target and no PyPI publication, so the artefact exists to prove the package
+  # builds from a clean checkout and to give a reader of a run manifest
+  # (CONTRACT rule 10) something reproducible to install. Tagged releases attach
+  # the same two files to a GitHub Release -- see release.yml.
+  # ---------------------------------------------------------------------------
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up uv and Python 3.12
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: uv build
+        run: uv build
+
+      - name: Upload dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ github.run_id }}-${{ github.run_attempt }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
+
+  # ---------------------------------------------------------------------------
+  # ci-ok -- the single required check for branch protection on `main`.
+  # `if: always()` makes it run even when a needed job failed, was cancelled or
+  # was skipped, so the required check always reports instead of vanishing; the
+  # step then fails unless every needed job result is exactly `success`.
+  # ---------------------------------------------------------------------------
+  ci-ok:
+    name: ci-ok
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [lint, test, contract, build]
+    if: always()
+    steps:
+      - name: Require every needed job to have succeeded
+        shell: bash
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          set -uo pipefail
+          echo "needs context:"
+          echo "${NEEDS_JSON}"
+          status=0
+          for pair in \
+            "lint=${{ needs.lint.result }}" \
+            "test=${{ needs.test.result }}" \
+            "contract=${{ needs.contract.result }}" \
+            "build=${{ needs.build.result }}"; do
+            job="${pair%%=*}"
+            result="${pair#*=}"
+            if [ "${result}" = "success" ]; then
+              echo "ok       ${job}"
+            else
+              echo "FAILED   ${job} (result: ${result})"
+              echo "::error::required CI job '${job}' finished with result '${result}'"
+              status=1
+            fi
+          done
+          if [ "${status}" -ne 0 ]; then
+            echo "::error::ci-ok fails because a required job did not succeed."
+          else
+            echo "All required jobs succeeded."
+          fi
+          exit "${status}"

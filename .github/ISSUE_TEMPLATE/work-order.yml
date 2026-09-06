@@ -1,0 +1,236 @@
+name: Work order
+description: >-
+  One work-order card from workorders/. One issue = one card = one branch = one PR.
+title: "WO-000: <title>"
+labels:
+  - work-order
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Before you open this
+
+        A work-order issue is a **transcription of an existing card** in `workorders/WO-###.md`
+        (PLAN §12.1 fixes the card format; `workorders/TEMPLATE.md` reproduces it). It is not a
+        place to design new work. If there is no card, there is no issue: write the card first,
+        as a `LEAD` decision.
+
+        Every field below is copied from the card. Where the card and this issue disagree, the
+        **card in the repository wins** and the issue is corrected to match.
+
+        Read `CONTRIBUTING.md` before picking this up. The three rules that decide whether your
+        session is valid are CONTRACT rules 3 (stop and report, never invent), 12 (read only the
+        whitelist, write only the named files) and 2 (frozen tests are never edited).
+  - type: input
+    id: card
+    attributes:
+      label: Card
+      description: Path to the authoritative card in this repository.
+      placeholder: workorders/WO-005.md
+    validations:
+      required: true
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Phase
+      description: >-
+        P1 is buildable now. P2 and P3 cards are placeholders until the spec revision that
+        follows their gate; an implementer handed one stops and files an ambiguity report.
+      options:
+        - P1
+        - P2
+        - P3
+    validations:
+      required: true
+  - type: dropdown
+    id: owner
+    attributes:
+      label: Owner tier
+      description: >-
+        LEAD cards are not picked up by an implementer session. MID-strong and MID-fast are
+        implementer tiers; the lead maps a tier to a specific model at issue time and records
+        the mapping in the run manifest (CONTRACT rule 10).
+      options:
+        - LEAD
+        - MID-strong
+        - MID-fast
+    validations:
+      required: true
+  - type: dropdown
+    id: difficulty
+    attributes:
+      label: Difficulty
+      description: >-
+        The 1-5 field on the card, copied from its header. The scale is 1-5 and there is no
+        other value: a P2/P3 placeholder whose difficulty the lead has not set yet is not
+        issued at all, and its issue carries no difficulty label until it is.
+      options:
+        - "1"
+        - "2"
+        - "3"
+        - "4"
+        - "5"
+    validations:
+      required: true
+  - type: dropdown
+    id: gate
+    attributes:
+      label: Gate this card feeds
+      description: >-
+        The next gate the card's output is consumed by. G0 after WO-012, G1 after WO-015,
+        G2 after WO-020, G3 after WO-031, G4 after WO-037 (PLAN §13). Set this issue's
+        MILESTONE to the matching one of the five exact strings "G0 Scaffold and sanity",
+        "G1 Regime map and freeze", "G2 Phase 1 gate", "G3 Phase 2 acceptance",
+        "G4 Final report" (ROADMAP.md sections 3 and 4; CONTRIBUTING.md section 9).
+      options:
+        - "G0"
+        - "G1"
+        - "G2"
+        - "G3"
+        - "G4"
+    validations:
+      required: true
+  - type: textarea
+    id: depends_on
+    attributes:
+      label: Depends on
+      description: >-
+        Every prerequisite work order, as issue links, plus any gate sign-off the card names.
+        Do not start until every one of these issues is CLOSED and every named gate is signed.
+      placeholder: |
+        - #7 WO-003 config
+        - #8 WO-004 rng
+        - gate G0 signed off in writing
+      value: |
+        -
+    validations:
+      required: true
+  - type: textarea
+    id: read_first
+    attributes:
+      label: Read first (whitelist, exhaustive)
+      description: >-
+        Copied verbatim from the card. This list is EXHAUSTIVE: under CONTRACT rule 12 the
+        implementer opens nothing else. If a needed file is missing from it, that is an
+        ambiguity report, not a licence to open the file.
+      placeholder: |
+        spec/spec.py                  frozen signatures for ...
+        gosplan/config.py             the fields this card reads ...
+        CONTRACT.md                   rules 3, 7, 9, 12
+        pyproject.toml                ruff line-length 100, target py312
+    validations:
+      required: true
+  - type: textarea
+    id: write_only
+    attributes:
+      label: Write only
+      description: >-
+        Copied verbatim from the card. Exactly these paths are created, edited or deleted.
+        A PR that touches anything else is rejected without review.
+      placeholder: |
+        gosplan/env/production.py
+    validations:
+      required: true
+  - type: textarea
+    id: must_pass
+    attributes:
+      label: Must pass (verbatim test ids)
+      description: >-
+        Copied verbatim from the card: test files and the T-U#/T-B# ids (PLAN §11). These tests
+        are frozen (CONTRACT rule 2). They are never edited, never skipped, never xfailed and
+        never special-cased.
+      placeholder: |
+        tests/unit/test_production.py   T-U7 - theta = inf equals min; ...
+    validations:
+      required: true
+  - type: textarea
+    id: implementation_notes
+    attributes:
+      label: Implementation notes
+      description: >-
+        Formulas, edge cases and forbidden shortcuts, copied from the card. Transcribe the
+        formulas; do not re-derive them. Anything the notes do not pin down is an ambiguity
+        report.
+    validations:
+      required: false
+  - type: textarea
+    id: forbidden
+    attributes:
+      label: Forbidden
+      description: >-
+        Copied verbatim from the card. These are hard prohibitions, not warnings.
+      placeholder: |
+        - Any direct numpy.random / jax.random call (CONTRACT rule 9).
+        - Editing any test, spec/spec.py, or any module outside the Write only list.
+    validations:
+      required: true
+  - type: textarea
+    id: completion_command
+    attributes:
+      label: Completion command (copy-paste)
+      description: >-
+        Copied verbatim from the card, and run verbatim, in this order, with the output pasted
+        into the PR. Do not add flags, do not narrow the selection, do not rerun a subset until it
+        is green. Example shape - "uv run pytest tests/unit/test_production.py -q", then
+        "uv run ruff check <the written file>", then "uv run ruff format --check <the same file>".
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: report_format
+    attributes:
+      label: Report format
+      description: >-
+        Copied from the card (workorders/TEMPLATE.md line 9). This is the shape of the PR
+        body, and .github/pull_request_template.md is pre-filled with it. Four parts, in
+        this order, and part 4 is never left empty: if there was genuinely nothing, write
+        "nothing" and one sentence saying why the card was fully determined.
+      value: |
+        1) Tests passed / failed, with output - pasted unedited, failures included.
+        2) Ambiguity reports filed - each one linked, or "none".
+        3) Files changed - `git diff --name-only`, beside the card's Write only list;
+           the two lists must be identical.
+        4) Anything you were tempted to invent and did not - never empty.
+    validations:
+      required: true
+  - type: textarea
+    id: definition_of_done
+    attributes:
+      label: Definition of done
+      description: >-
+        What must be true for this issue to close. Keep the six standing conditions -
+        they are CONTRIBUTING.md section 4, 'The six standing conditions', verbatim, and
+        every open work-order issue already carries them - and add anything the card
+        requires on top of them. A card may add conditions; it may not drop one of these
+        six.
+      value: |
+        - [ ] Every file in "Write only" is implemented; no other file in the diff.
+        - [ ] Completion command run verbatim; output pasted in the PR body.
+        - [ ] `uv run ruff check . && uv run ruff format --check .` is clean.
+        - [ ] `uv run python scripts/contract_guard.py --all` is clean.
+        - [ ] CI `ci-ok` is green on the PR.
+        - [ ] Four-part report posted as the PR body (tests, ambiguity reports, files changed,
+              what I was tempted to invent and did not).
+    validations:
+      required: true
+  - type: checkboxes
+    id: acknowledgements
+    attributes:
+      label: Acknowledgements
+      options:
+        - label: >-
+            I will read ONLY the files on the "Read first" whitelist and write ONLY the files
+            under "Write only" (CONTRACT rule 12).
+          required: true
+        - label: >-
+            If the spec, this card and the whitelist do not determine a choice, I will STOP,
+            file an ambiguity report and end the session. Choosing "the reasonable default" is
+            a violation (CONTRACT rule 3).
+          required: true
+        - label: >-
+            I will not edit, skip, xfail or special-case any test under tests/unit,
+            tests/behavioural or tests/golden (CONTRACT rule 2).
+          required: true
+        - label: >-
+            I will not run tests/acceptance/ (CONTRACT rule 13).
+          required: true

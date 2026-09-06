@@ -1,0 +1,85 @@
+# Release -- build the sdist and wheel for a tag and attach them to a GitHub Release.
+#
+# gosplan-env is NOT published to PyPI and has no deployment target; it is a research
+# library, installed from a checkout or from the artefacts this workflow attaches. There
+# is deliberately no `twine upload`, no trusted publisher and no registry credential.
+#
+# A tag therefore marks a SPEC OR GATE BOUNDARY, not a shipped product. It exists so that
+# a run manifest (CONTRACT rule 10: config hash, spec version, git hash, seeds, ...) can
+# name an immutable artefact that anyone can fetch and re-run against. The boundaries that
+# earn a tag:
+#
+#   v0.1.0  the interface-complete skeleton (spec v0, provisional)
+#   v0.2.0  the spec v1 freeze of WO-013 at gate G1 -- after this tag only the lead may
+#           change spec/spec.py, and only with a spec/CHANGELOG.md entry naming the
+#           version, the reason and the affected work orders (CONTRACT rule 1)
+#   later   one tag per gate whose artefacts are cited in a report (G2, G3, G4)
+#
+# Cut a tag only on a commit that CI has already passed on `main`; this workflow rebuilds
+# from the tag but does not re-run the CI gate.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+# Writing a Release is the one privileged thing this repository does.
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  # Never cancel a half-finished release.
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history so generated release notes can diff against the previous tag.
+          fetch-depth: 0
+
+      - name: Set up uv and Python 3.12
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: uv build
+        run: uv build
+
+      - name: List artefacts
+        run: ls -l dist
+
+      - name: Upload dist as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ github.ref_name }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 90
+
+      # workflow_dispatch can be aimed at a branch, which has no tag to release
+      # against; in that case the build above is the whole point and this step is
+      # skipped.
+      - name: Attach artefacts to the GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          body: |
+            Source distribution and wheel built from `${{ github.ref_name }}` with `uv build`.
+
+            Not published to PyPI. This tag marks a spec or gate boundary; see
+            `CONTRACT.md` rule 1 (frozen spec) and `spec/CHANGELOG.md` for what changed
+            and which work orders it affects.

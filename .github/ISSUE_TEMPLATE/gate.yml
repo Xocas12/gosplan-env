@@ -1,0 +1,134 @@
+name: Gate
+description: >-
+  A gate sign-off (G0-G4). A gate is a written sign-off on named artefacts, not a vibe.
+title: "GATE G0: <what it certifies>"
+labels:
+  - gate
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## A failed gate produces a written failure report, never a parameter change
+
+        PLAN §13, restated: *a gate that fails produces a written failure report; the next work
+        order is a **lead diagnosis**, never a parameter change made in order to pass the gate.
+        Parameter changes after G1 create a new, labelled study with its own pre-registration.*
+
+        If you find yourself adjusting `ratchet_lambda`, `penalty_scale`, `audit_rate`, a bound,
+        a seed set or a measurement window because the gate did not pass, stop: that is the
+        specific failure this rule exists to prevent. Bounds are results (CONTRACT rule 8) - a
+        bound is never silently widened or narrowed to fix an outcome.
+
+        Gates are run by the **lead**, deliberately. `make gate` refuses on purpose.
+        `tests/acceptance/` holds the gate harnesses; it is excluded from `testpaths`, is on no
+        work order's must-pass list, and no implementer session runs it (CONTRACT rule 13).
+  - type: dropdown
+    id: gate
+    attributes:
+      label: Gate
+      description: >-
+        These five strings are the GitHub MILESTONE names, and GitHub matches a milestone by
+        exact string, so they are reproduced verbatim from ROADMAP.md sections 3 and 4 and
+        CONTRIBUTING.md section 9. Set this issue's milestone to the same string. The gates
+        fire after WO-012 (G0), WO-015 (G1), WO-020 (G2), WO-031 (G3) and WO-037 (G4)
+        respectively (PLAN §13).
+      options:
+        - "G0 Scaffold and sanity"
+        - "G1 Regime map and freeze"
+        - "G2 Phase 1 gate"
+        - "G3 Phase 2 acceptance"
+        - "G4 Final report"
+    validations:
+      required: true
+  - type: textarea
+    id: prerequisites
+    attributes:
+      label: Prerequisite work orders
+      description: Every work-order issue that must be closed before this gate is evaluated.
+      placeholder: |
+        - #3 WO-000 ... closed
+        - ...
+        - #15 WO-012 monte-carlo sanity harness ... closed
+    validations:
+      required: true
+  - type: textarea
+    id: pass_condition
+    attributes:
+      label: Pass condition
+      description: >-
+        Copied from PLAN §13, verbatim for this gate. G0 - full frozen suite green, MC sanity
+        report clean, lead's diff review of gosplan/env/ against CONTRACT rule 7. G1 - regime map
+        produced, human selects the Phase-1 provisional values from the interior of the bunching
+        region, three a*pen levels and the b_hat_DP thresholds recorded BEFORE any training.
+        G2 - PLAN §4.5 criteria 1-4. G3 - held-out phenomena 2, 5, 6, 7 evaluated on the PLAN §4.2
+        values (pass or reported failure), exploitability below threshold on all arms used, oracle
+        gap recorded, JAX parity. G4 - contrasts with CIs, estimator-bias curves, LLM study, price
+        sensitivity on every headline table.
+    validations:
+      required: true
+  - type: textarea
+    id: artefacts
+    attributes:
+      label: Artefacts
+      description: >-
+        The named files this gate signs off on, with their run hashes. Every one carries a
+        runs/<hash>/manifest.json (CONTRACT rule 10: config hash, spec version, git hash, seeds,
+        reference-PPO version, estimator version, LLM model ids and versions, solver version and
+        optimality gap, flags). G0 - runs/mc_sanity/report.md. G1 - runs/G1_decision.md and spec
+        v1.0.0. G2 - runs/dp_vs_ppo/report.md and runs/phase1_gate/report.md.
+        G3 - runs/phase2_acceptance/report.md. G4 - the final report.
+    validations:
+      required: true
+  - type: textarea
+    id: flags
+    attributes:
+      label: Flags raised
+      description: >-
+        Any manifest flag on any artefact, and what was done about it. BOUND_BINDING (more than
+        1% of reports at rho_max = 10) is REPORTED WITH THE FLAG, never fixed by moving the bound
+        (CONTRACT rule 8). "None" is an acceptable answer; a blank field is not.
+    validations:
+      required: true
+  - type: textarea
+    id: signoff
+    attributes:
+      label: Sign-off
+      description: >-
+        Who signs, per PLAN §13. G0 - LEAD. G1 - Human. G2 - Human + LEAD. G3 - Human + LEAD.
+        G4 - Human. Record the name and the date next to each required signature; an unsigned
+        gate does not unblock the cards behind it.
+      value: |
+        - [ ] LEAD:
+        - [ ] Human:
+    validations:
+      required: true
+  - type: textarea
+    id: on_failure
+    attributes:
+      label: If the gate does not pass
+      description: >-
+        Link the written failure report and the LEAD DIAGNOSIS work order that follows it. Leave
+        as "n/a - passed" only when it did.
+      value: |
+        - Failure report:
+        - Lead diagnosis work order:
+    validations:
+      required: false
+  - type: checkboxes
+    id: acknowledgements
+    attributes:
+      label: Acknowledgements
+      options:
+        - label: >-
+            No parameter, bound, seed set or measurement window was changed in order to make this
+            gate pass. Any change of that kind opens a new, labelled study with its own
+            pre-registration (PLAN §13).
+          required: true
+        - label: >-
+            Every artefact listed above has a manifest under runs/ (CONTRACT rule 10).
+          required: true
+        - label: >-
+            No held-out phenomenon (PLAN §4.1 rows 2, 5, 6, 7 - storming excess, hoarding to
+            shortage, blat, hidden reserves) was plotted, tabulated or tested before the Phase-2
+            acceptance run.
+          required: true
