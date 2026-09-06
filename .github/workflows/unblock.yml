@@ -1,0 +1,71 @@
+# Keeps the `blocked` label honest as work lands.
+#
+# CONTRIBUTING.md tells an implementer to choose work with
+#   is:issue is:open label:work-order -label:blocked -label:owner:LEAD
+# so `blocked` is not decoration: it is the routing mechanism. Each work-order issue
+# carries a "**Blocked by:** #a (WO-00a), #b (WO-00b)" line written when the issues were
+# created. This workflow re-derives the label from the real state of those references
+# whenever an issue closes or reopens, so a card becomes visible the moment - and only the
+# moment - every dependency it names is closed.
+#
+# It never invents a dependency: an issue with no "Blocked by:" line is left alone.
+name: Unblock
+
+on:
+  issues:
+    types: [closed, reopened]
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+concurrency:
+  group: unblock
+  cancel-in-progress: false
+
+jobs:
+  reblock:
+    name: reblock
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const per_page = 100;
+            const all = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'all', per_page,
+            });
+            const issues = all.filter(i => !i.pull_request);
+            const state = new Map(issues.map(i => [i.number, i.state]));
+
+            const BY = /\*\*Blocked by:\*\*\s*(.+)/;
+            let added = 0, removed = 0;
+
+            for (const issue of issues) {
+              if (issue.state !== 'open') continue;
+              const m = BY.exec(issue.body || '');
+              if (!m) continue;                       // no declared dependency: leave alone
+              const deps = [...m[1].matchAll(/#(\d+)/g)].map(x => Number(x[1]));
+              const openDeps = deps.filter(d => state.get(d) === 'open');
+              const labels = issue.labels.map(l => (typeof l === 'string' ? l : l.name));
+              const isBlocked = labels.includes('blocked');
+
+              if (openDeps.length && !isBlocked) {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner, repo: context.repo.repo,
+                  issue_number: issue.number, labels: ['blocked'],
+                });
+                added++;
+                core.info(`+blocked #${issue.number} (${openDeps.length} open dependency)`);
+              } else if (!openDeps.length && isBlocked) {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner, repo: context.repo.repo,
+                  issue_number: issue.number, name: 'blocked',
+                }).catch(() => {});
+                removed++;
+                core.info(`-blocked #${issue.number} (every dependency closed)`);
+              }
+            }
+            core.summary.addRaw(`Unblock: added ${added}, removed ${removed}.`).write();
