@@ -26,12 +26,12 @@ lands; each docstring states the exact assertion, formula and tolerance.
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-007")
-def test_initial_prices_solve_the_cost_plus_fixed_point(p1_cfg) -> None:
+def test_initial_prices_solve_the_cost_plus_fixed_point(p1_cfg, implemented) -> None:
     """`initial_prices(cfg)` satisfies the fixed-point equation it solves.
 
     Assertion: the returned `p` `(J,)` satisfies
@@ -44,12 +44,24 @@ def test_initial_prices_solve_the_cost_plus_fixed_point(p1_cfg) -> None:
 
     First half of the WO-007 prices must-pass line.
     """
-    assert False
+    import dataclasses
+
+    from gosplan.env.prices import initial_prices
+
+    implemented(initial_prices)
+    for cfg in (
+        p1_cfg,
+        dataclasses.replace(p1_cfg, supply=dataclasses.replace(p1_cfg.supply, price_markup=0.25)),
+    ):
+        p = np.asarray(initial_prices(cfg))
+        a = np.asarray(cfg.supply.io_matrix, dtype=float)
+        m = cfg.supply.price_markup
+        want = (1.0 + m) * (1.0 + a @ p)
+        assert np.max(np.abs(p - want)) < 1e-12
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-007")
-def test_every_plan_price_is_strictly_positive(p1_cfg, tiny_cfg) -> None:
+def test_every_plan_price_is_strictly_positive(p1_cfg, tiny_cfg, implemented) -> None:
     """Prices are strictly positive and finite.
 
     Assertion: every entry of `initial_prices(cfg)` is `> 0` and finite, at `p1_cfg`, at `tiny_cfg`
@@ -61,12 +73,26 @@ def test_every_plan_price_is_strictly_positive(p1_cfg, tiny_cfg) -> None:
 
     Second half of the WO-007 prices must-pass line.
     """
-    assert False
+    import dataclasses
+
+    from gosplan.env.prices import initial_prices
+
+    implemented(initial_prices)
+    for cfg in (p1_cfg, tiny_cfg):
+        p = np.asarray(initial_prices(cfg))
+        assert np.all(p > 0.0) and np.all(np.isfinite(p))
+
+    # a sector needing no inputs prices at exactly (1 + m) * kappa_labour
+    zero_row = dataclasses.replace(
+        tiny_cfg,
+        supply=dataclasses.replace(tiny_cfg.supply, io_matrix=((0.0, 0.0), (0.2, 0.0))),
+    )
+    p = np.asarray(initial_prices(zero_row))
+    assert abs(p[0] - (1.0 + zero_row.supply.price_markup) * 1.0) < 1e-12
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-007")
-def test_prices_rise_with_the_markup_and_with_input_intensity(p1_cfg) -> None:
+def test_prices_rise_with_the_markup_and_with_input_intensity(p1_cfg, implemented) -> None:
     """The solution responds to `m` and to `a` in the direction the formula dictates.
 
     Assertion: raising `price_markup` raises every price; raising any `a_jk` (while keeping every
@@ -75,12 +101,39 @@ def test_prices_rise_with_the_markup_and_with_input_intensity(p1_cfg) -> None:
     equation, not calibration targets - the test exists so that a sign error in the iteration is
     caught by a property rather than by a golden file.
     """
-    assert False
+    import dataclasses
+
+    from gosplan.env.prices import initial_prices
+
+    implemented(initial_prices)
+    low = np.asarray(initial_prices(p1_cfg))
+    high = np.asarray(
+        initial_prices(
+            dataclasses.replace(
+                p1_cfg,
+                supply=dataclasses.replace(
+                    p1_cfg.supply, price_markup=p1_cfg.supply.price_markup + 0.05
+                ),
+            )
+        )
+    )
+    assert np.all(high > low)
+
+    no_inputs = dataclasses.replace(
+        p1_cfg,
+        supply=dataclasses.replace(
+            p1_cfg.supply,
+            io_matrix=tuple(tuple(0.0 for _ in row) for row in p1_cfg.supply.io_matrix),
+        ),
+    )
+    p0 = np.asarray(initial_prices(no_inputs))
+    assert np.max(np.abs(p0 - (1.0 + p1_cfg.supply.price_markup) * 1.0)) < 1e-12
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-007")
-def test_recompute_prices_agrees_with_initial_prices_on_the_true_matrix(p1_cfg) -> None:
+def test_recompute_prices_agrees_with_initial_prices_on_the_true_matrix(
+    p1_cfg, implemented
+) -> None:
     """`recompute_prices(planner_io, cfg)` equals `initial_prices(cfg)` when `planner_io == a`.
 
     Assertion: with `planner_io` equal to `cfg.supply.io_matrix` - which is the Phase-1 state at
@@ -90,12 +143,18 @@ def test_recompute_prices_agrees_with_initial_prices_on_the_true_matrix(p1_cfg) 
     after `t = 0` (`price_lag = inf`), so `recompute_prices` is never called inside a Phase-1
     episode.
     """
-    assert False
+    from gosplan.env.prices import initial_prices, recompute_prices
+
+    implemented(initial_prices, recompute_prices)
+    a = np.asarray(p1_cfg.supply.io_matrix, dtype=float)
+    assert (
+        np.max(np.abs(np.asarray(recompute_prices(a, p1_cfg)) - np.asarray(initial_prices(p1_cfg))))
+        < 1e-12
+    )
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-007")
-def test_perturbed_price_vectors_are_positive_and_deterministic(p1_cfg) -> None:
+def test_perturbed_price_vectors_are_positive_and_deterministic(p1_cfg, implemented) -> None:
     """The price-sensitivity vectors of PLAN section 7.5 are reproducible.
 
     Assertion: `perturbed_price_vectors(prices, seeds)` returns exactly `len(seeds)` vectors; every
@@ -106,4 +165,14 @@ def test_perturbed_price_vectors_are_positive_and_deterministic(p1_cfg) -> None:
     recomputed, and a sign change in `specification_gap` across them is a reported result, never a
     suppressed one.
     """
-    assert False
+    from gosplan.env.prices import initial_prices, perturbed_price_vectors
+
+    implemented(initial_prices, perturbed_price_vectors)
+    p = np.asarray(initial_prices(p1_cfg))
+    seeds = (11, 12, 13)
+    first = perturbed_price_vectors(p, seeds)
+    again = perturbed_price_vectors(p, seeds)
+    assert len(first) == len(seeds)
+    for a, b in zip(first, again, strict=True):
+        assert np.array_equal(np.asarray(a), np.asarray(b))
+        assert np.all(np.asarray(a) > 0.0)
