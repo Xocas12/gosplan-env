@@ -70,12 +70,24 @@ WO-002). The `make golden` target invokes exactly `python -m ref.gen_golden` wit
 
 from __future__ import annotations
 
+import argparse
+import hashlib
+import json
+import re
 from pathlib import Path
 from typing import Final
 
 import numpy as np
 
-from ref.ref_step import Config, Mat, Phase, Policy, RefAction, RefStepRecord
+from ref.ref_step import (
+    Config,
+    Mat,
+    Phase,
+    Policy,
+    RefAction,
+    RefStepRecord,
+    ref_rollout,
+)
 
 # ---------- the pre-registered golden matrix (PLAN section 11) ----------
 
@@ -168,6 +180,125 @@ that reading a file back reproduces the exact floats (`json.dump` with default f
 this; no rounding, no `%g` formatting)."""
 
 
+def _base(n_enterprises: int, n_sectors: int, io_matrix, **over) -> Config:
+    """A complete configuration document, sized to `(n_enterprises, n_sectors)`.
+
+    Every field name and every unstated default is the one declared on `SupplyConfig`,
+    `IncentiveConfig`, `InformationConfig` and `TechConfig` in `spec/spec.py`. The document is
+    written literally here because `ref/` may not import `gosplan/` (WO-002 Forbidden); the
+    duplication IS the cross-check, since the parity test rebuilds an `EnvConfig` from it and
+    asserts the two hashes agree.
+    """
+    sector_of = tuple(i % n_sectors for i in range(n_enterprises))
+    cfg: Config = {
+        "supply": {
+            "n_enterprises": n_enterprises,
+            "n_sectors": n_sectors,
+            "sector_of": list(sector_of),
+            "io_matrix": [list(row) for row in io_matrix],
+            "final_demand_share": [0.5] * n_sectors,
+            "productivity": [1.0] * n_sectors,
+            "yield_sigma": [0.05 + 0.01 * j for j in range(n_sectors)],
+            "input_complementarity": 8.0,
+            "setup_cost": 0.0,
+            "irs_alpha": 0.0,
+            "capital_dep": 0.0,
+            "invest_lag": 0,
+            "delivery_timing": "uniform",
+            "arrival_probs": [1.0, 0.0, 0.0, 0.0],
+            "holding_loss": 0.02,
+            "input_holding_loss": 0.0,
+            "price_markup": 0.1,
+            "price_lag": "inf",
+            "tech_drift_sigma": 0.0,
+            "ces_alpha": [1.0 / n_sectors] * n_sectors,
+            "ces_sigma": 0.8,
+            "trade_tau": 0.0,
+            "quality_matters": False,
+            "quality_cost": 0.0,
+        },
+        "incentive": {
+            "objective_metric": "val",
+            "ratchet_lambda": 0.5,
+            "growth_directive": 0.02,
+            "ratchet_cap_up": 0.3,
+            "ratchet_cap_dn": 0.3,
+            "ratchet_deadband": 0.0,
+            "notch_height": 1.0,
+            "notch_width": 0.0,
+            "overfulfilment_slope": 0.5,
+            "overfulfilment_cap": 1.2,
+            "penalty_form": "proportional",
+            "penalty_arg": "positive_part",
+            "penalty_scale": 60.0,
+            "effort_cost": 0.15,
+            "soft_budget": 0.0,
+            "steps_per_period": 2,
+            "tenure": 0.9,
+            "alloc_eta_request": 0.0,
+            "alloc_eta_need": 1.0,
+            "bonus_heterogeneity": 0.0,
+        },
+        "information": {
+            "report_lag": 0,
+            "aggregation_level": "enterprise",
+            "audit_rate": 0.5,
+            "audit_noise": 0.0,
+            "audit_mode": "random",
+            "channel_noise": 0.0,
+            "ministry_passthrough": 1.0,
+            "n_ministries": 1,
+            "horizontal_visibility": 0.0,
+            "quality_measurability": 0.0,
+            "shortfall_visibility": 0.0,
+            "self_obs_noise": 0.0,
+        },
+        "tech": {
+            "horizon_mode": "geometric",
+            "min_periods": 4,
+            "max_periods": 20,
+            "report_max_ratio": 10.0,
+            "request_max_multiple": 3.0,
+            "target_floor_frac": 0.05,
+            "inventory_cap_mult": 3.0,
+            "initial_target_frac": 0.6,
+            "param_sharing": "shared",
+            "seed_env": 0,
+            "seed_policy": 0,
+        },
+    }
+    for section, changes in over.items():
+        cfg[section].update(changes)  # type: ignore[union-attr]
+    return cfg
+
+
+def _obs_names(n_goods: int) -> list[str]:
+    """The PLAN section 2.4 layout, in order - the same list `spec.obs_spec(cfg)` returns.
+
+    Rebuilt here rather than imported: `ref/` may not import `gosplan/` (WO-002 Forbidden), and the
+    parity test asserts the two agree before comparing any number.
+    """
+    scalars = [
+        "phase",
+        "k_over_M",
+        "log_target_ratio",
+        "growth_directive",
+        "cum_output_over_target",
+        "stock_over_target",
+        "capital_ratio",
+        "last_report_ratio",
+        "last_audited",
+        "last_penalty_scaled",
+        "last_fill",
+        "inputs_delivered_total",
+    ]
+    blocks = ["input_cov_{j}", "sector_onehot_{j}", "deliv_cov_{j}"]
+    names = list(scalars)
+    for template in blocks:
+        names += [template.format(j=j) for j in range(n_goods)]
+    return names
+
+
 # ---------- configurations ----------
 
 
@@ -215,7 +346,53 @@ def golden_configs() -> list[tuple[str, Config]]:
     exactly `GOLDEN_N_CONFIGS` names appear and that each `config` validates under
     `EnvConfig.validate`.
     """
-    raise NotImplementedError("PLAN section 11 - implemented in WO-002")
+    ring2 = ((0.0, 0.2), (0.2, 0.0))
+    ring3 = ((0.0, 0.2, 0.0), (0.0, 0.0, 0.2), (0.2, 0.0, 0.0))
+    # one enterprise's row is all zeros, so H = 1 is exercised (T-U7 third clause)
+    chain3 = ((0.0, 0.0, 0.0), (0.2, 0.0, 0.0), (0.0, 0.2, 0.0))
+
+    return [
+        # 1. notched bonus, finite theta, positive_part penalty, positive growth
+        ("notched", _base(2, 2, ring2)),
+        # 2. smooth counterfactual: no discontinuity and no kink; absolute penalty
+        (
+            "smooth",
+            _base(
+                2,
+                2,
+                ring2,
+                incentive={
+                    "notch_width": 0.25,
+                    "overfulfilment_cap": "inf",
+                    "penalty_arg": "absolute",
+                },
+            ),
+        ),
+        # 3. kink-only, and the Leontief branch of the coverage aggregator
+        (
+            "kink_leontief",
+            _base(
+                3,
+                3,
+                ring3,
+                incentive={"notch_width": 0.25, "overfulfilment_cap": 1.2},
+                supply={"input_complementarity": "inf"},
+            ),
+        ),
+        # 4. zero growth: the fixed point of T-B2 / T-U4
+        ("zero_growth", _base(2, 2, ring2, incentive={"growth_directive": 0.0})),
+        # 5. a zero I-O row (H = 1), four enterprises, fixed horizon
+        (
+            "zero_io_row",
+            _base(
+                4,
+                3,
+                chain3,
+                incentive={"steps_per_period": 4},
+                tech={"horizon_mode": "fixed", "max_periods": 6},
+            ),
+        ),
+    ]
 
 
 def config_hash(config: Config) -> str:
@@ -251,7 +428,8 @@ def config_hash(config: Config) -> str:
     Binds: `tests/unit/test_config.py` (hash stable under field order; two configurations differing
     in one parameter hash differently) and `tests/golden/test_golden_parity.py`.
     """
-    raise NotImplementedError("PLAN section 3 - implemented in WO-002")
+    payload = json.dumps(config, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def read_spec_version(spec_path: Path) -> str:
@@ -271,7 +449,11 @@ def read_spec_version(spec_path: Path) -> str:
     `spec_version` equals the current `spec.SPEC_VERSION` and skips - loudly - if it does not,
     because a stale golden set is regenerated by the lead (WO-013), never silently accepted.
     """
-    raise NotImplementedError("PLAN section 10 - implemented in WO-002")
+    text = spec_path.read_text(encoding="utf-8")
+    match = re.search(r'^SPEC_VERSION\s*=\s*"([^"]+)"', text, re.MULTILINE)
+    if match is None:
+        raise ValueError(f"no SPEC_VERSION assignment found in {spec_path}")
+    return match.group(1)
 
 
 # ---------- the two Phase-1 reference policies (PLAN section 6.1) ----------
@@ -304,7 +486,16 @@ def ref_random_policy(obs: Mat, phase: Phase, rng: np.random.Generator) -> RefAc
 
     Binds: T-B7 (half the golden matrix) and `tests/unit/test_agents.py` (bounds respected).
     """
-    raise NotImplementedError("PLAN section 6.1 - implemented in WO-002")
+    n = len(obs)
+    n_goods = (len(obs[0]) - 12) // 3 if obs and obs[0] else 0
+    return RefAction(
+        effort=[float(v) for v in rng.uniform(0.0, 1.0, size=n)],
+        quality=[0.0] * n,
+        invest=[0.0] * n,
+        report_ratio=[float(v) for v in rng.uniform(0.0, 10.0, size=n)],
+        input_request=[[float(v) for v in rng.uniform(0.0, 3.0, size=n_goods)] for _ in range(n)],
+        trade_offer=[[0.0] * n_goods for _ in range(n)],
+    )
 
 
 def ref_truthful_myopic_policy(obs: Mat, phase: Phase, rng: np.random.Generator) -> RefAction:
@@ -337,7 +528,18 @@ def ref_truthful_myopic_policy(obs: Mat, phase: Phase, rng: np.random.Generator)
 
     Binds: T-B1, T-B3 (`fill = 1` under truthful reporting), T-B7 (half the golden matrix).
     """
-    raise NotImplementedError("PLAN section 6.1 - implemented in WO-002")
+    n = len(obs)
+    n_goods = (len(obs[0]) - 12) // 3 if obs and obs[0] else 0
+    # observation field 5 is S_i / T_i (PLAN section 2.4): the truthful report of stock
+    stock_ratio = [float(obs[i][5]) for i in range(n)]
+    return RefAction(
+        effort=[1.0] * n,
+        quality=[0.0] * n,
+        invest=[0.0] * n,
+        report_ratio=stock_ratio,
+        input_request=[[1.0] * n_goods for _ in range(n)],
+        trade_offer=[[0.0] * n_goods for _ in range(n)],
+    )
 
 
 def make_policy(name: str, config: Config) -> Policy:
@@ -354,7 +556,11 @@ def make_policy(name: str, config: Config) -> Policy:
     Binds: `tests/golden/test_golden_parity.py`, which maps the same names onto the production
     agents of `gosplan/agents/heuristic.py` (WO-010).
     """
-    raise NotImplementedError("PLAN section 6.1 - implemented in WO-002")
+    if name == "Random":
+        return ref_random_policy
+    if name == "TruthfulMyopic":
+        return ref_truthful_myopic_policy
+    raise ValueError(f"unknown golden agent {name!r}; expected one of {GOLDEN_AGENTS}")
 
 
 # ---------- document assembly and output ----------
@@ -372,7 +578,7 @@ def golden_filename(config_name: str, seed_env: int, agent: str) -> str:
     `tests/golden/*.json` and parses nothing out of the name - the name is for humans; every field
     the test needs is inside the document (`GOLDEN_SCHEMA`).
     """
-    raise NotImplementedError("PLAN section 11 - implemented in WO-002")
+    return f"{config_name}__seed{seed_env}__{agent}.json"
 
 
 def build_golden_document(
@@ -404,7 +610,39 @@ def build_golden_document(
 
     Binds: `tests/golden/test_golden_parity.py` and `GOLDEN_SCHEMA`.
     """
-    raise NotImplementedError("PLAN section 11 - implemented in WO-002")
+    steps: list[dict[str, object]] = []
+    for rec in records:
+        steps.append(
+            {
+                "t_period": int(rec.t_period),
+                "k_step": int(rec.k_step),
+                "phase": str(rec.phase),
+                "obs": [[float(v) for v in row] for row in rec.obs],
+                "reward": [float(v) for v in rec.reward],
+                "done": bool(rec.done),
+                "state_digest": str(rec.state_digest),
+                "val_measured": None if rec.val_measured is None else float(rec.val_measured),
+                "val_true": None if rec.val_true is None else float(rec.val_true),
+                "welfare": None if rec.welfare is None else float(rec.welfare),
+            }
+        )
+    n_goods = int(config["supply"]["n_sectors"])  # type: ignore[index,arg-type]
+    obs_names = _obs_names(n_goods)
+    return {
+        "schema_version": GOLDEN_SCHEMA_VERSION,
+        "spec_version": spec_version,
+        "generator": "ref/gen_golden.py",
+        "config_name": config_name,
+        "config_hash": config_hash(config),
+        "config": config,
+        "agent": agent,
+        "seed_env": int(seed_env),
+        "seed_policy": int(seed_policy),
+        "n_steps": int(n_steps),
+        "tolerance": GOLDEN_TOLERANCE,
+        "obs_names": obs_names,
+        "steps": steps,
+    }
 
 
 def write_golden_file(document: dict[str, object], path: Path) -> None:
@@ -424,7 +662,10 @@ def write_golden_file(document: dict[str, object], path: Path) -> None:
     a lead action under WO-013 with a `spec/CHANGELOG.md` entry (CONTRACT rule 1), and the guard
     against an accidental regeneration is that policy plus `--check`, not a read-only file.
     """
-    raise NotImplementedError("PLAN section 11 - implemented in WO-002")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        json.dump(document, handle, indent=1, sort_keys=False)
+        handle.write("\n")
 
 
 def generate_all(
@@ -455,7 +696,26 @@ def generate_all(
 
     Binds: the whole `tests/golden/` suite (T-B7).
     """
-    raise NotImplementedError("PLAN section 11 - implemented in WO-002")
+    written: list[Path] = []
+    for name, config in golden_configs():
+        if config_names is not None and name not in config_names:
+            continue
+        for seed_env in GOLDEN_SEEDS:
+            if seeds is not None and seed_env not in seeds:
+                continue
+            for agent in GOLDEN_AGENTS:
+                if agents is not None and agent not in agents:
+                    continue
+                records = ref_rollout(
+                    config, seed_env, seed_env, make_policy(agent, config), n_steps
+                )
+                document = build_golden_document(
+                    name, config, agent, seed_env, seed_env, n_steps, spec_version, records
+                )
+                path = out_dir / golden_filename(name, seed_env, agent)
+                write_golden_file(document, path)
+                written.append(path)
+    return written
 
 
 def check_all(
@@ -478,7 +738,24 @@ def check_all(
     Missing files and extra files both count as differences, so a deleted cell or a stray file from
     an aborted `--config` run is caught.
     """
-    raise NotImplementedError("PLAN section 11 - implemented in WO-002")
+    stale: list[Path] = []
+    for name, config in golden_configs():
+        for seed_env in GOLDEN_SEEDS:
+            for agent in GOLDEN_AGENTS:
+                path = out_dir / golden_filename(name, seed_env, agent)
+                if not path.exists():
+                    stale.append(path)
+                    continue
+                existing = json.loads(path.read_text(encoding="utf-8"))
+                records = ref_rollout(
+                    config, seed_env, seed_env, make_policy(agent, config), n_steps
+                )
+                fresh = build_golden_document(
+                    name, config, agent, seed_env, seed_env, n_steps, spec_version, records
+                )
+                if existing != fresh:
+                    stale.append(path)
+    return stale
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -504,7 +781,33 @@ def main(argv: list[str] | None = None) -> int:
     anything, or touch `spec/CHANGELOG.md` itself: those are lead decisions, and a generator that
     quietly writes the changelog entry for you defeats the rule.
     """
-    raise NotImplementedError("PLAN section 11 - implemented in WO-002")
+    parser = argparse.ArgumentParser(
+        prog="python -m ref.gen_golden",
+        description="Generate or check the golden matrix from the reference dynamics.",
+    )
+    parser.add_argument("--out-dir", type=Path, default=GOLDEN_DIR)
+    parser.add_argument("--n-steps", type=int, default=GOLDEN_N_STEPS)
+    parser.add_argument("--config", action="append", dest="config_names")
+    parser.add_argument("--seed", action="append", type=int, dest="seeds")
+    parser.add_argument("--agent", action="append", dest="agents")
+    parser.add_argument("--check", action="store_true", help="report stale files, write nothing")
+    args = parser.parse_args(argv)
+
+    spec_version = read_spec_version(Path(__file__).resolve().parent.parent / "spec" / "spec.py")
+    if args.check:
+        stale = check_all(args.out_dir, args.n_steps, spec_version)
+        for path in stale:
+            print(f"stale or missing: {path}")
+        print(f"gen_golden: {len(stale)} stale or missing file(s)")
+        return 1 if stale else 0
+
+    written = generate_all(
+        args.out_dir, args.n_steps, spec_version, args.config_names, args.seeds, args.agents
+    )
+    for path in written:
+        print(f"wrote {path}")
+    print(f"gen_golden: {len(written)} file(s)")
+    return 0
 
 
 if __name__ == "__main__":
