@@ -20,3 +20,5 @@ tests/unit/test_config.py
 tests/unit/test_conservation.py
 tests/unit/test_production.py
 tests/unit/test_obs.py
+tests/unit/test_planner.py
+tests/unit/test_reporting.py
