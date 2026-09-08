@@ -25,3 +25,6 @@ tests/unit/test_reporting.py
 tests/unit/test_ledger.py
 tests/unit/test_env_api.py
 tests/unit/test_mc_sanity_runs.py
+tests/unit/test_dp.py
+tests/unit/test_phenomena_p1.py
+tests/unit/test_ppo_adapter.py
