@@ -45,6 +45,7 @@ measures the plumbing and nothing else.
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 SKIP_REASON = (
@@ -81,9 +82,81 @@ SHORTAGE_MARGIN = 1e-9
 a shortage."""
 
 
+def _gate(*targets):
+    """Skip the calling test while any of `targets` is still a skeleton stub.
+
+    The module-level twin of the `implemented` fixture in `tests/conftest.py`. A module-level
+    helper cannot request a fixture, so the check is repeated here rather than the helper being
+    called before the gate - which would raise `NotImplementedError` and FAIL the test instead of
+    skipping it.
+    """
+    import inspect
+
+    pending = []
+    for target in targets:
+        try:
+            source = inspect.getsource(target)
+        except (OSError, TypeError):
+            continue
+        if "raise NotImplementedError" in source:
+            pending.append(getattr(target, "__qualname__", repr(target)))
+    if pending:
+        pytest.skip("awaiting implementation: " + ", ".join(pending))
+
+
+def _cfg(**sections):
+    """`p1_default_config()` with per-section overrides applied, validated."""
+    import dataclasses
+
+    from gosplan.config import p1_default_config
+
+    _gate(p1_default_config)
+    cfg = p1_default_config()
+    for section, changes in sections.items():
+        cfg = dataclasses.replace(
+            cfg, **{section: dataclasses.replace(getattr(cfg, section), **changes)}
+        )
+    cfg.validate()
+    return cfg
+
+
+def _episode(cfg, agent_name, seed_env, implemented, max_periods=None):
+    """Drive one episode of `GosplanEnv` with a named heuristic; return the ledger records.
+
+    Gated on the environment (WO-009), the heuristic agents (WO-010) and the ledger (WO-011), so a
+    behavioural module skips naming its missing dependency rather than failing.
+    """
+    from gosplan.agents import heuristic
+    from gosplan.config import p1_default_config
+    from gosplan.env.env import GosplanEnv
+    from gosplan.metrics.ledger import Ledger
+
+    agent_cls = getattr(heuristic, agent_name)
+    implemented(p1_default_config, GosplanEnv.reset, GosplanEnv.step, agent_cls.act, Ledger.append)
+
+    env = GosplanEnv(cfg)
+    ledger = Ledger()
+    env.attach_ledger(ledger)
+    obs, _info = env.reset(seed_env, cfg.tech.seed_policy)
+    policy = agent_cls(cfg)
+    rng = np.random.default_rng(cfg.tech.seed_policy)
+    m = cfg.incentive.steps_per_period
+    cap = (max_periods or cfg.tech.max_periods) * (m + 1)
+    done = False
+    steps = 0
+    while not done and steps < cap:
+        obs, _r, done, _i = env.step(policy.act(obs, env.phase(), rng))
+        steps += 1
+    return ledger.records
+
+
+def _report_rows(records):
+    """Only the REPORT-step rows, which is where period-level quantities are written."""
+    return [r for r in records if r.phase == "report"]
+
+
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
-def test_zero_stock_claim_gives_zero_fill() -> None:
+def test_zero_stock_claim_gives_zero_fill(implemented) -> None:
     """The literal T-B3 clause: with `S = 0` and a positive claim, `fill = 0` and nothing ships.
 
     Build a `State` at `p1_default_config()` with `inv_output` all zero, `last_report` set to the
@@ -103,12 +176,16 @@ def test_zero_stock_claim_gives_zero_fill() -> None:
     one call, so a failure localises to `deliver` rather than to the schedule. Owning WO:
     **WO-002**; binds **WO-006**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B3) - implemented in WO-002")
+    cfg = _cfg()
+    rows = _report_rows(_episode(cfg, PADDING_AGENT, TB3_SEEDS[0], implemented))
+    zero_stock = [r for r in rows if float(r.inv_output_pre) <= FILL_TOL and float(r.report) > 0.0]
+    assert zero_stock, "the Padder must produce at least one zero-stock claim"
+    for r in zero_stock:
+        assert float(r.fill) <= FILL_TOL
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
-def test_padder_shortage_reaches_every_downstream_buyer() -> None:
+def test_padder_shortage_reaches_every_downstream_buyer(implemented) -> None:
     """A fictitious claim in a rollout lowers what every buyer of that good receives.
 
     Roll out `PADDING_AGENT` at `p1_default_config()`, one episode per seed in `TB3_SEEDS`. For
@@ -131,12 +208,21 @@ def test_padder_shortage_reaches_every_downstream_buyer() -> None:
     the shortage is not a pre-registered quantity, and the hoarding direction is held out (PLAN
     section 4.1 row 5). Owning WO: **WO-002**; binds **WO-006** and **WO-009**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B3) - implemented in WO-002")
+    cfg = _cfg()
+    seen_short = False
+    for seed in TB3_SEEDS:
+        rows = [
+            r
+            for r in _report_rows(_episode(cfg, PADDING_AGENT, seed, implemented))
+            if r.t_period >= MEASUREMENT_WINDOW_START_PERIOD
+        ]
+        if any(float(r.fill) < 1.0 - SHORTAGE_MARGIN for r in rows):
+            seen_short = True
+    assert seen_short, "padding above stock must lower fill for at least one seller"
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
-def test_truthful_myopic_gives_full_fill() -> None:
+def test_truthful_myopic_gives_full_fill(implemented) -> None:
     """The control: claims backed by stock ship in full, so `fill = 1` everywhere.
 
     Roll out `TRUTHFUL_AGENT` at `p1_default_config()` under the same `TB3_SEEDS` (common random
@@ -155,4 +241,12 @@ def test_truthful_myopic_gives_full_fill() -> None:
     a phenomenon against (PLAN section 4.1 row 5 is held out); no excess is formed here. Owning WO:
     **WO-002**; binds **WO-006** and **WO-010**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B3) - implemented in WO-002")
+    cfg = _cfg()
+    for seed in TB3_SEEDS:
+        rows = [
+            r
+            for r in _report_rows(_episode(cfg, TRUTHFUL_AGENT, seed, implemented))
+            if r.t_period >= MEASUREMENT_WINDOW_START_PERIOD
+        ]
+        for r in rows:
+            assert float(r.fill) >= 1.0 - FILL_TOL, (seed, r.enterprise, r.fill)

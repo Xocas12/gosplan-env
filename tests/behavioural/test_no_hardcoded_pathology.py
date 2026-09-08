@@ -61,6 +61,7 @@ compute request inflation as a *statistic*, `corr(X_ij, 1 - fill_downstream)`, t
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 SKIP_REASON = (
@@ -112,8 +113,73 @@ HIST_RANGE: tuple[float, float] = (0.6, 1.4)
 at `rho_max` - are counted and displayed alongside a failure (CONTRACT rule 8), never dropped."""
 
 
+def _gate(*targets):
+    """Skip the calling test while any of `targets` is still a skeleton stub.
+
+    The module-level twin of the `implemented` fixture: a module-level helper cannot request a
+    fixture, so the check is repeated here rather than the helper being called before the gate,
+    which would raise `NotImplementedError` and FAIL the test instead of skipping it.
+    """
+    import inspect
+
+    pending = []
+    for target in targets:
+        try:
+            source = inspect.getsource(target)
+        except (OSError, TypeError):
+            continue
+        if "raise NotImplementedError" in source:
+            pending.append(getattr(target, "__qualname__", repr(target)))
+    if pending:
+        pytest.skip("awaiting implementation: " + ", ".join(pending))
+
+
+def _cfg(**sections):
+    """`p1_default_config()` with per-section overrides applied, validated."""
+    import dataclasses
+
+    from gosplan.config import p1_default_config
+
+    _gate(p1_default_config)
+    cfg = p1_default_config()
+    for section, changes in sections.items():
+        cfg = dataclasses.replace(
+            cfg, **{section: dataclasses.replace(getattr(cfg, section), **changes)}
+        )
+    cfg.validate()
+    return cfg
+
+
+def _episode(cfg, agent_name, seed_env):
+    """Drive one episode of `GosplanEnv` with a named heuristic; return the ledger records."""
+    from gosplan.agents import heuristic
+    from gosplan.env.env import GosplanEnv
+    from gosplan.metrics.ledger import Ledger
+
+    agent_cls = getattr(heuristic, agent_name)
+    _gate(GosplanEnv.reset, GosplanEnv.step, agent_cls.act, Ledger.append)
+
+    env = GosplanEnv(cfg)
+    ledger = Ledger()
+    env.attach_ledger(ledger)
+    obs, _info = env.reset(seed_env, cfg.tech.seed_policy)
+    policy = agent_cls(cfg)
+    rng = np.random.default_rng(cfg.tech.seed_policy)
+    m = cfg.incentive.steps_per_period
+    cap = cfg.tech.max_periods * (m + 1)
+    done, steps = False, 0
+    while not done and steps < cap:
+        obs, _r, done, _i = env.step(policy.act(obs, env.phase(), rng))
+        steps += 1
+    return ledger.records
+
+
+def _report_rows(records, first_period=0):
+    """REPORT-step rows from `first_period` onward - the measurement window of PLAN section 4.4."""
+    return [r for r in records if r.phase == "report" and r.t_period >= first_period]
+
+
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_truthful_report_equals_stock() -> None:
     """Clause 1: a truthful policy's claim equals its stock, to 1e-9.
 
@@ -132,11 +198,18 @@ def test_truthful_report_equals_stock() -> None:
     is exactly what CONTRACT rule 7 forbids. Owning WO: **WO-002**; binds **WO-007**
     (`process_reports`) and **WO-010**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B1) - implemented in WO-002")
+    cfg = _cfg(**TB1_CONFIG_OVERRIDES)
+    for seed in TB1_SEEDS[:5]:
+        for r in _report_rows(_episode(cfg, TB1_AGENT, seed), MEASUREMENT_WINDOW_START_PERIOD):
+            assert abs(float(r.report) - float(r.inv_output_post)) <= TRUTHFUL_TOL, (
+                seed,
+                r.enterprise,
+                r.report,
+                r.inv_output_post,
+            )
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_report_histogram_has_no_spike() -> None:
     """Clause 2: the truthful report histogram has no bin above 3x its neighbours' mean.
 
@@ -160,11 +233,24 @@ def test_report_histogram_has_no_spike() -> None:
     (PLAN section 2.8), so a truthful policy has nothing to bunch at: a spike means the environment
     manufactured one. Owning WO: **WO-002**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B1) - implemented in WO-002")
+    cfg = _cfg(**TB1_CONFIG_OVERRIDES)
+    ratios = []
+    for seed in TB1_SEEDS:
+        ratios += [
+            float(r.report_ratio)
+            for r in _report_rows(_episode(cfg, TB1_AGENT, seed), MEASUREMENT_WINDOW_START_PERIOD)
+        ]
+    lo, hi = HIST_RANGE
+    edges = np.arange(lo, hi + HIST_BIN_WIDTH, HIST_BIN_WIDTH)
+    counts, _ = np.histogram(np.asarray(ratios), bins=edges)
+    for k in range(1, len(counts) - 1):
+        neighbours = 0.5 * (float(counts[k - 1]) + float(counts[k + 1]))
+        if neighbours == 0.0:
+            continue
+        assert float(counts[k]) <= SPIKE_RATIO * neighbours, (k, counts[k], neighbours)
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_effort_gini_equals_yield_noise_implied_value() -> None:
     """Clause 3: within-period effort dispersion is exactly what the policy's own rule implies.
 
@@ -186,11 +272,19 @@ def test_effort_gini_equals_yield_noise_implied_value() -> None:
     and nothing is written to a report. The storming phenomenon itself is computed for the first
     time by `phenomenon_storming` in the Phase-2 acceptance run (WO-030). Owning WO: **WO-002**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B1) - implemented in WO-002")
+    cfg = _cfg(**TB1_CONFIG_OVERRIDES)
+    for seed in TB1_SEEDS[:5]:
+        records = _episode(cfg, TB1_AGENT, seed)
+        by_period: dict[tuple[int, int], list[float]] = {}
+        for r in records:
+            if r.phase != "produce" or r.t_period < MEASUREMENT_WINDOW_START_PERIOD:
+                continue
+            by_period.setdefault((r.t_period, r.enterprise), []).append(float(r.effort))
+        for key, efforts in by_period.items():
+            assert max(efforts) - min(efforts) <= TRUTHFUL_TOL, key
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_no_trade_occurs() -> None:
     """Clause 4: nothing trades, and no trade term reaches the reward.
 
@@ -206,11 +300,13 @@ def test_no_trade_occurs() -> None:
     HELD-OUT DISCIPLINE (PLAN section 4.1 row 6): this asserts absence; it does not *measure* trade
     volume as the blat statistic, which is `phenomenon_blat` in WO-030. Owning WO: **WO-002**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B1) - implemented in WO-002")
+    cfg = _cfg(**TB1_CONFIG_OVERRIDES)
+    for seed in TB1_SEEDS[:5]:
+        for r in _episode(cfg, TB1_AGENT, seed):
+            assert abs(float(r.trade_volume)) <= TRUTHFUL_TOL, (seed, r.enterprise)
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_requests_equal_need() -> None:
     """Clause 5: a truthful policy's input requests are exactly its need.
 
@@ -228,4 +324,9 @@ def test_requests_equal_need() -> None:
     inputs and downstream fill, belong to `phenomenon_hoarding` in the Phase-2 acceptance run
     (WO-030) and appear nowhere in this file. Owning WO: **WO-002**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B1) - implemented in WO-002")
+    cfg = _cfg(**TB1_CONFIG_OVERRIDES)
+    for seed in TB1_SEEDS[:5]:
+        for r in _report_rows(_episode(cfg, TB1_AGENT, seed), MEASUREMENT_WINDOW_START_PERIOD):
+            request = np.asarray(r.request, dtype=float)
+            need = np.asarray(r.need, dtype=float)
+            assert np.max(np.abs(request - need)) <= TRUTHFUL_TOL, (seed, r.enterprise)

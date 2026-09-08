@@ -35,6 +35,9 @@ test is the planner's target path, which is planner-side by construction.
 
 from __future__ import annotations
 
+import itertools
+
+import numpy as np
 import pytest
 
 SKIP_REASON = (
@@ -72,10 +75,82 @@ these are exact arithmetic identities on one multiplication per period, not traj
 between two implementations."""
 
 
+def _gate(*targets):
+    """Skip the calling test while any of `targets` is still a skeleton stub.
+
+    The module-level twin of the `implemented` fixture in `tests/conftest.py`. A module-level
+    helper cannot request a fixture, so the check is repeated here rather than the helper being
+    called before the gate - which would raise `NotImplementedError` and FAIL the test instead of
+    skipping it.
+    """
+    import inspect
+
+    pending = []
+    for target in targets:
+        try:
+            source = inspect.getsource(target)
+        except (OSError, TypeError):
+            continue
+        if "raise NotImplementedError" in source:
+            pending.append(getattr(target, "__qualname__", repr(target)))
+    if pending:
+        pytest.skip("awaiting implementation: " + ", ".join(pending))
+
+
+def _cfg(**sections):
+    """`p1_default_config()` with per-section overrides applied, validated."""
+    import dataclasses
+
+    from gosplan.config import p1_default_config
+
+    _gate(p1_default_config)
+    cfg = p1_default_config()
+    for section, changes in sections.items():
+        cfg = dataclasses.replace(
+            cfg, **{section: dataclasses.replace(getattr(cfg, section), **changes)}
+        )
+    cfg.validate()
+    return cfg
+
+
+def _episode(cfg, agent_name, seed_env, implemented, max_periods=None):
+    """Drive one episode of `GosplanEnv` with a named heuristic; return the ledger records.
+
+    Gated on the environment (WO-009), the heuristic agents (WO-010) and the ledger (WO-011), so a
+    behavioural module skips naming its missing dependency rather than failing.
+    """
+    from gosplan.agents import heuristic
+    from gosplan.config import p1_default_config
+    from gosplan.env.env import GosplanEnv
+    from gosplan.metrics.ledger import Ledger
+
+    agent_cls = getattr(heuristic, agent_name)
+    implemented(p1_default_config, GosplanEnv.reset, GosplanEnv.step, agent_cls.act, Ledger.append)
+
+    env = GosplanEnv(cfg)
+    ledger = Ledger()
+    env.attach_ledger(ledger)
+    obs, _info = env.reset(seed_env, cfg.tech.seed_policy)
+    policy = agent_cls(cfg)
+    rng = np.random.default_rng(cfg.tech.seed_policy)
+    m = cfg.incentive.steps_per_period
+    cap = (max_periods or cfg.tech.max_periods) * (m + 1)
+    done = False
+    steps = 0
+    while not done and steps < cap:
+        obs, _r, done, _i = env.step(policy.act(obs, env.phase(), rng))
+        steps += 1
+    return ledger.records
+
+
+def _report_rows(records):
+    """Only the REPORT-step rows, which is where period-level quantities are written."""
+    return [r for r in records if r.phase == "report"]
+
+
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
 @pytest.mark.parametrize("ratchet_lambda", RATCHET_LAMBDA_VALUES)
-def test_targets_constant_at_zero_growth(ratchet_lambda: float) -> None:
+def test_targets_constant_at_zero_growth(ratchet_lambda: float, implemented) -> None:
     """At `g = 0` a constant `rho = 1` report leaves every target exactly where it started.
 
     Roll out `TB2_AGENT` at `p1_default_config()` with `incentive.growth_directive = ZERO_GROWTH`
@@ -94,13 +169,24 @@ def test_targets_constant_at_zero_growth(ratchet_lambda: float) -> None:
     path must be identical for `lambda in RATCHET_LAMBDA_VALUES`. Owning WO: **WO-002**; binds
     **WO-006** (`update_targets`, T-U4's behavioural counterpart) and **WO-010**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B2) - implemented in WO-002")
+    cfg = _cfg(incentive=dict(growth_directive=ZERO_GROWTH, ratchet_lambda=ratchet_lambda))
+    floor = cfg.tech.target_floor_frac * cfg.tech.initial_target_frac
+    for seed in TB2_SEEDS:
+        rows = _report_rows(_episode(cfg, TB2_AGENT, seed, implemented))
+        by_ent: dict[int, list[float]] = {}
+        for r in rows:
+            by_ent.setdefault(r.enterprise, []).append(float(r.target))
+        for i, path in by_ent.items():
+            for a, b in itertools.pairwise(path):
+                assert abs(b - a) <= FIXED_POINT_TOL, (seed, i)
+            for t in path:
+                assert abs(t - path[0]) <= FIXED_POINT_TOL, (seed, i)
+                assert t > floor, (seed, i)
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
 @pytest.mark.parametrize("growth", POSITIVE_GROWTH_VALUES)
-def test_targets_grow_at_exactly_one_plus_g(growth: float) -> None:
+def test_targets_grow_at_exactly_one_plus_g(growth: float, implemented) -> None:
     """At `g > 0` the same report makes every target grow by exactly `(1 + g)` per period.
 
     Roll out `TB2_AGENT` at `p1_default_config()` with `incentive.growth_directive = growth`,
@@ -118,12 +204,19 @@ def test_targets_grow_at_exactly_one_plus_g(growth: float) -> None:
     point at `g = 0`, `g` must be a treatment variable rather than a constant, and this test is
     what pins its arithmetic. Owning WO: **WO-002**; binds **WO-006** and **WO-010**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B2) - implemented in WO-002")
+    cfg = _cfg(incentive=dict(growth_directive=growth))
+    for seed in TB2_SEEDS:
+        rows = _report_rows(_episode(cfg, TB2_AGENT, seed, implemented))
+        by_ent: dict[int, list[float]] = {}
+        for r in rows:
+            by_ent.setdefault(r.enterprise, []).append(float(r.target))
+        for i, path in by_ent.items():
+            for a, b in itertools.pairwise(path):
+                assert abs(b - a * (1.0 + growth)) <= FIXED_POINT_TOL * max(1.0, abs(a)), (seed, i)
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
-def test_target_path_is_independent_of_yield_draws() -> None:
+def test_target_path_is_independent_of_yield_draws(implemented) -> None:
     """The target path under `Padder` does not depend on the environment's draws at all.
 
     Roll out `TB2_AGENT` at `p1_default_config()` once per seed in `TB2_SEEDS`, at
@@ -139,4 +232,12 @@ def test_target_path_is_independent_of_yield_draws() -> None:
     which is a CONTRACT rule 5 failure as well as a T-B2 failure - `update_targets` takes a
     `PlannerView`. Owning WO: **WO-002**; binds **WO-006**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B2) - implemented in WO-002")
+    cfg = _cfg()
+    paths = []
+    for seed in TB2_SEEDS:
+        rows = _report_rows(_episode(cfg, TB2_AGENT, seed, implemented))
+        paths.append([float(r.target) for r in rows if r.enterprise == 0])
+    shortest = min(len(p) for p in paths)
+    for other in paths[1:]:
+        for a, b in zip(paths[0][:shortest], other[:shortest], strict=True):
+            assert abs(a - b) <= FIXED_POINT_TOL
