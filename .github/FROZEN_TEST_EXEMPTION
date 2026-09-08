@@ -14,3 +14,5 @@
 
 tests/conftest.py
 tests/unit/test_rng.py
+tests/unit/test_prices.py
+tests/unit/test_reward.py
