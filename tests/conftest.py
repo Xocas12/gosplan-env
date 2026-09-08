@@ -26,6 +26,8 @@ renegotiable at the moment they start to run.
 
 from __future__ import annotations
 
+import inspect
+
 import pytest
 
 SKELETON_MARKER = (
@@ -55,6 +57,57 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", SKELETON_MARKER)
 
 
+def _is_stub(target: object) -> bool:
+    """True when `target` is still a skeleton body that raises `NotImplementedError`.
+
+    Takes: any callable or class. Returns: `True` if its source contains a
+    `raise NotImplementedError`, `False` if it does not or if the source cannot be read.
+
+    Source inspection rather than a call: calling the target would need arguments the caller does
+    not have, and a stub that raised for a different reason would be indistinguishable.
+    """
+    try:
+        source = inspect.getsource(target)
+    except (OSError, TypeError):
+        return False
+    return "raise NotImplementedError" in source
+
+
+def _require_implemented(*targets: object) -> None:
+    """Skip the calling test while any of `targets` is still a skeleton stub.
+
+    THIS IS THE MECHANISM THAT KEEPS CONTRACT RULE 2 AND A GREEN CI COMPATIBLE, and it replaces the
+    hand-lifted `@pytest.mark.skip` markers the skeleton shipped with.
+
+    The problem it solves. A frozen test asserts the behaviour of an implementation that does not
+    exist yet, so it must not fail the build today; but rule 2 forbids an implementer from editing a
+    frozen test, which is exactly what "lift the skip when your card lands" would require. A
+    hand-lifted marker also means a card can be reported complete while its must-pass tests are
+    still skipping - the failure mode where a green completion command proves nothing.
+
+    With this helper the test carries its real assertion from the day it is written, skips itself
+    for a stated reason while its dependency is a stub, and STARTS RUNNING THE INSTANT the
+    implementing card lands - with no edit to any frozen file, by anyone.
+
+    Takes: the callables or classes the test's assertion depends on. Returns: `None`, or raises
+    `Skipped` naming every dependency that is still unimplemented.
+    """
+    pending = [t for t in targets if _is_stub(t)]
+    if pending:
+        names = ", ".join(getattr(t, "__qualname__", repr(t)) for t in pending)
+        pytest.skip(f"awaiting implementation: {names}")
+
+
+@pytest.fixture
+def implemented():
+    """Expose `_require_implemented` to a frozen test.
+
+    Takes: nothing. Returns: the `_require_implemented` callable. A test calls it with the symbols
+    its assertion exercises, as its first statement.
+    """
+    return _require_implemented
+
+
 @pytest.fixture
 def p1_cfg():
     """The Phase-1 configuration every frozen unit test runs at.
@@ -81,7 +134,12 @@ def p1_cfg():
     (`report_lag = 0`, `channel_noise = 0`, `aggregation_level = "enterprise"`) and of
     `test_obs.py` (`self_obs_noise = 0`). Owning WO: **WO-003** (`gosplan/config.py`).
     """
-    raise NotImplementedError("PLAN section 3 - implemented in WO-003")
+    from gosplan.config import p1_default_config
+
+    _require_implemented(p1_default_config)
+    cfg = p1_default_config()
+    cfg.validate()
+    return cfg
 
 
 @pytest.fixture
@@ -110,7 +168,26 @@ def tiny_cfg():
     Binds: `test_conservation.py`, `test_planner.py`, `test_production.py`, `test_env_api.py`.
     Owning WO: **WO-003** (`gosplan/config.py`), with the numeric case from **WO-002**.
     """
-    raise NotImplementedError("PLAN section 3 - implemented in WO-003")
+    import dataclasses
+
+    from gosplan.config import p1_default_config
+
+    _require_implemented(p1_default_config)
+    base = p1_default_config()
+    supply = dataclasses.replace(
+        base.supply,
+        n_enterprises=2,
+        n_sectors=2,
+        sector_of=(0, 1),
+        io_matrix=((0.0, 0.2), (0.2, 0.0)),
+        final_demand_share=(0.5, 0.5),
+        productivity=(1.0, 1.0),
+        yield_sigma=(0.05, 0.08),
+        ces_alpha=(0.5, 0.5),
+    )
+    cfg = dataclasses.replace(base, supply=supply)
+    cfg.validate()
+    return cfg
 
 
 @pytest.fixture
@@ -134,4 +211,4 @@ def rng_seed():
     `test_planner.py` (audit selection), `test_conservation.py` and `test_env_api.py`. Owning WO:
     **WO-004** (`gosplan/rng.py`).
     """
-    raise NotImplementedError("PLAN section 2.15 - implemented in WO-004")
+    return 0
