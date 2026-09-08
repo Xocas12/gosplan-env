@@ -18,3 +18,5 @@ tests/unit/test_prices.py
 tests/unit/test_reward.py
 tests/unit/test_config.py
 tests/unit/test_conservation.py
+tests/unit/test_production.py
+tests/unit/test_obs.py
