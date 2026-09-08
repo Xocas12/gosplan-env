@@ -89,3 +89,45 @@ the expected state of a skeleton (PLAN §11; `README.md`).
 
 **Approver.** LEAD. Not a frozen version: `spec/spec.py` stays provisional until WO-013 bumps it to
 `1.0.0` at gate G1.
+
+## 0.1.1 - 2026-09-07
+
+**Change.** Four under-determined points pinned, each raised as an ambiguity report against a card
+that could not be executed without the answer. No signature, field, default or range changed; every
+edit is to a docstring that is the specification of a behaviour not yet implemented.
+
+- **#51 - canonical JSON bytes for `EnvConfig.hash`.** The five semantic bullets (keys sorted,
+  floats by `repr`, `inf` as `"inf"`, tuples as arrays, sha256 lowercase hex) did not determine the
+  bytes, yet `ref/gen_golden.config_hash` re-derives the digest independently and
+  `tests/golden/test_golden_parity.py` asserts the two are equal. Pinned to
+  `json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)` over the nested
+  per-section object, no trailing newline, UTF-8. Recorded in `spec/spec.py`, `gosplan/config.py`
+  and `ref/gen_golden.py` so each side is pinned inside its own whitelist.
+- **#52 - the generator call for `bernoulli` and `categorical`.** These were pinned only in
+  `ref/ref_step.py`, which is not on WO-004's exhaustive whitelist, so the card was not executable
+  under CONTRACT rule 12. The exact calls now appear in `gosplan/rng.py`'s own docstring.
+  `gen.random(size=shape) < p` and `gen.binomial(1, p, shape)` agree in distribution but consume
+  the generator differently, so the substitution would have surfaced at WO-009 as an unexplained
+  golden-parity break.
+- **#53 - the `selfobs` key.** `gosplan/env/obs.py` put the enterprise index `i` in the key while
+  `gosplan/rng.py` states twice that the trailing index is vectorised through `shape`. Resolved in
+  favour of the convention: the key is `(seed_env, "selfobs", t, k)` with `shape=(N,)`. Phase 1
+  sets `self_obs_noise = 0.0`, so the two readings are numerically identical for all of Phase 1 and
+  the divergence would first have appeared in a Phase-2 information arm, after Phase-1 results were
+  already recorded.
+- **#54 - `BOUND_BINDING`.** Specified twice: as a monotone latch on a running fraction in
+  `Ledger.append`, and as a predicate on the finished ledger in `bound_binding`. These are not
+  equivalent - one at-bound report row followed by 99 clean ones latches the flag while the
+  predicate returns `False` - so a gate G2 hygiene outcome could turn on row order. Resolved to the
+  predicate: `append` maintains no flag, and `BOUND_BINDING` is evaluated once when the manifest is
+  written.
+
+**Affected work orders.** WO-002 (writes the frozen tests for all four), WO-003 (`hash`),
+WO-004 (`draw`), WO-008 (`build_observation`), WO-011 (ledger and manifest).
+
+**Golden files.** None yet; `ref/ref_step.py` is still a skeleton. All four decisions land before
+the first golden file is generated, which is the point of resolving them now.
+
+**Suite.** 93 passed, 233 skipped - unchanged. Every edit is to a docstring.
+
+**Approver.** LEAD. `spec/spec.py` remains provisional until WO-013 bumps it to `1.0.0` at gate G1.
