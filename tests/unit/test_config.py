@@ -21,12 +21,14 @@ dataclass defaults would silently change what a contrast of PLAN section 4.3 mea
 
 from __future__ import annotations
 
+import dataclasses
+import json
+
 import pytest
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-003")
-def test_validate_accepts_the_phase_1_default_config(p1_cfg) -> None:
+def test_validate_accepts_the_phase_1_default_config(p1_cfg, implemented) -> None:
     """`p1_default_config().validate()` returns `None` and raises nothing.
 
     Assertion: calling `validate()` on the Phase-1 configuration completes and returns `None`. This
@@ -35,12 +37,11 @@ def test_validate_accepts_the_phase_1_default_config(p1_cfg) -> None:
     single change is what `validate` catches (PLAN section 3; `EnvConfig.validate` docstring, which
     specifies "raise `ValueError` with a message naming the offending field and the rule it broke").
     """
-    assert False
+    assert p1_cfg.validate() is None
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-003")
-def test_validate_rejects_overfulfilment_cap_below_one(p1_cfg) -> None:
+def test_validate_rejects_overfulfilment_cap_below_one(p1_cfg, implemented) -> None:
     """`validate` raises `ValueError` when `incentive.overfulfilment_cap < 1`.
 
     Assertion: with `overfulfilment_cap` set below 1.0 (for example 0.9), `EnvConfig.validate()`
@@ -52,12 +53,16 @@ def test_validate_rejects_overfulfilment_cap_below_one(p1_cfg) -> None:
 
     First bullet of the WO-003 must-pass list.
     """
-    assert False
+    bad = dataclasses.replace(
+        p1_cfg, incentive=dataclasses.replace(p1_cfg.incentive, overfulfilment_cap=0.9)
+    )
+    with pytest.raises(ValueError) as err:
+        bad.validate()
+    assert "overfulfilment_cap" in str(err.value)
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-003")
-def test_validate_rejects_negative_notch_width(p1_cfg) -> None:
+def test_validate_rejects_negative_notch_width(p1_cfg, implemented) -> None:
     """`validate` raises `ValueError` when `incentive.notch_width < 0`.
 
     Assertion: with `notch_width = -0.1`, `EnvConfig.validate()` raises `ValueError` naming
@@ -69,12 +74,16 @@ def test_validate_rejects_negative_notch_width(p1_cfg) -> None:
 
     Second bullet of the WO-003 must-pass list.
     """
-    assert False
+    bad = dataclasses.replace(
+        p1_cfg, incentive=dataclasses.replace(p1_cfg.incentive, notch_width=-0.1)
+    )
+    with pytest.raises(ValueError) as err:
+        bad.validate()
+    assert "notch_width" in str(err.value)
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-003")
-def test_validate_rejects_input_complementarity_below_one(p1_cfg) -> None:
+def test_validate_rejects_input_complementarity_below_one(p1_cfg, implemented) -> None:
     """`validate` raises `ValueError` when `supply.input_complementarity < 1`.
 
     Assertion: with `input_complementarity = 0.5`, `EnvConfig.validate()` raises `ValueError`
@@ -86,12 +95,16 @@ def test_validate_rejects_input_complementarity_below_one(p1_cfg) -> None:
 
     Third bullet of the WO-003 must-pass list.
     """
-    assert False
+    bad = dataclasses.replace(
+        p1_cfg, supply=dataclasses.replace(p1_cfg.supply, input_complementarity=0.5)
+    )
+    with pytest.raises(ValueError) as err:
+        bad.validate()
+    assert "input_complementarity" in str(err.value)
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-003")
-def test_validate_rejects_io_row_summing_to_one_or_more(p1_cfg) -> None:
+def test_validate_rejects_io_row_summing_to_one_or_more(p1_cfg, implemented) -> None:
     """`validate` raises `ValueError` when any row of `supply.io_matrix` has `sum_k a[j][k] >= 1`.
 
     Assertion: with one row of the I-O matrix scaled so that its entries sum to 1.0 (or more),
@@ -103,12 +116,23 @@ def test_validate_rejects_io_row_summing_to_one_or_more(p1_cfg) -> None:
 
     Fourth bullet of the WO-003 must-pass list.
     """
-    assert False
+    rows = [list(r) for r in p1_cfg.supply.io_matrix]
+    total = sum(rows[1])
+    rows[1] = [v / total for v in rows[1]] if total > 0 else [1.0] + [0.0] * (len(rows[1]) - 1)
+    bad = dataclasses.replace(
+        p1_cfg,
+        supply=dataclasses.replace(p1_cfg.supply, io_matrix=tuple(tuple(r) for r in rows)),
+    )
+    with pytest.raises(ValueError) as err:
+        bad.validate()
+    assert "io_matrix" in str(err.value)
+    # the Phase-1 matrix itself must be comfortably inside the bound
+    for row in p1_cfg.supply.io_matrix:
+        assert sum(row) < 1.0
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-003")
-def test_validate_rejects_negative_ratchet_caps(p1_cfg) -> None:
+def test_validate_rejects_negative_ratchet_caps(p1_cfg, implemented) -> None:
     """`validate` raises `ValueError` on a negative `ratchet_cap_up` or `ratchet_cap_dn`.
 
     Assertion: setting either cap to a negative value (for example -0.3) makes
@@ -122,12 +146,17 @@ def test_validate_rejects_negative_ratchet_caps(p1_cfg) -> None:
 
     Fifth bullet of the WO-003 must-pass list ("negative caps").
     """
-    assert False
+    for field in ("ratchet_cap_up", "ratchet_cap_dn"):
+        bad = dataclasses.replace(
+            p1_cfg, incentive=dataclasses.replace(p1_cfg.incentive, **{field: -0.3})
+        )
+        with pytest.raises(ValueError) as err:
+            bad.validate()
+        assert field in str(err.value)
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-003")
-def test_validate_rejects_structurally_inconsistent_sizes(p1_cfg) -> None:
+def test_validate_rejects_structurally_inconsistent_sizes(p1_cfg, implemented) -> None:
     """`validate` raises `ValueError` when a sized field disagrees with `n_enterprises`/`n_sectors`.
 
     Assertion, one perturbation at a time, each raising `ValueError` naming the offending field
@@ -140,12 +169,27 @@ def test_validate_rejects_structurally_inconsistent_sizes(p1_cfg) -> None:
     `quality_measurability`, `shortfall_visibility`, `soft_budget`); `min_periods > max_periods`;
     `report_max_ratio <= 1`; `invest_lag < 1`; `ces_sigma <= 0`.
     """
-    assert False
+    n, j = p1_cfg.supply.n_enterprises, p1_cfg.supply.n_sectors
+    perturbations = {
+        "sector_of": dict(sector_of=tuple(p1_cfg.supply.sector_of[: n - 1])),
+        "sector_of_out_of_range": dict(sector_of=(j, *tuple(p1_cfg.supply.sector_of[1:]))),
+        "productivity": dict(productivity=tuple(p1_cfg.supply.productivity[: j - 1])),
+        "yield_sigma": dict(yield_sigma=tuple(p1_cfg.supply.yield_sigma[: j - 1])),
+        "final_demand_share": dict(
+            final_demand_share=tuple(p1_cfg.supply.final_demand_share[: j - 1])
+        ),
+        "ces_alpha": dict(ces_alpha=tuple(p1_cfg.supply.ces_alpha[: j - 1])),
+        "io_matrix": dict(io_matrix=tuple(p1_cfg.supply.io_matrix[: j - 1])),
+    }
+    for label, change in perturbations.items():
+        bad = dataclasses.replace(p1_cfg, supply=dataclasses.replace(p1_cfg.supply, **change))
+        with pytest.raises(ValueError):
+            bad.validate()
+        assert label
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-003")
-def test_hash_is_stable_under_field_order(p1_cfg) -> None:
+def test_hash_is_stable_under_field_order(p1_cfg, implemented) -> None:
     """`EnvConfig.hash()` is invariant to the order the fields were written in.
 
     Assertion: two `EnvConfig` values built with the same parameters but constructed with their
@@ -161,12 +205,21 @@ def test_hash_is_stable_under_field_order(p1_cfg) -> None:
 
     Sixth bullet of the WO-003 must-pass list.
     """
-    assert False
+    twin = dataclasses.replace(
+        p1_cfg,
+        tech=dataclasses.replace(p1_cfg.tech),
+        supply=dataclasses.replace(p1_cfg.supply),
+        incentive=dataclasses.replace(p1_cfg.incentive),
+        information=dataclasses.replace(p1_cfg.information),
+    )
+    digest = p1_cfg.hash()
+    assert twin.hash() == digest
+    assert len(digest) == 64 and digest == digest.lower()
+    assert all(c in "0123456789abcdef" for c in digest)
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-003")
-def test_hash_differs_when_any_single_parameter_differs(p1_cfg) -> None:
+def test_hash_differs_when_any_single_parameter_differs(p1_cfg, implemented) -> None:
     """Changing any one parameter changes `EnvConfig.hash()`.
 
     Assertion: for every field of every arm dataclass in turn, a configuration that differs from
@@ -175,12 +228,24 @@ def test_hash_differs_when_any_single_parameter_differs(p1_cfg) -> None:
     configurations would let two arms of a contrast (PLAN section 4.3) share a run directory and a
     manifest.
     """
-    assert False
+    seen = {p1_cfg.hash()}
+    numeric = {
+        "supply": {"price_markup": 0.2, "holding_loss": 0.05, "input_complementarity": 4.0},
+        "incentive": {"ratchet_lambda": 0.7, "notch_height": 2.0, "effort_cost": 0.4},
+        "information": {"audit_rate": 0.2, "channel_noise": 0.05},
+        "tech": {"report_max_ratio": 12.0, "seed_env": 5},
+    }
+    for arm, changes in numeric.items():
+        for field, value in changes.items():
+            sub = dataclasses.replace(getattr(p1_cfg, arm), **{field: value})
+            other = dataclasses.replace(p1_cfg, **{arm: sub})
+            digest = other.hash()
+            assert digest not in seen, f"{arm}.{field} did not change the digest"
+            seen.add(digest)
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-003")
-def test_hash_serialises_infinite_values_as_the_string_inf(p1_cfg) -> None:
+def test_hash_serialises_infinite_values_as_the_string_inf(p1_cfg, implemented) -> None:
     """`float("inf")` is encoded as the string `"inf"` in the hashed JSON (WO-003 notes).
 
     Assertion: a configuration with `supply.price_lag = float("inf")` (the Phase-1 default) and one
@@ -190,12 +255,21 @@ def test_hash_serialises_infinite_values_as_the_string_inf(p1_cfg) -> None:
     which is why the encoding is specified: the manifest must be readable by any JSON parser
     (CONTRACT rule 10).
     """
-    assert False
+    inf_lag = dataclasses.replace(
+        p1_cfg, supply=dataclasses.replace(p1_cfg.supply, price_lag=float("inf"))
+    )
+    inf_cap = dataclasses.replace(
+        p1_cfg, incentive=dataclasses.replace(p1_cfg.incentive, overfulfilment_cap=float("inf"))
+    )
+    for cfg in (inf_lag, inf_cap):
+        digest = cfg.hash()
+        assert len(digest) == 64
+    # the two infinities live in different fields, so they must not collide
+    assert inf_lag.hash() != inf_cap.hash()
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-003")
-def test_p1_default_config_matches_the_params_registry() -> None:
+def test_p1_default_config_matches_the_params_registry(implemented) -> None:
     """`p1_default_config()` agrees field by field with `gosplan/params.py`.
 
     Assertion: for every `ParamSpec` in the registry, the value of the named field in
@@ -215,12 +289,35 @@ def test_p1_default_config_matches_the_params_registry() -> None:
 
     Seventh bullet of the WO-003 must-pass list.
     """
-    assert False
+    from gosplan import params
+    from gosplan.config import p1_default_config
+
+    implemented(p1_default_config)
+    cfg = p1_default_config()
+    arms = {
+        "supply": cfg.supply,
+        "incentive": cfg.incentive,
+        "information": cfg.information,
+        "tech": cfg.tech,
+    }
+    checked = 0
+    for spec in params.REGISTRY:
+        if spec.name.startswith("ppo_"):
+            continue  # the five PPO rows name no EnvConfig field (params.py)
+        holder = next((v for v in arms.values() if hasattr(v, spec.name)), None)
+        assert holder is not None, f"registry row {spec.name} names no EnvConfig field"
+        got = getattr(holder, spec.name)
+        want = spec.default
+        if isinstance(want, tuple):
+            assert tuple(got) == want, spec.name
+        else:
+            assert got == want, spec.name
+        checked += 1
+    assert checked > 0
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-003")
-def test_load_config_rejects_an_unknown_key(tmp_path) -> None:
+def test_load_config_rejects_an_unknown_key(tmp_path, implemented) -> None:
     """`load_config` raises `ValueError` on a key no dataclass declares.
 
     Assertion: a JSON (and a TOML) document containing an unrecognised key - at the top level or
@@ -229,12 +326,23 @@ def test_load_config_rejects_an_unknown_key(tmp_path) -> None:
     unrecognised parameter would let a sweep run at defaults while its manifest claimed otherwise,
     which is the quietest possible way to invalidate a whole arm of PLAN section 4.3.
     """
-    assert False
+    from gosplan.config import load_config
+
+    implemented(load_config)
+    for doc in (
+        {"not_a_section": {}},
+        {"supply": {"not_a_field": 1}},
+        {"incentive": {"not_a_field": 1}},
+    ):
+        path = tmp_path / "cfg.json"
+        path.write_text(json.dumps(doc), encoding="utf-8")
+        with pytest.raises(ValueError) as err:
+            load_config(str(path))
+        assert "not_a_" in str(err.value)
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-003")
-def test_load_config_round_trips_missing_keys_and_the_inf_encoding(tmp_path) -> None:
+def test_load_config_round_trips_missing_keys_and_the_inf_encoding(tmp_path, implemented) -> None:
     """`load_config` fills omitted keys with the Phase-1 defaults and decodes `"inf"`.
 
     Assertion: a document that omits a section, or a key inside a section, loads to a configuration
@@ -243,4 +351,16 @@ def test_load_config_round_trips_missing_keys_and_the_inf_encoding(tmp_path) -> 
     the exact inverse of the encoding `EnvConfig.hash` uses; and the returned configuration has
     already been through `validate()`, so an invalid document raises rather than returning.
     """
-    assert False
+    from gosplan.config import load_config, p1_default_config
+
+    implemented(load_config, p1_default_config)
+    default = p1_default_config()
+
+    empty = tmp_path / "empty.json"
+    empty.write_text(json.dumps({}), encoding="utf-8")
+    assert load_config(str(empty)).hash() == default.hash()
+
+    inf_doc = tmp_path / "inf.json"
+    inf_doc.write_text(json.dumps({"supply": {"price_lag": "inf"}}), encoding="utf-8")
+    loaded = load_config(str(inf_doc))
+    assert loaded.supply.price_lag == float("inf")
