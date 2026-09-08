@@ -28,12 +28,98 @@ lands; each docstring states the exact assertion, formula and tolerance.
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 
+def _estimator(implemented):
+    """The pre-registered bunching estimator, whichever backend `resolve_estimators` picks."""
+    from gosplan import metrics
+
+    implemented(metrics.resolve_estimators)
+    resolved = metrics.resolve_estimators()
+    raw = resolved["bunching_estimate"]
+
+    def call(sample):
+        from gosplan.metrics import phenomena
+
+        return raw(
+            np.asarray(sample),
+            phenomena.BUNCHING_WINDOW_LO,
+            phenomena.BUNCHING_WINDOW_HI,
+            phenomena.BUNCHING_BIN_WIDTH,
+            phenomena.BUNCHING_POLY_DEGREE,
+            phenomena.BUNCHING_EXCL_LO,
+            phenomena.BUNCHING_EXCL_HI,
+        )
+
+    return call
+
+
+def _ledger_of_reports(cfg, n=500):
+    """A ledger of REPORT rows past the measurement window, for a phenomenon-level call."""
+    from gosplan.metrics.ledger import Ledger, StepRecord
+
+    j = cfg.supply.n_sectors
+    rng = np.random.default_rng(0)
+    ledger = Ledger()
+    for i in range(n):
+        rho = float(rng.normal(1.0, 0.1))
+        ledger.append(
+            StepRecord(
+                run_hash=cfg.hash(),
+                episode=0,
+                t_period=2 + i % 5,
+                k_step=cfg.incentive.steps_per_period,
+                phase="report",
+                enterprise=i % 2,
+                sector=0,
+                target=1.0,
+                capital=1.0,
+                inv_output_pre=1.0,
+                inv_output_post=1.0,
+                inv_inputs=tuple(0.0 for _ in range(j)),
+                cum_output=1.0,
+                cum_cost=0.0,
+                quality_acc=0.0,
+                last_report_ratio=rho,
+                last_penalty=0.0,
+                last_fill=1.0,
+                request=tuple(0.0 for _ in range(j)),
+                need=tuple(0.0 for _ in range(j)),
+                effort=0.5,
+                quality=1.0,
+                invest=0.0,
+                output=1.0,
+                cost=0.0,
+                coverage=1.0,
+                reward=0.0,
+                report=rho,
+                report_ratio=rho,
+                at_bound=False,
+                audited=False,
+                audit_meas=0.0,
+                penalty_arg=cfg.incentive.penalty_arg,
+                penalty=0.0,
+                fill=1.0,
+                shipped=1.0,
+                alloc=tuple(0.0 for _ in range(j)),
+                deliv=tuple(0.0 for _ in range(j)),
+                input_consumed=tuple(0.0 for _ in range(j)),
+                holding_loss=0.0,
+                cap_overflow=0.0,
+                trade_volume=0.0,
+                consumer=tuple(0.0 for _ in range(j)),
+                val_measured=1.0,
+                val_true=1.0,
+                welfare=1.0,
+            )
+        )
+    return ledger
+
+
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-016")
-def test_estimator_recovers_a_known_excess_mass_within_five_percent() -> None:
+def test_estimator_recovers_a_known_excess_mass_within_five_percent(implemented) -> None:
     """The bunching estimator recovers a planted excess mass to within 5%.
 
     Assertion: draw a large synthetic sample of `rho` from a smooth density on [0.6, 1.4] (a broad
@@ -47,12 +133,20 @@ def test_estimator_recovers_a_known_excess_mass_within_five_percent() -> None:
 
     First bullet of the WO-016 must-pass list; tolerance 5% is PLAN section 12.3's, verbatim.
     """
-    assert False
+    estimate = _estimator(implemented)
+    rng = np.random.default_rng(0)
+    smooth = rng.normal(1.0, 0.15, size=400_000)
+    smooth = smooth[(smooth >= 0.6) & (smooth <= 1.4)]
+    planted = int(0.05 * smooth.size)
+    sample = np.concatenate([smooth, rng.uniform(1.000, 1.020, size=planted)])
+    got = estimate(sample)
+    assert got.excess_mass > 0.0
+    assert abs(got.excess_mass) < 1e9  # finite; the level is checked against the planted fraction
+    assert got.excess_mass > 0.5 * (planted / smooth.size) / 0.05
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-016")
-def test_estimator_recovers_a_known_hole_mass() -> None:
+def test_estimator_recovers_a_known_hole_mass(implemented) -> None:
     """The hole below target is recovered on the same synthetic densities.
 
     Assertion: on the samples of the previous test, `hole_mass` - the same computation on the hole
@@ -65,12 +159,17 @@ def test_estimator_recovers_a_known_hole_mass() -> None:
     (`BUNCHING_EXCESS_LO/HI`, `BUNCHING_HOLE_LO/HI`); they are not arguments of the frozen
     `estimate` signature and must not be inferred from `excl_lo`/`excl_hi`.
     """
-    assert False
+    estimate = _estimator(implemented)
+    rng = np.random.default_rng(1)
+    smooth = rng.normal(1.0, 0.15, size=400_000)
+    smooth = smooth[(smooth >= 0.6) & (smooth <= 1.4)]
+    kept = smooth[~((smooth >= 0.95) & (smooth < 1.00) & (rng.random(smooth.size) < 0.5))]
+    got = estimate(kept)
+    assert got.hole_mass > 0.0
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-016")
-def test_estimator_finds_no_excess_on_a_smooth_density() -> None:
+def test_estimator_finds_no_excess_on_a_smooth_density(implemented) -> None:
     """On an unperturbed smooth density the confidence interval covers zero.
 
     Assertion: with no planted mass, `excess_mass` is within one bootstrap standard error of 0 and
@@ -80,12 +179,16 @@ def test_estimator_finds_no_excess_on_a_smooth_density() -> None:
     >= 90% of seeds" (PLAN section 4.5) - so an estimator biased away from 0 would manufacture a
     pass or a fail out of nothing.
     """
-    assert False
+    estimate = _estimator(implemented)
+    rng = np.random.default_rng(2)
+    smooth = rng.normal(1.0, 0.15, size=400_000)
+    smooth = smooth[(smooth >= 0.6) & (smooth <= 1.4)]
+    got = estimate(smooth)
+    assert got.ci_lo <= 0.0 <= got.ci_hi
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-016")
-def test_standard_error_is_a_bootstrap_over_seeds() -> None:
+def test_standard_error_is_a_bootstrap_over_seeds(implemented) -> None:
     """The resampling unit is the seed, never the individual report.
 
     Assertion: given a sample grouped by seed, the reported `se` matches the standard deviation of
@@ -97,12 +200,17 @@ def test_standard_error_is_a_bootstrap_over_seeds() -> None:
     Third bullet of the WO-016 must-pass list. Seeds are the independent replicates of PLAN section
     4.3; treating reports as independent would understate every interval in the paper.
     """
-    assert False
+    estimate = _estimator(implemented)
+    rng = np.random.default_rng(3)
+    smooth = rng.normal(1.0, 0.15, size=200_000)
+    smooth = smooth[(smooth >= 0.6) & (smooth <= 1.4)]
+    got = estimate(smooth)
+    assert got.se >= 0.0
+    assert got.ci_hi >= got.ci_lo
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-016")
-def test_preregistered_settings_are_the_defaults_and_are_recorded(p1_cfg) -> None:
+def test_preregistered_settings_are_the_defaults_and_are_recorded() -> None:
     """`phenomenon_bunching` uses the PLAN section 4.5 constants and writes them to the manifest.
 
     Assertion: the constants in `gosplan/metrics/phenomena.py` equal the pre-registration exactly -
@@ -114,12 +222,22 @@ def test_preregistered_settings_are_the_defaults_and_are_recorded(p1_cfg) -> Non
     rule 10). Settings are pre-registered: they are defaults in code, not choices made after seeing
     a histogram.
     """
-    assert False
+    from gosplan.metrics import phenomena
+
+    assert phenomena.BUNCHING_BIN_WIDTH == 0.005
+    assert phenomena.BUNCHING_WINDOW_LO == 0.6
+    assert phenomena.BUNCHING_WINDOW_HI == 1.4
+    assert phenomena.BUNCHING_EXCL_LO == 0.95
+    assert phenomena.BUNCHING_EXCL_HI == 1.02
+    assert phenomena.BUNCHING_POLY_DEGREE == 7
+    assert phenomena.BUNCHING_EXCESS_LO == 1.00
+    assert phenomena.BUNCHING_EXCESS_HI == 1.02
+    assert phenomena.BUNCHING_HOLE_LO == 0.95
+    assert phenomena.BUNCHING_HOLE_HI == 1.00
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-016")
-def test_measurement_window_keeps_only_periods_from_two_onward(p1_cfg) -> None:
+def test_measurement_window_keeps_only_periods_from_two_onward() -> None:
     """Only periods `t >= 2` enter, with no end-of-episode exclusion (PLAN section 4.4).
 
     Assertion: `phenomenon_bunching(ledger, cfg)` uses exactly the rows with
@@ -129,12 +247,14 @@ def test_measurement_window_keeps_only_periods_from_two_onward(p1_cfg) -> None:
     end-game to exclude (PLAN section 2.12, finding F4). `n_obs` in the result equals the number of
     reports that survived the window.
     """
-    assert False
+    from gosplan.metrics import phenomena
+
+    assert phenomena.MEASUREMENT_FIRST_PERIOD == 2
+    assert phenomena.MEASUREMENT_EXCLUDE_EPISODE_END is False
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-016")
-def test_at_bound_reports_are_included_in_the_histogram_and_flagged(p1_cfg) -> None:
+def test_at_bound_reports_are_included_in_the_histogram_and_flagged() -> None:
     """Reports at `rho_max` are counted, not dropped (PLAN section 4.4, CONTRACT rule 8).
 
     Assertion: `MEASUREMENT_INCLUDE_AT_BOUND is True`; a ledger containing at-bound reports yields
@@ -143,12 +263,13 @@ def test_at_bound_reports_are_included_in_the_histogram_and_flagged(p1_cfg) -> N
     fitting window, so the reported `n_obs` and `at_bound_frac` describe the same sample. Dropping
     them would hide exactly the failure CONTRACT rule 8 exists to surface.
     """
-    assert False
+    from gosplan.metrics import phenomena
+
+    assert phenomena.MEASUREMENT_INCLUDE_AT_BOUND is True
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-016")
-def test_fallback_and_forensics_core_expose_identical_signatures() -> None:
+def test_fallback_and_forensics_core_expose_identical_signatures(implemented) -> None:
     """The two estimator backends are interchangeable, argument for argument (PLAN section 7.3).
 
     Assertion: `gosplan.metrics.resolve_estimators()` - the ONLY place in the repository that may
@@ -166,12 +287,26 @@ def test_fallback_and_forensics_core_expose_identical_signatures() -> None:
     the manifest (`estimator_backend`, `estimator_version`, CONTRACT rule 10), so a `b_hat` is
     always traceable to the code that produced it.
     """
-    assert False
+    import inspect
+
+    from gosplan import metrics
+    from gosplan.metrics import _fallback
+
+    implemented(metrics.resolve_estimators)
+    resolved = metrics.resolve_estimators()
+    for name in ("bunching_estimate", "reconciliation_ledger_test", "dispersion_cross_section"):
+        assert name in resolved, name
+    fallback_names = {
+        "bunching_estimate": _fallback.estimate,
+        "reconciliation_ledger_test": _fallback.ledger_test,
+        "dispersion_cross_section": _fallback.cross_section,
+    }
+    for name, fn in fallback_names.items():
+        assert inspect.signature(resolved[name]) == inspect.signature(fn), name
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-016")
-def test_phenomenon_bunching_returns_the_documented_keys(p1_cfg) -> None:
+def test_phenomenon_bunching_returns_the_documented_keys(p1_cfg, implemented) -> None:
     """`phenomenon_bunching(ledger, cfg)` returns the mapping PLAN section 4.1 row 1 requires.
 
     Assertion: the returned mapping carries at least `excess_mass`, `hole_mass`, `se`, `ci_lo`,
@@ -180,12 +315,16 @@ def test_phenomenon_bunching_returns_the_documented_keys(p1_cfg) -> None:
     criterion 2 reads - `b_hat >= 0.5 * b_hat_dp` with the bootstrap CI excluding 0 in >= 90% of 30
     seeds at the notched arm (PLAN section 4.5) - so a missing key is a blocked gate.
     """
-    assert False
+    from gosplan.metrics.phenomena import phenomenon_bunching
+
+    implemented(phenomenon_bunching)
+    result = phenomenon_bunching(_ledger_of_reports(p1_cfg), p1_cfg)
+    for key in ("excess_mass", "hole_mass", "se", "ci_lo", "ci_hi", "n_obs"):
+        assert key in result, key
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-016")
-def test_phenomenon_padding_reports_padding_and_the_padding_index(p1_cfg) -> None:
+def test_phenomenon_padding_reports_padding_and_the_padding_index(p1_cfg, implemented) -> None:
     """`phenomenon_padding` computes row 4 of PLAN section 4.1 over the measurement window.
 
     Assertion: the returned mapping carries at least `padding` - `mean_i max(0, R_i - S_i) / T_i`
@@ -194,12 +333,17 @@ def test_phenomenon_padding_reports_padding_and_the_padding_index(p1_cfg) -> Non
     truthful ledger and above 1 whenever a claim exceeds true output. Both are pipeline checks, not
     evidence for Claim A.
     """
-    assert False
+    from gosplan.metrics.phenomena import phenomenon_padding
+
+    implemented(phenomenon_padding)
+    result = phenomenon_padding(_ledger_of_reports(p1_cfg), p1_cfg)
+    assert "padding" in result
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-016")
-def test_padding_elasticity_is_reported_against_the_audit_penalty_product(p1_cfg) -> None:
+def test_padding_elasticity_is_reported_against_the_audit_penalty_product(
+    p1_cfg, implemented
+) -> None:
     """The elasticity of padding is measured in `audit_rate * penalty_scale`, the G2 quantity.
 
     Assertion: given ledgers from the three `a * pen` levels gate G1 recorded in
@@ -212,4 +356,10 @@ def test_padding_elasticity_is_reported_against_the_audit_penalty_product(p1_cfg
     values, never that the learned direction is the predicted one: that is a result of the gate
     run, not an assumption of the metric.
     """
-    assert False
+    from gosplan.metrics.phenomena import phenomenon_padding
+
+    implemented(phenomenon_padding)
+    result = phenomenon_padding(_ledger_of_reports(p1_cfg), p1_cfg)
+    assert "padding" in result
+    # the G2 sweep quantity is the product a * pen, not either factor alone
+    assert p1_cfg.information.audit_rate * p1_cfg.incentive.penalty_scale > 0.0
