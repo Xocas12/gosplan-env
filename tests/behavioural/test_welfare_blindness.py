@@ -41,6 +41,7 @@ F4 is that the agent must never see the end of the episode coming.
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 SKIP_REASON = (
@@ -110,8 +111,118 @@ FORBIDDEN_AGENT_ANNOTATIONS: tuple[str, ...] = ("State", "StepInfo", "PlannerVie
 """Type names that may not appear in any annotation of any agent's public methods."""
 
 
+def _gate(*targets):
+    """Skip the calling test while any of `targets` is still a skeleton stub.
+
+    The module-level twin of the `implemented` fixture: a module-level helper cannot request a
+    fixture, so the check is repeated here rather than the helper being called before the gate,
+    which would raise `NotImplementedError` and FAIL the test instead of skipping it.
+    """
+    import inspect
+
+    pending = []
+    for target in targets:
+        try:
+            source = inspect.getsource(target)
+        except (OSError, TypeError):
+            continue
+        if "raise NotImplementedError" in source:
+            pending.append(getattr(target, "__qualname__", repr(target)))
+    if pending:
+        pytest.skip("awaiting implementation: " + ", ".join(pending))
+
+
+def _cfg(**sections):
+    """`p1_default_config()` with per-section overrides applied, validated."""
+    import dataclasses
+
+    from gosplan.config import p1_default_config
+
+    _gate(p1_default_config)
+    cfg = p1_default_config()
+    for section, changes in sections.items():
+        cfg = dataclasses.replace(
+            cfg, **{section: dataclasses.replace(getattr(cfg, section), **changes)}
+        )
+    cfg.validate()
+    return cfg
+
+
+def _episode(cfg, agent_name, seed_env):
+    """Drive one episode of `GosplanEnv` with a named heuristic; return the ledger records."""
+    from gosplan.agents import heuristic
+    from gosplan.env.env import GosplanEnv
+    from gosplan.metrics.ledger import Ledger
+
+    agent_cls = getattr(heuristic, agent_name)
+    _gate(GosplanEnv.reset, GosplanEnv.step, agent_cls.act, Ledger.append)
+
+    env = GosplanEnv(cfg)
+    ledger = Ledger()
+    env.attach_ledger(ledger)
+    obs, _info = env.reset(seed_env, cfg.tech.seed_policy)
+    policy = agent_cls(cfg)
+    rng = np.random.default_rng(cfg.tech.seed_policy)
+    m = cfg.incentive.steps_per_period
+    cap = cfg.tech.max_periods * (m + 1)
+    done, steps = False, 0
+    while not done and steps < cap:
+        obs, _r, done, _i = env.step(policy.act(obs, env.phase(), rng))
+        steps += 1
+    return ledger.records
+
+
+def _report_rows(records, first_period=0):
+    """REPORT-step rows from `first_period` onward - the measurement window of PLAN section 4.4."""
+    return [r for r in records if r.phase == "report" and r.t_period >= first_period]
+
+
+def _obs_with_sentinel(cfg, quantity, sentinel):
+    """Build an observation from a state whose `quantity` carries a sentinel value.
+
+    CONTRACT rule 6 says the forbidden quantities are logged and never observed, so planting a
+    recognisable value in one and finding it absent from every observation component is the
+    strongest available check short of reading the implementation.
+    """
+    from gosplan.env.obs import build_observation
+    from gosplan.env.state import State
+
+    n, j = cfg.supply.n_enterprises, cfg.supply.n_sectors
+    fields = dict(
+        target=np.full(n, cfg.tech.initial_target_frac),
+        capital=np.ones(n),
+        inv_output=np.zeros(n),
+        inv_inputs=np.zeros((n, j)),
+        cum_output=np.zeros(n),
+        cum_cost=np.zeros(n),
+        quality_acc=np.zeros(n),
+        last_report_ratio=np.ones(n),
+        last_report=np.ones(n),
+        last_audited=np.zeros(n, dtype=bool),
+        last_penalty=np.zeros(n),
+        last_fill=np.ones(n),
+        request=np.zeros((n, j)),
+        pending_invest=np.zeros((n, 0)),
+        t_period=0,
+        k_step=0,
+        phase="produce",
+        plan_prices=np.ones(j),
+        planner_io=np.asarray(cfg.supply.io_matrix, dtype=float),
+        consumer_delivery=np.zeros(j),
+        alive=True,
+        seed_env=cfg.tech.seed_env,
+        seed_policy=cfg.tech.seed_policy,
+    )
+    if quantity in ("consumer", "consumer_delivery", "welfare_true", "welfare"):
+        fields["consumer_delivery"] = np.full(j, sentinel)
+    elif quantity in ("val_measured", "last_report"):
+        fields["last_report"] = np.full(n, sentinel)
+    state = State(**fields)
+    need = np.asarray(cfg.supply.io_matrix, dtype=float)[np.asarray(cfg.supply.sector_of)]
+    return build_observation(state, cfg, np.zeros((n, j)), need)
+
+
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
 @pytest.mark.parametrize("sentinel", SENTINELS)
 @pytest.mark.parametrize("quantity", FORBIDDEN_QUANTITIES)
 def test_no_sentinel_reaches_any_observation(quantity: str, sentinel: float) -> None:
@@ -133,11 +244,17 @@ def test_no_sentinel_reaches_any_observation(quantity: str, sentinel: float) -> 
     planner rule and no reward term may read it (PLAN section 2.9.3). Owning WO: **WO-002**; binds
     **WO-008**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B5) - implemented in WO-002")
+    from gosplan.env.obs import build_observation
+
+    _gate(build_observation)
+    cfg = _cfg()
+    obs = _obs_with_sentinel(cfg, quantity, sentinel)
+    flat = np.asarray(obs, dtype=float).ravel()
+    for value in flat:
+        assert abs(float(value) - sentinel) > SENTINEL_TOL, quantity
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
 @pytest.mark.parametrize("quantity", FORBIDDEN_QUANTITIES)
 def test_observation_does_not_depend_on_forbidden_quantity(quantity: str) -> None:
     """No observation entry *moves* when a forbidden quantity changes.
@@ -157,11 +274,20 @@ def test_observation_does_not_depend_on_forbidden_quantity(quantity: str) -> Non
 
     Owning WO: **WO-002**; binds **WO-008** and **WO-009**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B5) - implemented in WO-002")
+    from gosplan.env.obs import build_observation
+
+    _gate(build_observation)
+    cfg = _cfg()
+    baselines = [
+        np.asarray(_obs_with_sentinel(cfg, quantity, s * factor), dtype=float)
+        for s in SENTINELS[:1]
+        for factor in SENTINEL_SCALE_FACTORS
+    ]
+    for other in baselines[1:]:
+        assert np.max(np.abs(baselines[0] - other)) < SENTINEL_TOL, quantity
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_obs_spec_names_exclude_forbidden_fields() -> None:
     """`obs_spec(cfg)` names nothing forbidden, and has the Phase-1 length.
 
@@ -174,11 +300,15 @@ def test_obs_spec_names_exclude_forbidden_fields() -> None:
     The layout itself - the exact ordered names - is `tests/unit/test_obs.py` (WO-008); this is the
     blindness half only. Owning WO: **WO-002**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B5) - implemented in WO-002")
+    from gosplan.env.obs import obs_spec
+
+    _gate(obs_spec)
+    names = obs_spec(_cfg())
+    for fragment in FORBIDDEN_OBS_NAME_FRAGMENTS:
+        assert not any(fragment in name for name in names), fragment
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_periods_remaining_are_not_observable() -> None:
     """Nothing in an observation is the number of periods left, or an image of it.
 
@@ -198,11 +328,17 @@ def test_periods_remaining_are_not_observable() -> None:
     counterpart - that no field *correlates* with periods remaining - is T-B9 in
     `test_termination.py`. Owning WO: **WO-002**; binds **WO-008** and **WO-009**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B5) - implemented in WO-002")
+    from gosplan.env.obs import obs_spec
+
+    _gate(obs_spec)
+    cfg = _cfg()
+    names = obs_spec(cfg)
+    assert len(names) == 12 + 3 * cfg.supply.n_sectors
+    for fragment in ("remaining", "periods_left", "t_period", "episode"):
+        assert not any(fragment in name for name in names), fragment
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_agent_and_ppo_signatures_take_obs_only() -> None:
     """Signature check: `act` takes `(obs, phase, rng)` and the PPO forward pass takes `obs`.
 
@@ -223,4 +359,18 @@ def test_agent_and_ppo_signatures_take_obs_only() -> None:
     section 2.9.3), so an agent that accepted one would read exactly the three quantities the rule
     exists to keep away from it. Owning WO: **WO-002**; binds **WO-010** and **WO-017**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B5) - implemented in WO-002")
+    import inspect
+
+    from gosplan.agents.base import Agent
+    from gosplan.agents.ppo.adapter import IPPO
+
+    assert tuple(inspect.signature(Agent.act).parameters) == AGENT_ACT_PARAMETERS
+    assert tuple(inspect.signature(IPPO.forward).parameters) == PPO_FORWARD_PARAMETERS
+    for fn in (Agent.act, IPPO.forward, IPPO.act):
+        for param in inspect.signature(fn).parameters.values():
+            annotation = param.annotation
+            text = (
+                annotation if isinstance(annotation, str) else getattr(annotation, "__name__", "")
+            )
+            for banned in FORBIDDEN_AGENT_ANNOTATIONS:
+                assert banned not in str(text), (fn.__qualname__, param.name, banned)

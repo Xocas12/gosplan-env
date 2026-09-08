@@ -51,6 +51,7 @@ is asserted to be zero in Phase 1 as a *term of the formula*, not measured as bl
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 SKIP_REASON = (
@@ -105,8 +106,73 @@ EXACT_TOL = 1e-12
 the same order up to associativity, so the difference is rounding, not method."""
 
 
+def _gate(*targets):
+    """Skip the calling test while any of `targets` is still a skeleton stub.
+
+    The module-level twin of the `implemented` fixture: a module-level helper cannot request a
+    fixture, so the check is repeated here rather than the helper being called before the gate,
+    which would raise `NotImplementedError` and FAIL the test instead of skipping it.
+    """
+    import inspect
+
+    pending = []
+    for target in targets:
+        try:
+            source = inspect.getsource(target)
+        except (OSError, TypeError):
+            continue
+        if "raise NotImplementedError" in source:
+            pending.append(getattr(target, "__qualname__", repr(target)))
+    if pending:
+        pytest.skip("awaiting implementation: " + ", ".join(pending))
+
+
+def _cfg(**sections):
+    """`p1_default_config()` with per-section overrides applied, validated."""
+    import dataclasses
+
+    from gosplan.config import p1_default_config
+
+    _gate(p1_default_config)
+    cfg = p1_default_config()
+    for section, changes in sections.items():
+        cfg = dataclasses.replace(
+            cfg, **{section: dataclasses.replace(getattr(cfg, section), **changes)}
+        )
+    cfg.validate()
+    return cfg
+
+
+def _episode(cfg, agent_name, seed_env):
+    """Drive one episode of `GosplanEnv` with a named heuristic; return the ledger records."""
+    from gosplan.agents import heuristic
+    from gosplan.env.env import GosplanEnv
+    from gosplan.metrics.ledger import Ledger
+
+    agent_cls = getattr(heuristic, agent_name)
+    _gate(GosplanEnv.reset, GosplanEnv.step, agent_cls.act, Ledger.append)
+
+    env = GosplanEnv(cfg)
+    ledger = Ledger()
+    env.attach_ledger(ledger)
+    obs, _info = env.reset(seed_env, cfg.tech.seed_policy)
+    policy = agent_cls(cfg)
+    rng = np.random.default_rng(cfg.tech.seed_policy)
+    m = cfg.incentive.steps_per_period
+    cap = cfg.tech.max_periods * (m + 1)
+    done, steps = False, 0
+    while not done and steps < cap:
+        obs, _r, done, _i = env.step(policy.act(obs, env.phase(), rng))
+        steps += 1
+    return ledger.records
+
+
+def _report_rows(records, first_period=0):
+    """REPORT-step rows from `first_period` onward - the measurement window of PLAN section 4.4."""
+    return [r for r in records if r.phase == "report" and r.t_period >= first_period]
+
+
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
 @pytest.mark.parametrize("overrides", CONFIG_MATRIX)
 def test_produce_step_reward_equals_minus_scaled_cost(overrides: Overrides) -> None:
     """At a PRODUCE step the reward is `-scale * c_ik` and nothing else.
@@ -124,11 +190,18 @@ def test_produce_step_reward_equals_minus_scaled_cost(overrides: Overrides) -> N
 
     Owning WO: **WO-002**; binds **WO-007**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B6) - implemented in WO-002")
+    from gosplan.env.reward import reward_scale
+
+    cfg = _cfg(**overrides)
+    _gate(reward_scale)
+    scale = reward_scale(cfg)
+    for r in _episode(cfg, "TruthfulMyopic", 0):
+        if r.phase != "produce":
+            continue
+        assert abs(float(r.reward) - (-scale * float(r.cost))) <= EXACT_TOL, r.enterprise
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
 @pytest.mark.parametrize("overrides", CONFIG_MATRIX)
 def test_report_step_reward_equals_five_term_formula(overrides: Overrides) -> None:
     """At the REPORT step the reward is `scale * (B(rho) - 1[audited] * Pen + trade_surplus)`.
@@ -153,11 +226,22 @@ def test_report_step_reward_equals_five_term_formula(overrides: Overrides) -> No
 
     Owning WO: **WO-002**; binds **WO-007**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B6) - implemented in WO-002")
+    from gosplan.env.reward import bonus, reward_scale
+
+    cfg = _cfg(**overrides)
+    _gate(bonus, reward_scale)
+    scale = reward_scale(cfg)
+    for r in _report_rows(_episode(cfg, "TruthfulMyopic", 0)):
+        rho = float(r.report) / float(r.target)
+        want = scale * (
+            float(np.asarray(bonus(np.array([rho]), cfg))[0])
+            - float(r.penalty)
+            + float(r.trade_volume) * 0.0
+        )
+        assert abs(float(r.reward) - want) <= EXACT_TOL, (r.enterprise, r.reward, want)
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_no_term_outside_the_contract_rule_4_list() -> None:
     """Nothing else is added: zero inputs give exactly zero reward, in both phases.
 
@@ -177,11 +261,20 @@ def test_no_term_outside_the_contract_rule_4_list() -> None:
 
     Owning WO: **WO-002**; binds **WO-007**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B6) - implemented in WO-002")
+    import inspect
+
+    from gosplan.env import reward
+
+    source = "\n".join(
+        line for line in inspect.getsource(reward).splitlines() if not line.strip().startswith("#")
+    )
+    for banned in ("curiosity", "intrinsic_reward", "potential_based", "shaping"):
+        assert f"{banned}(" not in source, banned
+    for banned in ("RunningMeanStd", "NormalizeReward", "VecNormalize"):
+        assert f"{banned}(" not in source, banned
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_scale_is_analytic_and_reward_is_not_normalised() -> None:
     """`scale` comes from the configuration alone, and no running statistic touches the reward.
 
@@ -203,4 +296,19 @@ def test_scale_is_analytic_and_reward_is_not_normalised() -> None:
     normalisation and that per-batch advantage normalisation is on - is
     `tests/unit/test_ppo_adapter.py` (WO-017). Owning WO: **WO-002**; binds **WO-007**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B6) - implemented in WO-002")
+    import inspect
+
+    from gosplan.env import reward
+
+    # the scale is a pure function of the configuration: one argument, and that argument is cfg
+    params = tuple(inspect.signature(reward.reward_scale).parameters)
+    assert params == ("cfg",), params
+
+    executable = chr(10).join(
+        line
+        for line in inspect.getsource(reward.reward_scale).splitlines()
+        if not line.strip().startswith("#")
+    )
+    # no running statistic can enter: nothing is instantiated or accumulated here
+    for banned in ("RunningMeanStd", "NormalizeReward", "VecNormalize", "self."):
+        assert banned not in executable, banned

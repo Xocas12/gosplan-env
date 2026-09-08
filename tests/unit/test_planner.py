@@ -41,7 +41,7 @@ def _view(cfg, *, claims=None, targets=None, requests=None, audited=None, audit_
     RULES that consume a view should not have to construct a State to reach them. Fields follow
     PLAN section 2.4.
     """
-    from gosplan.env.state import PlannerView
+    from gosplan.env.planner import PlannerView
 
     n, j = cfg.supply.n_enterprises, cfg.supply.n_sectors
     t = np.full(n, cfg.tech.initial_target_frac) if targets is None else np.asarray(targets, float)

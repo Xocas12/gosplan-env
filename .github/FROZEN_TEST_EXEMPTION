@@ -28,3 +28,11 @@ tests/unit/test_mc_sanity_runs.py
 tests/unit/test_dp.py
 tests/unit/test_phenomena_p1.py
 tests/unit/test_ppo_adapter.py
+tests/behavioural/test_fixed_point.py
+tests/behavioural/test_shortage_propagation.py
+tests/behavioural/test_bound_flag.py
+tests/behavioural/test_planner_blindness.py
+tests/behavioural/test_no_hardcoded_pathology.py
+tests/behavioural/test_reward_formula.py
+tests/behavioural/test_termination.py
+tests/behavioural/test_welfare_blindness.py
