@@ -570,7 +570,7 @@ def ref_initial_state(cfg: Config, seed_env: int, seed_policy: int) -> RefState:
         target            T_0_i = cfg["tech"]["initial_target_frac"] * A_{s(i)} * cap_i
         capital           cap_i = 1.0 for all i (Phase 1, PLAN section 2.1)
         inv_output        0.0
-        inv_inputs        0.0
+        inv_inputs        X_ij = a_{s(i)j} * T_0_i        # one period's input need at target
         cum_output        0.0
         cum_cost          0.0
         quality_acc       0.0
@@ -588,6 +588,16 @@ def ref_initial_state(cfg: Config, seed_env: int, seed_policy: int) -> RefState:
         planner_io        cfg["supply"]["io_matrix"]     # planner starts with the true `a`
         consumer_delivery 0.0
         alive             True
+
+    THE OPENING INPUT ENDOWMENT (ambiguity #62, spec/CHANGELOG.md 0.1.4). `inv_inputs` opens at one
+    period's input need at the initial target, `X_ij = a_{s(i)j} * T_0_i`, and NOT at zero. With
+    zero input stocks the Phase-1 economy has a fixed point at zero and can never start: every
+    sector needs inputs, so coverage is 0, so output is 0, so nothing is claimed, so `avail_j` is 0,
+    so nothing is delivered, so `X` is still 0 next period. The endowment is derived from parameters
+    that already exist rather than from a new constant, it is the smallest quantity that lets a
+    truthful enterprise reach its opening target, and it leaves the CES complementarity of PLAN
+    section 2.6 untouched - a coverage floor would have weakened exactly the mechanism that makes
+    shortage propagate.
 
     `A_j` is `cfg["supply"]["productivity"]`, and `s(i)` is `cfg["supply"]["sector_of"][i]`. The
     initial targets are also the anchor for two later quantities: the target floor
@@ -612,7 +622,7 @@ def ref_initial_state(cfg: Config, seed_env: int, seed_policy: int) -> RefState:
         target=targets,
         capital=capital,
         inv_output=[0.0 for _ in range(n)],
-        inv_inputs=[[0.0 for _ in range(n_goods)] for _ in range(n)],
+        inv_inputs=[[v * targets[i] for v in _io_row(cfg, _sector_of(cfg, i))] for i in range(n)],
         cum_output=[0.0 for _ in range(n)],
         cum_cost=[0.0 for _ in range(n)],
         quality_acc=[0.0 for _ in range(n)],

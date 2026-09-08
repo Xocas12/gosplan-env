@@ -365,9 +365,11 @@ quantity in sections 2-5, at full double precision. Spot values, re-derivation v
 **Defects found by this exercise, both filed rather than papered over:**
 
 - **#64** - the T-U1 conservation identity does not balance. Found here, fixed here.
-- **#62** - the Phase-1 economy is deadlocked at zero from a cold start. Found in step 2 and
-  **still open**: it blocks golden generation, because a golden file recorded from a deadlocked
-  economy would balance trivially and the implementation would match it perfectly.
+- **#62** - the Phase-1 economy is deadlocked at zero from a cold start. Found in step 2, and
+  **resolved** (`spec/CHANGELOG.md` 0.1.4): reset now endows one period's input need at target,
+  `X_ij = a_{s(i)j} * T_0_i`. A 30-step rollout that reported `val_true = 0.000000` in every period
+  now reports 1.698735 in period 0. This worked example is unaffected - it sets its opening stocks
+  by hand and never went through `reset`.
 
 **Status.** The reference is validated for the dynamics exercised above. It is **not** yet validated
 for: `report_lag > 0`, `aggregation_level = "sector"`, `channel_noise > 0`, `self_obs_noise > 0`,

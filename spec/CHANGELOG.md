@@ -210,3 +210,43 @@ production step function must satisfy the same identity).
 **Suite.** 93 passed, 233 skipped - unchanged.
 
 **Approver.** LEAD. `spec/spec.py` remains provisional until WO-013 bumps it to `1.0.0` at gate G1.
+
+## 0.1.4 - 2026-09-07
+
+**Change.** Three open ambiguity reports resolved by the human at the gate they were raised for.
+One is a behavioural change to the reference dynamics; two are ownership and naming decisions.
+
+- **#62 (AMB-008) - the Phase-1 economy had no cold start.** With `inv_inputs = 0` at reset and
+  every Phase-1 sector requiring inputs, the dynamics had a fixed point at zero: zero coverage gives
+  zero output, which gives nothing to claim, which gives `avail_j = 0`, which leaves `X` at zero
+  next period. Resolved by endowing one period's input need at the initial target,
+
+      X_ij = a_{s(i)j} * T_0_i
+
+  at reset. Chosen over an exogenous first delivery (same effect, fix in the schedule rather than
+  the state) and over a coverage floor `H_min > 0`, which was rejected because it would weaken the
+  CES complementarity of PLAN section 2.6 - the mechanism behind held-out phenomenon 5. The
+  endowment is derived from parameters that already exist rather than a new constant, and it is the
+  smallest quantity that lets a truthful enterprise reach its opening target.
+
+  Verified: a 30-step rollout that previously reported `val_true = 0.000000` in every period now
+  reports 1.698735 in period 0.
+
+- **#48 (AMB-001) - `tests/acceptance/` was authored by no work order.** PLAN section 11 assigns the
+  Acceptance category to LEAD but section 12 issued no card, so CONTRACT rule 12's invariant that
+  every file has an owning card did not hold. The five gate harnesses and their README are added to
+  **WO-013**'s Write-only list: that card is LEAD and already re-runs the full suite at the freeze.
+  Rule 13 is untouched - the directory stays out of `testpaths` and off every must-pass list.
+
+- **#49 (AMB-002) - module names for the P2 and P3 harnesses.** `gosplan/experiments/`
+  `phase2_acceptance.py` (WO-031) and `report.py` (WO-037) are confirmed now rather than deferred to
+  the P2 spec revision. PLAN section 8's tree omitted both; these are additions to it. A later
+  rename costs one card edit, so deferring bought nothing.
+
+**Affected work orders.** WO-002 (reference dynamics, and the golden matrix this unblocks),
+WO-009 (`reset` must build the same opening state), WO-013 (gains `tests/acceptance/`),
+WO-031 and WO-037 (names fixed).
+
+**Golden files.** Still none - but #62 was the blocker, so WO-002 step 5 can now proceed.
+
+**Approver.** Human, 2026-09-07, on the four decisions put to them at this point in the build.
