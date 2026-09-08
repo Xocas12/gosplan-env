@@ -40,8 +40,10 @@ into agreement by sharing code.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 GOLDEN_DIR = Path(__file__).resolve().parent
@@ -116,8 +118,109 @@ SKIP_REASON = (
 independent of `NO_GOLDEN_REASON`, which is about the *inputs* being absent."""
 
 
+def _gate(*targets):
+    """Skip while any of `targets` is still a skeleton stub (the module-level gate)."""
+    import inspect
+
+    pending = []
+    for target in targets:
+        try:
+            source = inspect.getsource(target)
+        except (OSError, TypeError):
+            continue
+        if "raise NotImplementedError" in source:
+            pending.append(getattr(target, "__qualname__", repr(target)))
+    if pending:
+        pytest.skip("awaiting implementation: " + ", ".join(pending))
+
+
+def _document(path):
+    """Load a golden document, skipping the test when the matrix has not been generated."""
+    if path is None:
+        pytest.skip(NO_GOLDEN_REASON)
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _decode_inf(value):
+    """Undo the `float("inf") -> "inf"` encoding `EnvConfig.hash` applies (spec/CHANGELOG 0.1.1)."""
+    if isinstance(value, str) and value == "inf":
+        return float("inf")
+    if isinstance(value, dict):
+        return {k: _decode_inf(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_decode_inf(v) for v in value]
+    return value
+
+
+def _rebuild_config(document):
+    """Rebuild an `EnvConfig` from the document's own configuration, via `load_config`."""
+    import tempfile
+
+    from gosplan.config import load_config
+
+    _gate(load_config)
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "cfg.json"
+        path.write_text(json.dumps(document["config"]), encoding="utf-8")
+        return load_config(str(path))
+
+
+def _render_state(state):
+    """The canonical rendering `ref_state_digest` hashes, rebuilt from a production `State`.
+
+    Specified in that function's docstring precisely so this test can reproduce it without
+    importing `ref/`: field name, "=", value, ";" in declaration order; floats as `repr(float(x))`,
+    ints as `repr(int(x))`, bools as "true"/"false", strings verbatim, lists row-major inside
+    brackets; UTF-8 before hashing.
+    """
+    import dataclasses
+    import hashlib
+
+    import numpy as _np
+
+    def render(value):
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        if isinstance(value, (int, _np.integer)):
+            return repr(int(value))
+        if isinstance(value, (float, _np.floating)):
+            return repr(float(value))
+        if isinstance(value, str):
+            return value
+        arr = _np.asarray(value)
+        if arr.ndim == 0:
+            return render(arr.item())
+        return "[" + ",".join(render(v) for v in arr) + "]"
+
+    parts = [f"{f.name}={render(getattr(state, f.name))};" for f in dataclasses.fields(state)]
+    return hashlib.sha256("".join(parts).encode("utf-8")).hexdigest()
+
+
+def _replay(document):
+    """Replay one golden cell through `GosplanEnv`, returning the per-step observations.
+
+    Gated on the environment and the named production agent, so the whole module skips naming its
+    missing dependency until WO-009 and WO-010 land.
+    """
+    from gosplan.agents import heuristic
+    from gosplan.env.env import GosplanEnv
+
+    cfg = _rebuild_config(document)
+    agent_cls = getattr(heuristic, document["agent"])
+    _gate(GosplanEnv.reset, GosplanEnv.step, agent_cls.act)
+
+    env = GosplanEnv(cfg)
+    obs, info = env.reset(int(document["seed_env"]), int(document["seed_policy"]))
+    policy = agent_cls(cfg)
+    rng = np.random.default_rng(int(document["seed_policy"]))
+    out = []
+    for _ in range(int(document["n_steps"])):
+        obs, reward, done, info = env.step(policy.act(obs, env.phase(), rng))
+        out.append((np.asarray(obs), np.asarray(reward), bool(done), env.state, info))
+    return out
+
+
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_golden_matrix_is_complete() -> None:
     """The generated set is the pre-registered matrix: `GOLDEN_MATRIX_SIZE` documents, no more.
 
@@ -131,11 +234,16 @@ def test_golden_matrix_is_complete() -> None:
     stops a `--config`-filtered regeneration from quietly reducing the suite's coverage. Owning WO:
     **WO-002**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B7) - implemented in WO-002")
+    if not GOLDEN_PATHS:
+        pytest.skip(NO_GOLDEN_REASON)
+    assert len(GOLDEN_PATHS) == GOLDEN_MATRIX_SIZE
+    documents = [json.loads(p.read_text(encoding="utf-8")) for p in GOLDEN_PATHS]
+    assert len({d["config_name"] for d in documents}) == 5
+    assert len({d["seed_env"] for d in documents}) == 3
+    assert len({d["agent"] for d in documents}) == 2
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
 @pytest.mark.parametrize("path", GOLDEN_PARAMS, ids=GOLDEN_IDS)
 def test_golden_document_is_readable_and_current(path: Path) -> None:
     """Every document has the schema this test understands and the spec version in force.
@@ -153,11 +261,45 @@ def test_golden_document_is_readable_and_current(path: Path) -> None:
 
     Owning WO: **WO-002**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B7) - implemented in WO-002")
+    document = _document(path)
+    assert document["schema_version"] == GOLDEN_SCHEMA_VERSION
+    for key in (
+        "spec_version",
+        "generator",
+        "config_name",
+        "config_hash",
+        "config",
+        "agent",
+        "seed_env",
+        "seed_policy",
+        "n_steps",
+        "tolerance",
+        "obs_names",
+        "steps",
+    ):
+        assert key in document, key
+    assert document["generator"] == "ref/gen_golden.py"
+    assert document["tolerance"] == GOLDEN_TOLERANCE
+    assert len(document["steps"]) == document["n_steps"] == GOLDEN_N_STEPS
+    for step in document["steps"]:
+        for key in (
+            "t_period",
+            "k_step",
+            "phase",
+            "obs",
+            "reward",
+            "done",
+            "state_digest",
+            "val_measured",
+            "val_true",
+            "welfare",
+        ):
+            assert key in step, key
+        if step["phase"] == "produce":
+            assert step["val_measured"] is None
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
 @pytest.mark.parametrize("path", GOLDEN_PARAMS, ids=GOLDEN_IDS)
 def test_golden_config_hash_and_obs_layout_match(path: Path) -> None:
     """The configuration rebuilds, hashes identically, and lays the observation out the same way.
@@ -176,11 +318,19 @@ def test_golden_config_hash_and_obs_layout_match(path: Path) -> None:
 
     Owning WO: **WO-002**; binds **WO-003** and **WO-008**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B7) - implemented in WO-002")
+    from gosplan.env.obs import obs_spec
+
+    document = _document(path)
+    cfg = _rebuild_config(document)
+    _gate(obs_spec)
+    assert cfg.hash() == document["config_hash"], (
+        "EnvConfig.hash and ref/gen_golden.config_hash disagree; the canonical JSON encoding is "
+        "pinned in spec/CHANGELOG.md 0.1.1 and both sides must apply it identically"
+    )
+    assert list(obs_spec(cfg)) == list(document["obs_names"])
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
 @pytest.mark.parametrize("path", GOLDEN_PARAMS, ids=GOLDEN_IDS)
 def test_observations_and_rewards_match_reference(path: Path) -> None:
     """Replaying the cell through `GosplanEnv` reproduces the reference to 1e-9.
@@ -204,11 +354,20 @@ def test_observations_and_rewards_match_reference(path: Path) -> None:
     difference: the whole point of storing full observations and rewards is that a mismatch
     localises. Owning WO: **WO-002**; binds **WO-009**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B7) - implemented in WO-002")
+    document = _document(path)
+    replay = _replay(document)
+    for index, (step, (obs, reward, done, _state, _info)) in enumerate(
+        zip(document["steps"], replay, strict=True)
+    ):
+        want_obs = np.asarray(step["obs"], dtype=float)
+        want_reward = np.asarray(step["reward"], dtype=float)
+        assert obs.shape == want_obs.shape, index
+        assert np.max(np.abs(obs - want_obs)) <= GOLDEN_TOLERANCE, index
+        assert np.max(np.abs(reward - want_reward)) <= GOLDEN_TOLERANCE, index
+        assert done == bool(step["done"]), index
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
 @pytest.mark.parametrize("path", GOLDEN_PARAMS, ids=GOLDEN_IDS)
 def test_state_digest_matches_reference(path: Path) -> None:
     """The hidden state agrees exactly, not merely the observable interface.
@@ -226,11 +385,18 @@ def test_state_digest_matches_reference(path: Path) -> None:
     Any change to the rendering invalidates every golden file and is a regeneration under WO-013
     with a `spec/CHANGELOG.md` entry. Owning WO: **WO-002**; binds **WO-009**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B7) - implemented in WO-002")
+    document = _document(path)
+    replay = _replay(document)
+    for index, (step, (_obs, _reward, _done, state, _info)) in enumerate(
+        zip(document["steps"], replay, strict=True)
+    ):
+        assert _render_state(state) == step["state_digest"], (
+            f"step {index}: hidden state diverges from the reference even though the observable "
+            "interface may agree; this is never waived by loosening the tolerance"
+        )
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
 @pytest.mark.parametrize("path", GOLDEN_PARAMS, ids=GOLDEN_IDS)
 def test_logged_period_scalars_match_reference(path: Path) -> None:
     """`val_measured`, `val_true` and `welfare` agree at every REPORT step - logged, never observed.
@@ -246,4 +412,20 @@ def test_logged_period_scalars_match_reference(path: Path) -> None:
     undetected until a headline metric was computed from it (PLAN section 2.9.4). Owning WO:
     **WO-002**; binds **WO-007** and **WO-009**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B7) - implemented in WO-002")
+    document = _document(path)
+    replay = _replay(document)
+    for index, (step, (obs, _reward, _done, _state, info)) in enumerate(
+        zip(document["steps"], replay, strict=True)
+    ):
+        if step["phase"] != "report":
+            continue
+        for key in ("val_measured", "val_true", "welfare"):
+            want = step[key]
+            got = getattr(info, key)
+            assert want is not None and got is not None, (index, key)
+            assert abs(float(got) - float(want)) <= GOLDEN_TOLERANCE, (index, key)
+            # CONTRACT rule 6: the logged scalar must not appear in the observation
+            assert (
+                np.min(np.abs(np.asarray(obs, dtype=float) - float(want))) > GOLDEN_TOLERANCE
+                or abs(float(want)) <= GOLDEN_TOLERANCE
+            ), (index, key)
