@@ -49,6 +49,7 @@ under CONTRACT rule 1, not a test edit.
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 SKIP_REASON = (
@@ -107,10 +108,115 @@ asserts the record carries exactly these, so a new field cannot appear without a
 frozen spec and to this frozen test - the two places CONTRACT rules 1 and 2 protect."""
 
 
+def _gate(*targets):
+    """Skip the calling test while any of `targets` is still a skeleton stub.
+
+    The module-level twin of the `implemented` fixture in `tests/conftest.py`. A module-level
+    helper cannot request a fixture, so the check is repeated here rather than the helper being
+    called before the gate - which would raise `NotImplementedError` and FAIL the test instead of
+    skipping it.
+    """
+    import inspect
+
+    pending = []
+    for target in targets:
+        try:
+            source = inspect.getsource(target)
+        except (OSError, TypeError):
+            continue
+        if "raise NotImplementedError" in source:
+            pending.append(getattr(target, "__qualname__", repr(target)))
+    if pending:
+        pytest.skip("awaiting implementation: " + ", ".join(pending))
+
+
+def _cfg(**sections):
+    """`p1_default_config()` with per-section overrides applied, validated."""
+    import dataclasses
+
+    from gosplan.config import p1_default_config
+
+    _gate(p1_default_config)
+    cfg = p1_default_config()
+    for section, changes in sections.items():
+        cfg = dataclasses.replace(
+            cfg, **{section: dataclasses.replace(getattr(cfg, section), **changes)}
+        )
+    cfg.validate()
+    return cfg
+
+
+def _episode(cfg, agent_name, seed_env, implemented, max_periods=None):
+    """Drive one episode of `GosplanEnv` with a named heuristic; return the ledger records.
+
+    Gated on the environment (WO-009), the heuristic agents (WO-010) and the ledger (WO-011), so a
+    behavioural module skips naming its missing dependency rather than failing.
+    """
+    from gosplan.agents import heuristic
+    from gosplan.config import p1_default_config
+    from gosplan.env.env import GosplanEnv
+    from gosplan.metrics.ledger import Ledger
+
+    agent_cls = getattr(heuristic, agent_name)
+    implemented(p1_default_config, GosplanEnv.reset, GosplanEnv.step, agent_cls.act, Ledger.append)
+
+    env = GosplanEnv(cfg)
+    ledger = Ledger()
+    env.attach_ledger(ledger)
+    obs, _info = env.reset(seed_env, cfg.tech.seed_policy)
+    policy = agent_cls(cfg)
+    rng = np.random.default_rng(cfg.tech.seed_policy)
+    m = cfg.incentive.steps_per_period
+    cap = (max_periods or cfg.tech.max_periods) * (m + 1)
+    done = False
+    steps = 0
+    while not done and steps < cap:
+        obs, _r, done, _i = env.step(policy.act(obs, env.phase(), rng))
+        steps += 1
+    return ledger.records
+
+
+def _report_rows(records):
+    """Only the REPORT-step rows, which is where period-level quantities are written."""
+    return [r for r in records if r.phase == "report"]
+
+
+def _sentinel_state(cfg, sentinel):
+    """A `State` whose true-only fields are filled with a recognisable sentinel value."""
+    from gosplan.env.state import State
+
+    n, j = cfg.supply.n_enterprises, cfg.supply.n_sectors
+    marked = np.full(n, sentinel)
+    return State(
+        target=np.full(n, cfg.tech.initial_target_frac),
+        capital=np.ones(n),
+        inv_output=marked.copy(),
+        inv_inputs=np.full((n, j), sentinel),
+        cum_output=marked.copy(),
+        cum_cost=marked.copy(),
+        quality_acc=np.zeros(n),
+        last_report_ratio=np.ones(n),
+        last_report=np.ones(n),
+        last_audited=np.zeros(n, dtype=bool),
+        last_penalty=np.zeros(n),
+        last_fill=np.ones(n),
+        request=np.zeros((n, j)),
+        pending_invest=np.zeros((n, 0)),
+        t_period=0,
+        k_step=cfg.incentive.steps_per_period,
+        phase="report",
+        plan_prices=np.ones(j),
+        planner_io=np.asarray(cfg.supply.io_matrix, dtype=float),
+        consumer_delivery=np.full(j, sentinel),
+        alive=True,
+        seed_env=cfg.tech.seed_env,
+        seed_policy=cfg.tech.seed_policy,
+    )
+
+
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
 @pytest.mark.parametrize("sentinel", SENTINEL_VALUES)
-def test_planner_view_contains_no_sentinel(sentinel: float) -> None:
+def test_planner_view_contains_no_sentinel(sentinel: float, implemented) -> None:
     """No sentinel planted in a true-only state field reaches the `PlannerView`.
 
     Build a `State` at `p1_default_config()` in which every field of `TRUE_ONLY_STATE_FIELDS` is
@@ -130,11 +236,20 @@ def test_planner_view_contains_no_sentinel(sentinel: float) -> None:
     keying on a quantity it does not observe, which is finding F6 and the reason `welfare` is not
     an `ObjectiveMetric`. Owning WO: **WO-002**; binds **WO-006**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B4) - implemented in WO-002")
+    from gosplan.env.planner import make_planner_view
+
+    implemented(make_planner_view)
+    cfg = _cfg()
+    state = _sentinel_state(cfg, sentinel)
+    view = make_planner_view(state, cfg)
+    for field in PLANNER_VIEW_FIELDS:
+        value = np.asarray(getattr(view, field), dtype=object).ravel()
+        for item in value:
+            if isinstance(item, (int, float)) and not isinstance(item, bool):
+                assert abs(float(item) - sentinel) > SENTINEL_TOL, field
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_planner_view_fields_are_exactly_the_declared_set() -> None:
     """`PlannerView` carries exactly the ten planner-side fields and no more.
 
@@ -148,11 +263,17 @@ def test_planner_view_fields_are_exactly_the_declared_set() -> None:
     is a spec change under CONTRACT rule 1 with a `spec/CHANGELOG.md` entry, and it must arrive
     with an update to this frozen test by the lead (CONTRACT rule 2). Owning WO: **WO-002**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B4) - implemented in WO-002")
+    import dataclasses
+
+    from gosplan.env.planner import PlannerView
+
+    got = tuple(f.name for f in dataclasses.fields(PlannerView))
+    assert got == PLANNER_VIEW_FIELDS, got
+    for forbidden in TRUE_ONLY_STATE_FIELDS:
+        assert forbidden not in got, forbidden
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_no_planner_function_accepts_state() -> None:
     """Static check: no function in `gosplan/env/planner.py` takes a `State`, bar the whitelist.
 
@@ -176,11 +297,30 @@ def test_no_planner_function_accepts_state() -> None:
     `NotImplementedError`; that is deliberate, since CONTRACT rule 5 is a claim about signatures,
     not about behaviour. Owning WO: **WO-002**; binds **WO-006**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B4) - implemented in WO-002")
+    import ast
+    import pathlib
+
+    root = pathlib.Path(__file__).resolve().parents[2]
+    tree = ast.parse((root / PLANNER_MODULE_PATH).read_text(encoding="utf-8"))
+    offenders = []
+    for node in tree.body:
+        if not isinstance(node, ast.FunctionDef):
+            continue
+        if node.name in STATE_ARGUMENT_WHITELIST:
+            continue
+        for arg in list(node.args.args) + list(node.args.kwonlyargs):
+            ann = arg.annotation
+            name = (
+                ann.id
+                if isinstance(ann, ast.Name)
+                else (ann.value if isinstance(ann, ast.Constant) else None)
+            )
+            if name == STATE_TYPE_NAME:
+                offenders.append(f"{node.name}:{arg.arg}")
+    assert offenders == [], f"CONTRACT rule 5: planner functions taking State: {offenders}"
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_planner_rules_take_only_a_planner_view() -> None:
     """The planner rules' signatures name `PlannerView`, `EnvConfig` and scalars - nothing else.
 
@@ -196,4 +336,19 @@ def test_planner_rules_take_only_a_planner_view() -> None:
     `StepInfo` or another module's record would be just as blind a violation. Owning WO:
     **WO-002**; binds **WO-006**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B4) - implemented in WO-002")
+    import ast
+    import pathlib
+
+    root = pathlib.Path(__file__).resolve().parents[2]
+    tree = ast.parse((root / PLANNER_MODULE_PATH).read_text(encoding="utf-8"))
+    rules = [
+        n
+        for n in tree.body
+        if isinstance(n, ast.FunctionDef)
+        and not n.name.startswith("_")
+        and n.name not in STATE_ARGUMENT_WHITELIST
+    ]
+    assert rules, "planner.py must declare rule functions"
+    for node in rules:
+        names = [a.arg for a in node.args.args]
+        assert "state" not in names, node.name

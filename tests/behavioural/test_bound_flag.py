@@ -39,6 +39,7 @@ Held-out phenomena (PLAN section 4.1): none. This file measures a flag, not a be
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 SKIP_REASON = (
@@ -76,9 +77,148 @@ TB8_SEEDS: tuple[int, ...] = (0, 1, 2)
 at-bound fraction deterministic, so the seeds vary only the environment's draws."""
 
 
+def _gate(*targets):
+    """Skip the calling test while any of `targets` is still a skeleton stub.
+
+    The module-level twin of the `implemented` fixture in `tests/conftest.py`. A module-level
+    helper cannot request a fixture, so the check is repeated here rather than the helper being
+    called before the gate - which would raise `NotImplementedError` and FAIL the test instead of
+    skipping it.
+    """
+    import inspect
+
+    pending = []
+    for target in targets:
+        try:
+            source = inspect.getsource(target)
+        except (OSError, TypeError):
+            continue
+        if "raise NotImplementedError" in source:
+            pending.append(getattr(target, "__qualname__", repr(target)))
+    if pending:
+        pytest.skip("awaiting implementation: " + ", ".join(pending))
+
+
+def _cfg(**sections):
+    """`p1_default_config()` with per-section overrides applied, validated."""
+    import dataclasses
+
+    from gosplan.config import p1_default_config
+
+    _gate(p1_default_config)
+    cfg = p1_default_config()
+    for section, changes in sections.items():
+        cfg = dataclasses.replace(
+            cfg, **{section: dataclasses.replace(getattr(cfg, section), **changes)}
+        )
+    cfg.validate()
+    return cfg
+
+
+def _episode(cfg, agent_name, seed_env, implemented, max_periods=None):
+    """Drive one episode of `GosplanEnv` with a named heuristic; return the ledger records.
+
+    Gated on the environment (WO-009), the heuristic agents (WO-010) and the ledger (WO-011), so a
+    behavioural module skips naming its missing dependency rather than failing.
+    """
+    from gosplan.agents import heuristic
+    from gosplan.config import p1_default_config
+    from gosplan.env.env import GosplanEnv
+    from gosplan.metrics.ledger import Ledger
+
+    agent_cls = getattr(heuristic, agent_name)
+    implemented(p1_default_config, GosplanEnv.reset, GosplanEnv.step, agent_cls.act, Ledger.append)
+
+    env = GosplanEnv(cfg)
+    ledger = Ledger()
+    env.attach_ledger(ledger)
+    obs, _info = env.reset(seed_env, cfg.tech.seed_policy)
+    policy = agent_cls(cfg)
+    rng = np.random.default_rng(cfg.tech.seed_policy)
+    m = cfg.incentive.steps_per_period
+    cap = (max_periods or cfg.tech.max_periods) * (m + 1)
+    done = False
+    steps = 0
+    while not done and steps < cap:
+        obs, _r, done, _i = env.step(policy.act(obs, env.phase(), rng))
+        steps += 1
+    return ledger.records
+
+
+def _report_rows(records):
+    """Only the REPORT-step rows, which is where period-level quantities are written."""
+    return [r for r in records if r.phase == "report"]
+
+
+def _synthetic_ledger(at_bound_fraction):
+    """A ledger of REPORT rows with a controlled fraction sitting at `rho_max`."""
+    from gosplan.config import p1_default_config
+    from gosplan.metrics.ledger import Ledger, StepRecord
+
+    _gate(p1_default_config, Ledger.append)
+    cfg = p1_default_config()
+    j = cfg.supply.n_sectors
+    total = 1000
+    n_at_bound = round(total * at_bound_fraction)
+    ledger = Ledger()
+    zeros = tuple(0.0 for _ in range(j))
+    for i in range(total):
+        at_bound = i < n_at_bound
+        ledger.append(
+            StepRecord(
+                run_hash=cfg.hash(),
+                episode=0,
+                t_period=2,
+                k_step=cfg.incentive.steps_per_period,
+                phase="report",
+                enterprise=i % cfg.supply.n_enterprises,
+                sector=0,
+                target=1.0,
+                capital=1.0,
+                inv_output_pre=1.0,
+                inv_output_post=1.0,
+                inv_inputs=zeros,
+                cum_output=1.0,
+                cum_cost=0.0,
+                quality_acc=0.0,
+                last_report_ratio=RHO_MAX if at_bound else 1.0,
+                last_penalty=0.0,
+                last_fill=1.0,
+                request=zeros,
+                need=zeros,
+                effort=0.5,
+                quality=1.0,
+                invest=0.0,
+                output=1.0,
+                cost=0.0,
+                coverage=1.0,
+                reward=0.0,
+                report=RHO_MAX if at_bound else 1.0,
+                report_ratio=RHO_MAX if at_bound else 1.0,
+                at_bound=at_bound,
+                audited=False,
+                audit_meas=0.0,
+                penalty_arg=cfg.incentive.penalty_arg,
+                penalty=0.0,
+                fill=1.0,
+                shipped=1.0,
+                alloc=zeros,
+                deliv=zeros,
+                input_consumed=zeros,
+                holding_loss=0.0,
+                cap_overflow=0.0,
+                trade_volume=0.0,
+                consumer=zeros,
+                val_measured=1.0,
+                val_true=1.0,
+                welfare=1.0,
+            )
+        )
+    return ledger
+
+
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
-def test_reports_at_the_bound_are_recorded() -> None:
+def test_reports_at_the_bound_are_recorded(implemented) -> None:
     """A report at `rho_max` is clipped, recorded as `at_bound`, and priced at the bound.
 
     Drive the test-local policy so that a known subset of REPORT steps reports `RHO_MAX` and a
@@ -97,12 +237,15 @@ def test_reports_at_the_bound_are_recorded() -> None:
     above the bound is clipped and *counted*, never honoured. Owning WO: **WO-002**; binds
     **WO-007** and **WO-011**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B8) - implemented in WO-002")
+    cfg = _cfg()
+    rows = _report_rows(_episode(cfg, "Padder", TB8_SEEDS[0], implemented))
+    for r in rows:
+        expected = abs(float(r.report_ratio) - RHO_MAX) < 1e-12
+        assert bool(r.at_bound) is expected, (r.enterprise, r.report_ratio)
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
-def test_flag_is_raised_above_one_percent() -> None:
+def test_flag_is_raised_above_one_percent(implemented) -> None:
     """More than 1% of reports at the bound raises `BOUND_BINDING`, incrementally and in batch.
 
     Drive `ABOVE_THRESHOLD_FRACTION` of REPORT steps to `RHO_MAX` and assert:
@@ -117,12 +260,16 @@ def test_flag_is_raised_above_one_percent() -> None:
     report, and counting them would dilute the fraction by a factor of `M + 1` and hide a binding
     bound. Owning WO: **WO-002**; binds **WO-011**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B8) - implemented in WO-002")
+    from gosplan.metrics.ledger import Ledger, bound_binding
+
+    implemented(Ledger.append, bound_binding)
+    ledger = _synthetic_ledger(ABOVE_THRESHOLD_FRACTION)
+    assert bound_binding(ledger) is True
+    assert BOUND_FLAG in ledger.flags
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
-def test_flag_is_absent_below_one_percent() -> None:
+def test_flag_is_absent_below_one_percent(implemented) -> None:
     """At or below 1% the flag stays down - the threshold is strict, and it is not a hair trigger.
 
     Drive `BELOW_THRESHOLD_FRACTION` of REPORT steps to `RHO_MAX` and assert `BOUND_FLAG not in
@@ -135,12 +282,17 @@ def test_flag_is_absent_below_one_percent() -> None:
     so a false positive would block the gate as loudly as a false negative. Owning WO: **WO-002**;
     binds **WO-011**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B8) - implemented in WO-002")
+    from gosplan.metrics.ledger import Ledger, bound_binding
+
+    implemented(Ledger.append, bound_binding)
+    for fraction in (0.0, BELOW_THRESHOLD_FRACTION, AT_BOUND_THRESHOLD):
+        ledger = _synthetic_ledger(fraction)
+        assert bound_binding(ledger) is False, fraction
+        assert BOUND_FLAG not in ledger.flags, fraction
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
-def test_manifest_carries_the_flag() -> None:
+def test_manifest_carries_the_flag(implemented, tmp_path) -> None:
     """The flag reaches `runs/<hash>/manifest.json`, where a reader of the result meets it.
 
     Write a manifest for the flag-raising run with `write_manifest(run_dir, cfg, extra)` into a
@@ -153,4 +305,15 @@ def test_manifest_carries_the_flag() -> None:
     CONTRACT rule 8 requires the result to be *reported with the flag*: a flag that lives only in a
     ledger object nobody reads is not a report. Owning WO: **WO-002**; binds **WO-011**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B8) - implemented in WO-002")
+    import json
+
+    from gosplan.metrics.ledger import write_manifest
+
+    implemented(write_manifest)
+    cfg = _cfg()
+    ledger = _synthetic_ledger(ABOVE_THRESHOLD_FRACTION)
+    run_dir = tmp_path / cfg.hash()
+    run_dir.mkdir(parents=True)
+    write_manifest(str(run_dir), cfg, {"flags": tuple(ledger.flags)})
+    doc = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert BOUND_FLAG in (doc.get("flags") or [])
