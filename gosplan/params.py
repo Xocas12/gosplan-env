@@ -159,7 +159,13 @@ class ParamSpec:
 
     source: SourceStatus
     """Provenance of the value and the range; the PLAN section 3 cell is quoted in `notes` wherever
-    it says more than the six-value vocabulary can carry."""
+    it says more than the six-value vocabulary can carry.
+
+    The authority for this field is `docs/params_sources.md` (WO-000), not PLAN section 3's own
+    Source status column. Where the memo could not retrieve a source for a figure PLAN section 3
+    calls historical, this field reads `unsourced` and `notes` records which memo item looked and
+    what it found. A `source` of `historical` is a claim that a document was read; it is never
+    written here on the strength of the parameter merely sounding historical."""
 
     provisional: bool
     """`True` for the daggered rows of PLAN section 3 - `audit_rate`, `ratchet_lambda`,
@@ -397,7 +403,7 @@ REGISTRY: tuple[ParamSpec, ...] = (
         phase="P1",
         default=0.02,
         sweep=Range(0.0, 0.07),
-        source="historical",
+        source="unsourced",
         provisional=True,
         notes=(
             "`g`, the exogenous growth directive multiplying the target every period; the forcing "
@@ -405,6 +411,7 @@ REGISTRY: tuple[ParamSpec, ...] = (
             "at target the target rule has a fixed point (test T-B2). PLAN section 3 source cell: "
             "five-year-plan annual growth targets (lead to source, PLAN section 15). Phenomenon 7 "
             "is checked at the Phase-1 value (PLAN section 4.2). Provisional: replaced at G1."
+            "WO-000 memo item 2: the FORM is attested - Harrison 2007 describes planning from the achieved level, plus an increment to allow for growth - but no directive (as opposed to realised) growth rate was retrieved, so the magnitude is unsourced."
         ),
         plan_section="3; 2.7.1; 4.2",
     ),
@@ -493,12 +500,13 @@ REGISTRY: tuple[ParamSpec, ...] = (
         phase="P1",
         default=0.5,
         sweep=Range(0.0, 2.0),
-        source="historical",
+        source="unsourced",
         provisional=True,
         notes=(
             "`s`, linear bonus slope above target: `s * clip(rho - 1, 0, rho_cap - 1)`. PLAN "
             "section 3 source cell: historical - per-percentage-point bonus increments (lead to "
             "source, PLAN section 15). Provisional: replaced at G1."
+            "WO-000 memo item 1: not obtained. Berliner 1957 has no retrievable full text and the one secondary source carrying bonus percentages now returns HTTP 404, so no per-percentage-point increment is sourced."
         ),
         plan_section="3; 2.8",
     ),
@@ -508,7 +516,7 @@ REGISTRY: tuple[ParamSpec, ...] = (
         phase="P1",
         default=1.2,
         sweep=Choices((1.1, 1.2, float("inf"))),
-        source="historical",
+        source="unsourced",
         provisional=False,
         notes=(
             "`rho_cap`, the ratio at which the overfulfilment bonus stops accruing. `inf` means "
@@ -516,6 +524,7 @@ REGISTRY: tuple[ParamSpec, ...] = (
             "(`notch_width = 0.25`, `overfulfilment_cap = inf`). `validate` rejects `rho_cap < 1` "
             "(WO-003). PLAN section 3 source cell: historical - capped overfulfilment bonuses "
             "(lead to source)."
+            "WO-000 memo item 1: not obtained. No cap on bonus accrual was sourced; the grid {1.1, 1.2, inf} is a design sweep, not a historical finding."
         ),
         plan_section="3; 2.8; 4.3",
     ),
@@ -617,13 +626,14 @@ REGISTRY: tuple[ParamSpec, ...] = (
         phase="P1",
         default=0.9,
         sweep=Range(0.7, 0.98),
-        source="historical",
+        source="unsourced",
         provisional=False,
         notes=(
             "`psi`, per-period continuation probability under `horizon_mode = geometric`, drawn "
             "with purpose `terminate`. An economic parameter (managerial rotation; lead to "
             "source), deliberately distinct from the technical PPO discount `gamma`; it enters "
             "the DP Bellman operator as `psi * gamma` (PLAN section 5)."
+            "WO-000 memo item 5: not obtained. No distribution of Soviet enterprise director tenure was retrieved. Note the memo's conversion caveat: a per-year survival hazard is not a per-plan-period hazard unless the plan period is one year."
         ),
         plan_section="3; 2.12; 5",
     ),
@@ -665,11 +675,12 @@ REGISTRY: tuple[ParamSpec, ...] = (
         phase="P1",
         default=0.0,
         sweep=Range(0.0, 0.5),
-        source="historical",
+        source="unsourced",
         provisional=False,
         notes=(
             "Dispersion of sector-specific bonus schedules around `notch_height`. PLAN section 3 "
             "source cell: historical (sector-specific schedules). Inert at the Phase-1 value."
+            "WO-000 memo item 1: not obtained. Sector-specific bonus schedules are asserted by PLAN section 3 but no source for them was retrieved."
         ),
         plan_section="3; 2.8",
     ),
