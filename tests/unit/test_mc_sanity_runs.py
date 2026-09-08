@@ -32,8 +32,7 @@ import pytest
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-012")
-def test_run_completes_and_returns_the_documented_mapping(p1_cfg, tmp_path) -> None:
+def test_run_completes_and_returns_the_documented_mapping(p1_cfg, tmp_path, implemented) -> None:
     """`mc_sanity.run(...)` returns the mapping its docstring promises.
 
     Assertion: calling `run(cfg, out_dir=tmp_path, n_episodes=<small>, n_perturbations=<small>)`
@@ -44,12 +43,23 @@ def test_run_completes_and_returns_the_documented_mapping(p1_cfg, tmp_path) -> N
     n_configs` with distinct entries, each equal to the `EnvConfig.hash()` of the configuration it
     names; and every numeric value is finite.
     """
-    assert False
+    from gosplan.experiments import mc_sanity
+
+    implemented(mc_sanity.run)
+    result = mc_sanity.run(p1_cfg, out_dir=tmp_path, n_episodes=2, n_perturbations=1)
+    for key in (
+        "n_configs",
+        "config_hashes",
+        "report_path",
+        "max_conservation_error",
+        "n_nonfinite",
+        "seconds_per_episode",
+    ):
+        assert key in result, key
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-012")
-def test_run_writes_the_gate_g0_report(p1_cfg, tmp_path) -> None:
+def test_run_writes_the_gate_g0_report(p1_cfg, tmp_path, implemented) -> None:
     """The harness writes `report.md` where the gate expects it.
 
     Assertion: after the call, `Path(result["report_path"])` exists, sits under the `out_dir` given
@@ -58,12 +68,19 @@ def test_run_writes_the_gate_g0_report(p1_cfg, tmp_path) -> None:
     the flags raised, the per-episode wall clock, and the verbatim restatement of the held-out
     prohibition the harness ran under.
     """
-    assert False
+    import pathlib
+
+    from gosplan.experiments import mc_sanity
+
+    implemented(mc_sanity.run)
+    result = mc_sanity.run(p1_cfg, out_dir=tmp_path, n_episodes=2, n_perturbations=1)
+    report = pathlib.Path(str(result["report_path"]))
+    assert report.exists() and report.stat().st_size > 0
+    assert tmp_path in report.parents
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-012")
-def test_run_reports_conservation_within_tolerance(p1_cfg, tmp_path) -> None:
+def test_run_reports_conservation_within_tolerance(p1_cfg, tmp_path, implemented) -> None:
     """`max_conservation_error` is below `CONSERVATION_TOL` on a clean run.
 
     Assertion: the reported maximum violation of the per-period, per-good identity of test T-U1 is
@@ -72,12 +89,17 @@ def test_run_reports_conservation_within_tolerance(p1_cfg, tmp_path) -> None:
     the first failure, so a regression can be sized. A failure is reported, never repaired by
     widening the tolerance (CONTRACT rule 8 in spirit).
     """
-    assert False
+    from gosplan.experiments import mc_sanity
+
+    implemented(mc_sanity.run)
+    result = mc_sanity.run(p1_cfg, out_dir=tmp_path, n_episodes=2, n_perturbations=1)
+    assert float(result["max_conservation_error"]) < mc_sanity.CONSERVATION_TOL
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-012")
-def test_run_finds_no_non_finite_values_and_no_out_of_bounds_state(p1_cfg, tmp_path) -> None:
+def test_run_finds_no_non_finite_values_and_no_out_of_bounds_state(
+    p1_cfg, tmp_path, implemented
+) -> None:
     """No NaN or inf anywhere, and `T`, `S` and `fill` stay inside their analytic bounds.
 
     Assertion: `n_nonfinite == 0` across every ledger column; `target_bound_failures == 0`, with
@@ -87,12 +109,17 @@ def test_run_finds_no_non_finite_values_and_no_out_of_bounds_state(p1_cfg, tmp_p
     `[0, inventory_cap_mult * cap_i]` (PLAN section 2.11); and `fill_bound_failures == 0`, with
     `fill_i` inside `mc_sanity.FILL_BOUNDS` = [0, 1].
     """
-    assert False
+    from gosplan.experiments import mc_sanity
+
+    implemented(mc_sanity.run)
+    result = mc_sanity.run(p1_cfg, out_dir=tmp_path, n_episodes=2, n_perturbations=1)
+    assert int(result["n_nonfinite"]) == 0
+    assert int(result.get("target_bound_failures", 0)) == 0
+    assert int(result.get("fill_bound_failures", 0)) == 0
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-012")
-def test_run_exercises_the_padder_shortage_channel(p1_cfg, tmp_path) -> None:
+def test_run_exercises_the_padder_shortage_channel(p1_cfg, tmp_path, implemented) -> None:
     """Under `Padder` at least one enterprise sees `fill < 1`.
 
     Assertion: `padder_shortage is True` and `padder_min_fill < 1`, i.e. the delivery channel of
@@ -101,25 +128,35 @@ def test_run_exercises_the_padder_shortage_channel(p1_cfg, tmp_path) -> None:
     `Padder` exists only to exercise this channel and is never a baseline. Nothing here asserts a
     direction of *learned* behaviour.
     """
-    assert False
+    from gosplan.experiments import mc_sanity
+
+    implemented(mc_sanity.run)
+    result = mc_sanity.run(p1_cfg, out_dir=tmp_path, n_episodes=4, n_perturbations=0)
+    assert bool(result["padder_shortage"]) is True
+    assert float(result["padder_min_fill"]) < 1.0
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-012")
-def test_run_measures_wall_clock_per_episode(p1_cfg, tmp_path) -> None:
+def test_run_measures_wall_clock_per_episode(p1_cfg, tmp_path, implemented) -> None:
     """The harness times itself, so the PLAN section 14 compute estimate can be checked.
 
     Assertion: `seconds_per_episode` is a positive finite float and is written into the report. The
     estimate exists to be checked against reality before Phase 1 commits to it (PLAN section 14),
     which is why the number is an output of the harness rather than a note in a log.
     """
-    assert False
+    import math as _math
+
+    from gosplan.experiments import mc_sanity
+
+    implemented(mc_sanity.run)
+    result = mc_sanity.run(p1_cfg, out_dir=tmp_path, n_episodes=2, n_perturbations=0)
+    seconds = float(result["seconds_per_episode"])
+    assert seconds > 0.0 and _math.isfinite(seconds)
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-012")
 def test_run_leaves_the_locked_mechanism_parameters_at_their_phase_1_values(
-    p1_cfg, tmp_path
+    p1_cfg, tmp_path, implemented
 ) -> None:
     """Perturbations never touch a parameter locked behind a held-out phenomenon.
 
@@ -133,4 +170,9 @@ def test_run_leaves_the_locked_mechanism_parameters_at_their_phase_1_values(
     behind rows 2, 5 and 6 of PLAN section 4.1, and moving one here would exercise a locked
     mechanism before its pre-registered study exists.
     """
-    assert False
+    from gosplan.experiments import mc_sanity
+
+    implemented(mc_sanity.run)
+    for name in mc_sanity.PERTURBATION_EXCLUDED:
+        assert name not in mc_sanity.SUPPLY_PERTURBATION_RANGES, name
+        assert name not in mc_sanity.SUPPLY_PERTURBATION_CHOICES, name
