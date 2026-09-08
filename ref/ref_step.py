@@ -877,18 +877,36 @@ def ref_observation(state: RefState, cfg: Config, initial_targets: Vec, deliv: M
     Phase-1 `self_obs_noise = 0`, so indices 4 and 5 are exact; when it is non-zero they are
     multiplied by `exp(N(0, s**2))` drawn with purpose `selfobs` (WO-008).
 
-    **OPEN ITEM - resolve before any golden file is generated.** PLAN section 2.4 writes the
-    denominator of indices 11, 12:12+J and 12+2J:12+3J as `need_ij` without saying which need it
-    means, and the two candidates differ numerically:
-      (a) the *planned* need of PLAN section 2.7.2, `planner_io[s(i), j] * T_i` - a per-period
-          quantity, constant within the period; or
-      (b) the *production* need of PLAN section 2.6, `a_{s(i)j} * y_hat_ik` - a per-step quantity
-          that depends on the effort just chosen, and is zero at zero effort.
-    This module picks neither. WO-002 files an AMBIGUITY REPORT (CONTRACT rule 3,
-    `workorders/AMBIGUITY_TEMPLATE.md`) naming both options; the resolution is recorded in
-    `spec/CHANGELOG.md` and mirrored by `gosplan/env/obs.py` (WO-008), and only then are the golden
-    files generated. Whichever is chosen, `need_ij == 0` must give a coverage field of exactly 1.0
-    (edge case E3), not a division by zero.
+    **RESOLVED - ambiguity report #60 (AMB-007), spec/CHANGELOG.md 0.1.2.** PLAN section 2.4 wrote
+    the denominator of indices 11, 12:12+J and 12+2J:12+3J as `need_ij` without saying which need,
+    and the two candidates differ numerically. The denominator is the **PLANNED need** of PLAN
+    section 2.7.2, evaluated with the enterprise's OWN true I-O row:
+
+        need_ij = a_{s(i)j} * T_i                    # per PERIOD, constant within the period
+
+    and never the per-step production need `a_{s(i)j} * y_hat_ik` of PLAN section 2.6. Two
+    structural reasons, both decisive rather than stylistic:
+
+      1. The production need is UNDEFINED AT THE REPORT STEP - no effort is chosen there, so there
+         is no `y_hat_ik` - and the observation is built at every agent-step, so it would leave
+         `2 + 2J` fields without a value at one step in every `M + 1`.
+      2. The production need is `0/0` AT ZERO EFFORT: `y_hat_ik = 0` zeroes every `need_ikj`, so the
+         `need_ij == 0` convention below would report FULL coverage to an enterprise holding no
+         inputs at all - exactly inverting the field's meaning at the moment it matters most.
+
+    The planned need has neither defect: `T_i > 0` always, and it is zero only where the enterprise
+    genuinely needs none of good `j`.
+
+    Note which I-O matrix. PLAN section 2.7.2 writes the planner's allocation need with the
+    planner's possibly stale copy, `planner_io[s(b), j] * T_b`. This observation uses the TRUE `a`
+    instead. The two coincide in Phase 1 (`planner_io` starts as `a` and `tech_drift_sigma = 0`) and
+    diverge in Phase 2 once the technology drifts. The true row is correct here because this is an
+    AGENT-FACING field: an enterprise knows its own production function, whereas `planner_io` is a
+    planner-side belief, and feeding it to the agent would leak the planner's estimate into a policy
+    input. `gosplan/env/obs.py` already states the denominator this way.
+
+    `need_ij == 0` gives a coverage field of exactly 1.0 (edge case E3), never a division by zero.
+    `gosplan/env/obs.py` (WO-008) mirrors this choice.
 
     Scope note: PLAN section 2.4 sits outside the section 2.5-2.11 range of the WO-002 card, but
     the golden schema of PLAN section 11 records per-step observations, so the oracle must build

@@ -131,3 +131,40 @@ the first golden file is generated, which is the point of resolving them now.
 **Suite.** 93 passed, 233 skipped - unchanged. Every edit is to a docstring.
 
 **Approver.** LEAD. `spec/spec.py` remains provisional until WO-013 bumps it to `1.0.0` at gate G1.
+
+## 0.1.2 - 2026-09-07
+
+**Change.** The denominator of the input-coverage observation fields is pinned. Docstrings only; no
+signature, field, default or range changed.
+
+- **#60 (AMB-007) - which `need_ij` do observation fields 11, `12:12+J` and `12+2J:12+3J` divide
+  by?** PLAN section 2.4 names `need_ij` without saying whether it is the planned need of section
+  2.7.2 or the per-step production need of section 2.6. Resolved to the **period need at target**,
+
+      need_ij = a_{s(i)j} * T_i
+
+  constant within a period. The production need `a_{s(i)j} * y_hat_ik` was rejected on two
+  structural grounds, not on taste: it is undefined at the REPORT step, where no effort is chosen,
+  leaving `2 + 2J` fields without a value once every `M + 1` steps; and it is `0/0` at zero effort,
+  where the documented `need_ij == 0` convention would report FULL input coverage to an enterprise
+  holding no inputs at all, inverting the field's meaning exactly where it matters most.
+
+  The report was filed by WO-002 at the instruction of its own `ref_observation` docstring, which
+  forbids generating any golden file until this is settled.
+
+- **Which I-O matrix.** The denominator uses the enterprise's TRUE row `a_{s(i)j}`, not the
+  planner's possibly stale `planner_io[s(i), j]` that PLAN section 2.7.2 uses for allocation. The
+  two coincide in Phase 1 and diverge in Phase 2 once technology drifts. The true row is correct for
+  an agent-facing field: an enterprise knows its own production function, while `planner_io` is a
+  planner-side belief, and putting it in an observation would leak the planner's estimate into a
+  policy input. `gosplan/env/obs.py` already stated it this way; `ref/ref_step.py` now agrees, so
+  the oracle and the implementation cannot drift on it.
+
+**Affected work orders.** WO-002 (generates the golden files), WO-008 (`build_observation`),
+WO-009 (supplies `need` to the observation builder).
+
+**Golden files.** Still none. This decision is a precondition for the first one.
+
+**Suite.** 93 passed, 233 skipped - unchanged.
+
+**Approver.** LEAD. `spec/spec.py` remains provisional until WO-013 bumps it to `1.0.0` at gate G1.
