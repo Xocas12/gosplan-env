@@ -67,8 +67,11 @@ literally the same document read two ways.
 
 from __future__ import annotations
 
+import hashlib
+import math
+import zlib
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, replace
 from typing import Literal
 
 import numpy as np
@@ -132,6 +135,191 @@ out as PLAN section 2.4, the current phase, and a generator from the `seed_polic
 returning a `RefAction`. It mirrors `spec.Agent.act` (CONTRACT rule 6: the observation and nothing
 else). `ref/gen_golden.py` supplies the two Phase-1 reference policies (`Random`,
 `TruthfulMyopic`); `ref/` never imports `gosplan.agents`."""
+
+
+# ---------- private helpers (not part of the mirrored surface) ----------
+
+
+def _f(x: object) -> float:
+    """Coerce a configuration scalar to `float`, accepting the string "inf".
+
+    `Config` is a JSON-shaped document (module docstring), so an infinite value arrives as the
+    string `"inf"` exactly as `EnvConfig.hash` encodes it. Every numeric read of `cfg` goes through
+    here so that no branch has to remember which fields can be infinite.
+    """
+    if isinstance(x, str):
+        return float("inf") if x == "inf" else float(x)
+    return float(x)
+
+
+def _n(cfg: Config) -> int:
+    """Number of enterprises `N`."""
+    return int(_f(cfg["supply"]["n_enterprises"]))
+
+
+def _j(cfg: Config) -> int:
+    """Number of sectors, and hence of goods, `J` (one good per sector, PLAN section 2.1)."""
+    return int(_f(cfg["supply"]["n_sectors"]))
+
+
+def _m(cfg: Config) -> int:
+    """PRODUCE steps per plan period `M` (PLAN section 2.5)."""
+    return int(_f(cfg["incentive"]["steps_per_period"]))
+
+
+def _sector_of(cfg: Config, i: int) -> int:
+    """Sector `s(i)` of enterprise `i`."""
+    return int(_f(cfg["supply"]["sector_of"][i]))  # type: ignore[index]
+
+
+def _io_row(cfg: Config, s: int) -> Goods:
+    """Row `s` of the true I-O matrix `a`, as floats."""
+    row = cfg["supply"]["io_matrix"][s]  # type: ignore[index]
+    return [_f(v) for v in row]
+
+
+def _io_weights(row: Goods) -> Goods:
+    """CES weights `omega_j = a_sj / sum_j a_sj`; all zeros when the row needs no inputs."""
+    total = sum(row)
+    if total <= 0.0:
+        return [0.0 for _ in row]
+    return [v / total for v in row]
+
+
+def _planned_need(cfg: Config, targets: Vec) -> Mat:
+    """Period need at target, `need_ij = a_{s(i)j} * T_i` (spec/CHANGELOG.md 0.1.2, AMB-007).
+
+    The denominator of observation fields 11, `12:12+J` and `12+2J:12+3J`, and the quantity the
+    request clip of `ref_report` is expressed as a multiple of. Uses the enterprise's TRUE row, not
+    `planner_io` - see `ref_observation`.
+    """
+    out: Mat = []
+    for i, t_i in enumerate(targets):
+        row = _io_row(cfg, _sector_of(cfg, i))
+        out.append([v * float(t_i) for v in row])
+    return out
+
+
+def _quality_bar(state: RefState, cfg: Config) -> Vec:
+    """Period-average quality `qbar_i`. Phase 1 (`quality_matters` false) is exactly ones."""
+    n = _n(cfg)
+    if not bool(cfg["supply"].get("quality_matters", False)):
+        return [1.0 for _ in range(n)]
+    m = _m(cfg)
+    return [state.quality_acc[i] / m if m else 1.0 for i in range(n)]
+
+
+def _run_period(
+    state: RefState,
+    cfg: Config,
+    initial_targets: Vec,
+    claim_history: list[Vec],
+    get_action: Callable[[int, Mat, Phase], RefAction],
+    obs_seed: Mat | None = None,
+) -> tuple[RefState, list[RefStepRecord]]:
+    """The eight stages of PLAN section 2.5, driven once.
+
+    The single implementation of the period schedule. `ref_period` and `ref_rollout` are both thin
+    wrappers over it, so the closed-loop rollout and the fixed-action path can never execute
+    different schedules - a divergence between them would be invisible and would corrupt every
+    golden file generated from the wrong one.
+
+    `get_action(k, obs, phase)` is called with the observation the agent sees BEFORE acting at step
+    `k`; `obs_seed` is the observation for step 0 (built by the caller, since stage 0 has not run
+    yet when it is needed). The record's `obs` is the observation AFTER the step, as
+    `RefStepRecord` documents.
+    """
+    n, n_goods, m_steps = _n(cfg), _j(cfg), _m(cfg)
+    stock_prev = [float(v) for v in state.inv_output]
+    records: list[RefStepRecord] = []
+
+    state, view, deliv, _fill, consumer = ref_deliver(state, cfg, claim_history)
+    consumed_total: Mat = [[0.0 for _ in range(n_goods)] for _ in range(n)]
+
+    obs = obs_seed if obs_seed is not None else ref_observation(state, cfg, initial_targets, deliv)
+
+    for k in range(m_steps):
+        state.k_step = k
+        state.phase = "produce"
+        action = get_action(k, obs, "produce")
+        state, _y, cost, consumed = ref_produce(state, action, cfg)
+        for i in range(n):
+            for j in range(n_goods):
+                consumed_total[i][j] += consumed[i][j]
+        reward = ref_enterprise_reward(state, cfg, "produce", cost, None, None)
+        obs = ref_observation(state, cfg, initial_targets, deliv)
+        records.append(
+            RefStepRecord(
+                t_period=state.t_period,
+                k_step=k,
+                phase="produce",
+                obs=obs,
+                reward=reward,
+                done=False,
+                state_digest=ref_state_digest(state),
+                val_measured=None,
+                val_true=None,
+                welfare=None,
+            )
+        )
+
+    state.k_step = m_steps
+    state.phase = "report"
+    action = get_action(m_steps, obs, "report")
+    state, holding_loss, cap_overflow, period_output = ref_report(state, action, cfg)
+    claim_history.append([float(v) for v in state.last_report])
+
+    # Reissue the view on THIS period's claims, through the same lag / aggregation / noise filters
+    # (PLAN section 2.7.5) - the bonus and the ratchet key on the claim as the planner received it.
+    view = ref_make_planner_view(state, cfg, claim_history)
+    state, view, penalty = ref_audit(state, view, cfg)
+    reward, val_measured, val_true, welfare = ref_reward(
+        state, view, cfg, penalty, period_output, consumer
+    )
+    state = ref_target(state, view, cfg, initial_targets)
+    done = ref_terminate(state, cfg)
+    state.alive = not done
+
+    residual = ref_conservation_residual(
+        period_output,
+        stock_prev,
+        consumed_total,
+        consumer,
+        list(state.inv_output),
+        holding_loss,
+        cap_overflow,
+        cfg,
+    )
+    worst = max(abs(v) for v in residual) if residual else 0.0
+    if worst > 1e-9:
+        raise AssertionError(
+            f"conservation residual {worst:.3e} exceeds 1e-9 in period {state.t_period}: {residual}"
+        )
+
+    obs = ref_observation(state, cfg, initial_targets, deliv)
+    records.append(
+        RefStepRecord(
+            t_period=state.t_period,
+            k_step=m_steps,
+            phase="report",
+            obs=obs,
+            reward=reward,
+            done=done,
+            state_digest=ref_state_digest(state),
+            val_measured=val_measured,
+            val_true=val_true,
+            welfare=welfare,
+        )
+    )
+
+    for i in range(n):
+        state.cum_output[i] = 0.0
+        state.cum_cost[i] = 0.0
+        state.quality_acc[i] = 0.0
+    state.t_period += 1
+    state.k_step = 0
+    state.phase = "produce"
+    return state, records
 
 
 # ---------- records (plain-Python mirrors of the spec dataclasses) ----------
@@ -301,7 +489,26 @@ def ref_draw(
     independent of call order, and each distribution has the stated moments; and every golden file,
     which is bit-for-bit reproducible only because this construction is keyed rather than streamed.
     """
-    raise NotImplementedError("PLAN section 2.15 - implemented in WO-002")
+    key = np.random.SeedSequence(
+        [int(seed_env), zlib.crc32(purpose.encode()), *[int(v) for v in indices]]
+    )
+    gen = np.random.default_rng(key)
+    if dist == "lognormal":
+        out = gen.lognormal(
+            mean=float(params["mean_log"]), sigma=float(params["sigma"]), size=shape
+        )
+        return [float(v) for v in np.ravel(out)]
+    if dist == "normal":
+        out = gen.normal(loc=float(params["mean"]), scale=float(params["sigma"]), size=shape)
+        return [float(v) for v in np.ravel(out)]
+    if dist == "bernoulli":
+        out = gen.random(size=shape) < float(params["p"])
+        return [bool(v) for v in np.ravel(out)]
+    if dist == "categorical":
+        probs = [float(v) for v in params["probs"]]  # type: ignore[union-attr]
+        out = gen.choice(len(probs), size=shape, p=probs)
+        return [int(v) for v in np.ravel(out)]
+    raise ValueError(f"unknown dist {dist!r}")
 
 
 # ---------- setup (PLAN sections 2.2, 2.10, 3) ----------
@@ -330,7 +537,24 @@ def ref_initial_prices(cfg: Config) -> Goods:
     Binds: `tests/unit/test_prices.py` (fixed point converges; every price positive) and the golden
     files, whose first state digest contains these prices.
     """
-    raise NotImplementedError("PLAN section 2.10 - implemented in WO-002")
+    n_goods = _j(cfg)
+    markup = _f(cfg["supply"]["price_markup"])
+    kappa_labour = (
+        1.0  # normalisation; `p` is homogeneous of degree 1 in it and every use is a ratio
+    )
+    prices = [kappa_labour * (1.0 + markup) for _ in range(n_goods)]
+    for _ in range(100000):
+        nxt = []
+        for j in range(n_goods):
+            row = _io_row(cfg, j)
+            nxt.append(
+                (1.0 + markup) * (kappa_labour + sum(row[k] * prices[k] for k in range(n_goods)))
+            )
+        delta = max(abs(nxt[j] - prices[j]) for j in range(n_goods))
+        prices = nxt
+        if delta < 1e-12:
+            break
+    return prices
 
 
 def ref_initial_state(cfg: Config, seed_env: int, seed_policy: int) -> RefState:
@@ -370,7 +594,42 @@ def ref_initial_state(cfg: Config, seed_env: int, seed_policy: int) -> RefState:
 
     Binds: the opening `state_digest` of every golden file, and `tests/unit/test_env_api.py`.
     """
-    raise NotImplementedError("PLAN section 2.2 - implemented in WO-002")
+    sup = cfg["supply"]
+    tech = cfg["tech"]
+    n, n_goods = _n(cfg), _j(cfg)
+    lag_raw = _f(sup.get("invest_lag", 0.0))
+    n_lag = int(lag_raw) if math.isfinite(lag_raw) and lag_raw > 0 else 0
+    frac = _f(tech["initial_target_frac"])
+    capital = [1.0 for _ in range(n)]
+    targets = [
+        frac * _f(sup["productivity"][_sector_of(cfg, i)]) * capital[i]  # type: ignore[index]
+        for i in range(n)
+    ]
+    return RefState(
+        target=targets,
+        capital=capital,
+        inv_output=[0.0 for _ in range(n)],
+        inv_inputs=[[0.0 for _ in range(n_goods)] for _ in range(n)],
+        cum_output=[0.0 for _ in range(n)],
+        cum_cost=[0.0 for _ in range(n)],
+        quality_acc=[0.0 for _ in range(n)],
+        last_report_ratio=[0.0 for _ in range(n)],
+        last_report=[0.0 for _ in range(n)],
+        last_audited=[False for _ in range(n)],
+        last_penalty=[0.0 for _ in range(n)],
+        last_fill=[1.0 for _ in range(n)],
+        request=[[0.0 for _ in range(n_goods)] for _ in range(n)],
+        pending_invest=[[0.0 for _ in range(n_lag)] for _ in range(n)],
+        t_period=0,
+        k_step=0,
+        phase="produce",
+        plan_prices=ref_initial_prices(cfg),
+        planner_io=[_io_row(cfg, j) for j in range(n_goods)],
+        consumer_delivery=[0.0 for _ in range(n_goods)],
+        alive=True,
+        seed_env=int(seed_env),
+        seed_policy=int(seed_policy),
+    )
 
 
 def ref_state_digest(state: RefState) -> str:
@@ -401,7 +660,22 @@ def ref_state_digest(state: RefState) -> str:
     compared only after those pass (a digest mismatch with matching observations is a hidden-state
     divergence and is reported as such, never waived).
     """
-    raise NotImplementedError("PLAN section 2.2 - implemented in WO-002")
+
+    def render(value: object) -> str:
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        if isinstance(value, int):
+            return repr(int(value))
+        if isinstance(value, float):
+            return repr(float(value))
+        if isinstance(value, str):
+            return value
+        if isinstance(value, (list, tuple)):
+            return "[" + ",".join(render(v) for v in value) + "]"
+        raise TypeError(f"unrenderable state field of type {type(value)!r}")
+
+    parts = [f"{f.name}={render(getattr(state, f.name))};" for f in fields(state)]
+    return hashlib.sha256("".join(parts).encode("utf-8")).hexdigest()
 
 
 # ---------- production helpers (PLAN section 2.6) ----------
@@ -436,7 +710,26 @@ def ref_coverage(x_row: Goods, need_row: Goods, weights: Goods, theta: float) ->
     the weighted harmonic mean; `H = 1` when no inputs are needed. Edge cases E2, E4 and E5 of
     `docs/ref_worked_example.md`.
     """
-    raise NotImplementedError("PLAN section 2.6 - implemented in WO-002")
+    ratios: Goods = []
+    for j, need in enumerate(need_row):
+        need_j = float(need)
+        ratios.append(1.0 if need_j <= 0.0 else min(1.0, float(x_row[j]) / need_j))
+    positive = [j for j, need in enumerate(need_row) if float(need) > 0.0]
+    if not positive:
+        return 1.0
+    if not math.isfinite(theta):
+        return min(ratios[j] for j in positive)
+    if any(ratios[j] <= 0.0 for j in positive):
+        return 0.0
+    acc = 0.0
+    for j, weight in enumerate(weights):
+        w = float(weight)
+        if w == 0.0:
+            continue
+        acc += w * ratios[j] ** (-theta)
+    if acc <= 0.0:
+        return 1.0
+    return acc ** (-1.0 / theta)
 
 
 def ref_input_need(cfg: Config, i: int, y_hat: float) -> Goods:
@@ -458,7 +751,8 @@ def ref_input_need(cfg: Config, i: int, y_hat: float) -> Goods:
     Binds: `tests/unit/test_production.py` (inputs consumed equal `a * y_tilde` capped at stock)
     and T-U1.
     """
-    raise NotImplementedError("PLAN section 2.6 - implemented in WO-002")
+    row = _io_row(cfg, _sector_of(cfg, i))
+    return [v * float(y_hat) for v in row]
 
 
 # ---------- planner helpers (PLAN section 2.7) ----------
@@ -502,7 +796,49 @@ def ref_make_planner_view(state: RefState, cfg: Config, claim_history: list[Vec]
     Binds: T-B4 (`tests/behavioural/test_planner_blindness.py`), which plants sentinels in the
     state and asserts none reaches the view.
     """
-    raise NotImplementedError("PLAN section 2.7.5 - implemented in WO-002")
+    info = cfg["information"]
+    n = _n(cfg)
+    lag = int(_f(info["report_lag"]))
+    idx = len(claim_history) - 1 - lag
+    claims: Vec = list(claim_history[idx]) if 0 <= idx < len(claim_history) else [0.0] * n
+
+    level = str(info["aggregation_level"])
+    if level == "sector":
+        totals: dict[int, float] = {}
+        counts: dict[int, int] = {}
+        for i in range(n):
+            s = _sector_of(cfg, i)
+            totals[s] = totals.get(s, 0.0) + claims[i]
+            counts[s] = counts.get(s, 0) + 1
+        claims = [totals[_sector_of(cfg, i)] / counts[_sector_of(cfg, i)] for i in range(n)]
+
+    sigma_ch = _f(info["channel_noise"])
+    if sigma_ch > 0.0:
+        xi = ref_draw(
+            state.seed_env,
+            "channel",
+            state.t_period,
+            shape=(n,),
+            dist="normal",
+            mean=0.0,
+            sigma=sigma_ch,
+        )
+        claims = [claims[i] * math.exp(float(xi[i])) for i in range(n)]
+
+    mu = _f(info["quality_measurability"])
+    qbar = _quality_bar(state, cfg)
+    return RefPlannerView(
+        claims=claims,
+        requests=[list(row) for row in state.request],
+        audited=[False for _ in range(n)],
+        audit_meas=[0.0 for _ in range(n)],
+        measured_quality=[1.0 + mu * (qbar[i] - 1.0) for i in range(n)],
+        targets=list(state.target),
+        planner_io=[list(row) for row in state.planner_io],
+        downstream_shortfall=[0.0 for _ in range(n)],
+        aggregation_level=level,
+        plan_prices=list(state.plan_prices),
+    )
 
 
 def ref_allocate(view: RefPlannerView, cfg: Config) -> Mat:
@@ -536,7 +872,31 @@ def ref_allocate(view: RefPlannerView, cfg: Config) -> Mat:
     Binds: `tests/unit/test_planner.py` - allocation sums to `avail_j` per good; `eta_q = 0` makes
     the result invariant to `requests`; rows 0.2-0.5 of `docs/ref_worked_example.md`.
     """
-    raise NotImplementedError("PLAN section 2.7.2 - implemented in WO-002")
+    sup = cfg["supply"]
+    inc = cfg["incentive"]
+    n, n_goods = _n(cfg), _j(cfg)
+    eta_q = _f(inc["alloc_eta_request"])
+    eta_n = _f(inc["alloc_eta_need"])
+    phi = [_f(v) for v in sup["final_demand_share"]]  # type: ignore[union-attr]
+
+    avail = [0.0 for _ in range(n_goods)]
+    for i in range(n):
+        s = _sector_of(cfg, i)
+        avail[s] += (1.0 - phi[s]) * float(view.claims[i])
+
+    alloc: Mat = [[0.0 for _ in range(n_goods)] for _ in range(n)]
+    for j in range(n_goods):
+        weights = []
+        for b in range(n):
+            need_bj = float(view.planner_io[_sector_of(cfg, b)][j]) * float(view.targets[b])
+            q_bj = float(view.requests[b][j])
+            weights.append((q_bj + 1e-6) ** eta_q * (need_bj + 1e-6) ** eta_n)
+        total = sum(weights)
+        if total <= 0.0:
+            continue
+        for b in range(n):
+            alloc[b][j] = avail[j] * weights[b] / total
+    return alloc
 
 
 def ref_ship(
@@ -578,7 +938,48 @@ def ref_ship(
     gives `fill = 1`), T-U1 (per-period conservation to 1e-9) and T-B3
     (`tests/behavioural/test_shortage_propagation.py`).
     """
-    raise NotImplementedError("PLAN section 2.7.3 - implemented in WO-002")
+    sup = cfg["supply"]
+    n, n_goods = _n(cfg), _j(cfg)
+    phi = [_f(v) for v in sup["final_demand_share"]]  # type: ignore[union-attr]
+    qbar = _quality_bar(state, cfg)
+
+    fill: Vec = []
+    shipped: Vec = []
+    for i in range(n):
+        claimed = float(claims[i])
+        stock = float(state.inv_output[i])
+        fill.append(1.0 if claimed <= 0.0 else min(1.0, stock / claimed))
+        shipped.append(min(stock, claimed) if claimed > 0.0 else 0.0)
+
+    poolfill = [1.0 for _ in range(n_goods)]
+    for j in range(n_goods):
+        num = 0.0
+        den = 0.0
+        for i in range(n):
+            if _sector_of(cfg, i) != j:
+                continue
+            num += fill[i] * float(claims[i])
+            den += float(claims[i])
+        poolfill[j] = 1.0 if den <= 0.0 else num / den
+
+    qbar_good: Goods = []
+    for j in range(n_goods):
+        members = [qbar[i] for i in range(n) if _sector_of(cfg, i) == j]
+        qbar_good.append(sum(members) / len(members) if members else 1.0)
+
+    deliv: Mat = [[float(alloc[b][j]) * poolfill[j] for j in range(n_goods)] for b in range(n)]
+    for b in range(n):
+        for j in range(n_goods):
+            state.inv_inputs[b][j] += deliv[b][j] * qbar_good[j]
+
+    consumer: Goods = [0.0 for _ in range(n_goods)]
+    for i in range(n):
+        s = _sector_of(cfg, i)
+        consumer[s] += phi[s] * shipped[i] * qbar[i]
+
+    for i in range(n):
+        state.inv_output[i] -= shipped[i]
+    return state, deliv, fill, consumer
 
 
 def ref_select_audits(view: RefPlannerView, cfg: Config, t: int) -> list[bool]:
@@ -606,7 +1007,13 @@ def ref_select_audits(view: RefPlannerView, cfg: Config, t: int) -> list[bool]:
     determinism in `(seed_env, t)`) and row 4.1 of `docs/ref_worked_example.md`, whose seed must
     yield one audited and one unaudited enterprise so that both branches of T-U8 are hand-checked.
     """
-    raise NotImplementedError("PLAN section 2.7.4 - implemented in WO-002")
+    info = cfg["information"]
+    n = _n(cfg)
+    rate = _f(info["audit_rate"])
+    draws = ref_draw(
+        int(_f(cfg["tech"]["seed_env"])), "audit", int(t), shape=(n,), dist="bernoulli", p=rate
+    )
+    return [bool(v) for v in draws]
 
 
 def ref_fulfilment_measure(view: RefPlannerView, cfg: Config) -> Vec:
@@ -631,7 +1038,23 @@ def ref_fulfilment_measure(view: RefPlannerView, cfg: Config) -> Vec:
     Binds: `tests/unit/test_planner.py` and `tests/unit/test_reward.py` (the `val` branch is the
     identity on claims; `net_output` falls as allocated inputs rise).
     """
-    raise NotImplementedError("PLAN section 2.9.2 - implemented in WO-002")
+    inc = cfg["incentive"]
+    n, n_goods = _n(cfg), _j(cfg)
+    metric = str(inc["objective_metric"])
+    claims = [float(v) for v in view.claims]
+    if metric == "val":
+        return claims
+    if metric == "quality_weighted":
+        return [claims[i] * float(view.measured_quality[i]) for i in range(n)]
+    if metric == "net_output":
+        alloc = ref_allocate(view, cfg)
+        out: Vec = []
+        for i in range(n):
+            p_own = float(view.plan_prices[_sector_of(cfg, i)])
+            charged = sum(float(view.plan_prices[j]) * alloc[i][j] for j in range(n_goods))
+            out.append(claims[i] - charged / p_own)
+        return out
+    raise ValueError(f"unknown objective_metric {metric!r}")
 
 
 def ref_update_targets(view: RefPlannerView, cfg: Config, initial_targets: Vec) -> Vec:
@@ -666,7 +1089,27 @@ def ref_update_targets(view: RefPlannerView, cfg: Config, initial_targets: Vec) 
     `c_up`/`c_dn`; floor respected; deadband inert outside `|rho - 1| <= delta`) and T-B2
     (`tests/behavioural/test_fixed_point.py`). Rows 6.1-6.7 of `docs/ref_worked_example.md`.
     """
-    raise NotImplementedError("PLAN section 2.7.1 - implemented in WO-002")
+    inc = cfg["incentive"]
+    tech = cfg["tech"]
+    n = _n(cfg)
+    lam = _f(inc["ratchet_lambda"])
+    g = _f(inc["growth_directive"])
+    c_up = _f(inc["ratchet_cap_up"])
+    c_dn = _f(inc["ratchet_cap_dn"])
+    delta = _f(inc["ratchet_deadband"])
+    floor_frac = _f(tech["target_floor_frac"])
+    measure = ref_fulfilment_measure(view, cfg)
+
+    out: Vec = []
+    for i in range(n):
+        t_i = float(view.targets[i])
+        rho = measure[i] / t_i if t_i != 0.0 else 0.0
+        step = min(max(rho - 1.0, -c_dn), c_up)
+        if abs(rho - 1.0) <= delta:
+            step = 0.0
+        t_min = floor_frac * float(initial_targets[i])
+        out.append(max(t_min, (1.0 + g) * t_i * (1.0 + lam * step)))
+    return out
 
 
 # ---------- reporting, audit, bonus, reward (PLAN sections 2.8, 2.9) ----------
@@ -700,7 +1143,29 @@ def ref_audit_penalty(state: RefState, audited: list[bool], cfg: Config, t: int)
     under-report while `absolute` does not; `audited = False` gives 0 regardless. Edge cases
     E9-E11 of `docs/ref_worked_example.md`.
     """
-    raise NotImplementedError("PLAN section 2.8 - implemented in WO-002")
+    inc = cfg["incentive"]
+    info = cfg["information"]
+    n = _n(cfg)
+    sigma_aud = _f(info["audit_noise"])
+    pen = _f(inc["penalty_scale"])
+    arg = str(inc["penalty_arg"])
+    form = str(inc["penalty_form"])
+
+    nu = ref_draw(
+        state.seed_env, "auditnoise", int(t), shape=(n,), dist="normal", mean=0.0, sigma=sigma_aud
+    )
+    penalty: Vec = [0.0 for _ in range(n)]
+    audit_meas: Vec = [0.0 for _ in range(n)]
+    for i in range(n):
+        if not audited[i]:
+            continue
+        s_hat = float(state.inv_output[i]) * math.exp(float(nu[i]))
+        audit_meas[i] = s_hat
+        t_i = float(state.target[i])
+        gap = float(state.last_report[i]) - s_hat
+        f_i = (max(0.0, gap) if arg == "positive_part" else abs(gap)) / t_i if t_i != 0.0 else 0.0
+        penalty[i] = pen * f_i if form == "proportional" else (pen if f_i > 0.0 else 0.0)
+    return penalty, audit_meas
 
 
 def ref_bonus(rho: float, cfg: Config) -> float:
@@ -731,7 +1196,15 @@ def ref_bonus(rho: float, cfg: Config) -> float:
     `w = 0`; continuous with continuous derivative iff `w > 0` and `rho_cap = inf`. Edge cases E7
     and E8.
     """
-    raise NotImplementedError("PLAN section 2.8 - implemented in WO-002")
+    inc = cfg["incentive"]
+    beta = _f(inc["notch_height"])
+    w = _f(inc["notch_width"])
+    slope = _f(inc["overfulfilment_slope"])
+    cap = _f(inc["overfulfilment_cap"])
+    x = float(rho) - 1.0
+    indicator = (1.0 if x >= 0.0 else 0.0) if w == 0.0 else 1.0 / (1.0 + math.exp(-x / w))
+    over = max(0.0, x) if not math.isfinite(cap) else min(max(0.0, x), cap - 1.0)
+    return beta * indicator + slope * over
 
 
 def ref_reward_scale(cfg: Config) -> float:
@@ -749,7 +1222,7 @@ def ref_reward_scale(cfg: Config) -> float:
     Binds: T-U2 (`tests/unit/test_reward.py`) - `ref_reward_scale(cfg) * ref_bonus(1.1, cfg) == 1`
     to floating-point tolerance for every configuration in the golden matrix.
     """
-    raise NotImplementedError("PLAN section 2.9.1 - implemented in WO-002")
+    return 1.0 / ref_bonus(1.1, cfg)
 
 
 def ref_enterprise_reward(
@@ -784,7 +1257,19 @@ def ref_enterprise_reward(
     Binds: T-B6 - the reward is recomputed independently from this five-term formula on random
     states and must agree exactly; and rows 2.15 and 5.6 of `docs/ref_worked_example.md`.
     """
-    raise NotImplementedError("PLAN section 2.9.1 - implemented in WO-002")
+    n = _n(cfg)
+    scale = ref_reward_scale(cfg)
+    if phase == "produce":
+        costs = cost if cost is not None else [0.0 for _ in range(n)]
+        return [-scale * float(costs[i]) for i in range(n)]
+    pen = penalty if penalty is not None else [0.0 for _ in range(n)]
+    surplus = trade_surplus if trade_surplus is not None else [0.0 for _ in range(n)]
+    out: Vec = []
+    for i in range(n):
+        t_i = float(state.target[i])
+        rho = float(state.last_report[i]) / t_i if t_i != 0.0 else 0.0
+        out.append(scale * (ref_bonus(rho, cfg) - float(pen[i]) + float(surplus[i])))
+    return out
 
 
 def ref_val_measured(state: RefState, cfg: Config, measured_quality: Vec) -> float:
@@ -802,7 +1287,13 @@ def ref_val_measured(state: RefState, cfg: Config, measured_quality: Vec) -> flo
     T-B5 asserts this with sentinels. It is the numerator of `padding_index = val_measured /
     val_true` (PLAN section 2.9.4).
     """
-    raise NotImplementedError("PLAN section 2.9.3 - implemented in WO-002")
+    n = _n(cfg)
+    return sum(
+        float(state.plan_prices[_sector_of(cfg, i)])
+        * float(state.last_report[i])
+        * float(measured_quality[i])
+        for i in range(n)
+    )
 
 
 def ref_val_true(state: RefState, cfg: Config, period_output: Vec) -> float:
@@ -819,7 +1310,12 @@ def ref_val_true(state: RefState, cfg: Config, period_output: Vec) -> float:
     Logged only, exactly as `ref_val_measured` (CONTRACT rule 6). The ratio `val_measured /
     val_true` is the `padding_index` of PLAN section 2.9.4.
     """
-    raise NotImplementedError("PLAN section 2.9.3 - implemented in WO-002")
+    n = _n(cfg)
+    qbar = _quality_bar(state, cfg)
+    return sum(
+        float(state.plan_prices[_sector_of(cfg, i)]) * float(period_output[i]) * qbar[i]
+        for i in range(n)
+    )
 
 
 def ref_welfare_true(consumer: Goods, cfg: Config) -> float:
@@ -840,7 +1336,26 @@ def ref_welfare_true(consumer: Goods, cfg: Config) -> float:
     term may read it. `W = mean_t welfare_t` over the measurement window of PLAN section 4.4
     (periods `t >= 2`), and `welfare_ratio = W / W_oracle` (PLAN section 2.9.4).
     """
-    raise NotImplementedError("PLAN section 2.9.3 - implemented in WO-002")
+    sup = cfg["supply"]
+    alpha = [_f(v) for v in sup["ces_alpha"]]  # type: ignore[union-attr]
+    sigma_c = _f(sup["ces_sigma"])
+    if abs(sigma_c - 1.0) < 1e-12:  # Cobb-Douglas limit, an explicit branch not a numeric limit
+        acc = 1.0
+        for j, c_j in enumerate(consumer):
+            if float(c_j) <= 0.0:
+                return 0.0
+            acc *= float(c_j) ** alpha[j]
+        return acc
+    rho_ces = (sigma_c - 1.0) / sigma_c
+    if rho_ces < 0.0 and any(float(c_j) <= 0.0 for c_j in consumer):
+        return 0.0
+    acc = 0.0
+    for j, c_j in enumerate(consumer):
+        c = float(c_j)
+        acc += alpha[j] * (c**rho_ces if c > 0.0 else 0.0)
+    if acc <= 0.0:
+        return 0.0
+    return acc ** (1.0 / rho_ces)
 
 
 # ---------- observation (PLAN section 2.4) ----------
@@ -916,7 +1431,41 @@ def ref_observation(state: RefState, cfg: Config, initial_targets: Vec, deliv: M
     masking), T-B5 (`tests/behavioural/test_welfare_blindness.py`) and T-B7 (every golden file
     stores this vector).
     """
-    raise NotImplementedError("PLAN section 2.4 - implemented in WO-002")
+    inc = cfg["incentive"]
+    n, n_goods = _n(cfg), _j(cfg)
+    m_steps = _m(cfg)
+    scale = ref_reward_scale(cfg)
+    g = _f(inc["growth_directive"])
+    need = _planned_need(cfg, state.target)
+
+    obs: Mat = []
+    for i in range(n):
+        t_i = float(state.target[i])
+        need_row = need[i]
+        need_total = sum(need_row)
+        deliv_row = [float(deliv[i][j]) for j in range(n_goods)]
+        row: Vec = [
+            0.0 if state.phase == "produce" else 1.0,
+            float(state.k_step) / float(m_steps),
+            math.log(t_i / float(initial_targets[i])),
+            g,
+            float(state.cum_output[i]) / t_i if t_i != 0.0 else 0.0,
+            float(state.inv_output[i]) / t_i if t_i != 0.0 else 0.0,
+            float(state.capital[i]) / 1.0,
+            float(state.last_report_ratio[i]),
+            1.0 if state.last_audited[i] else 0.0,
+            float(state.last_penalty[i]) * scale,
+            float(state.last_fill[i]),
+            (sum(deliv_row) / need_total) if need_total > 0.0 else 1.0,
+        ]
+        row += [
+            (float(state.inv_inputs[i][j]) / need_row[j]) if need_row[j] > 0.0 else 1.0
+            for j in range(n_goods)
+        ]
+        row += [1.0 if _sector_of(cfg, i) == j else 0.0 for j in range(n_goods)]
+        row += [(deliv_row[j] / need_row[j]) if need_row[j] > 0.0 else 1.0 for j in range(n_goods)]
+        obs.append(row)
+    return obs
 
 
 # ---------- conservation (PLAN section 2.11, test T-U1) ----------
@@ -956,7 +1505,18 @@ def ref_conservation_residual(
 
     Binds: T-U1 (`tests/unit/test_conservation.py`), to 1e-9, per good, per period.
     """
-    raise NotImplementedError("PLAN section 2.11 - implemented in WO-002")
+    n, n_goods = _n(cfg), _j(cfg)
+    lhs = [0.0 for _ in range(n_goods)]
+    rhs = [0.0 for _ in range(n_goods)]
+    for i in range(n):
+        s = _sector_of(cfg, i)
+        lhs[s] += float(y_period[i]) + float(stock_prev[i])
+        rhs[s] += float(stock_next[i]) + float(holding_loss[i]) + float(cap_overflow[i])
+    for j in range(n_goods):
+        rhs[j] += float(consumer[j])
+        for i in range(n):
+            rhs[j] += float(inputs_consumed[i][j])
+    return [lhs[j] - rhs[j] for j in range(n_goods)]
 
 
 # ---------- schedule stage 0: DELIVER (PLAN section 2.5) ----------
@@ -997,7 +1557,12 @@ def ref_deliver(
     (`tests/behavioural/test_shortage_propagation.py`) and rows 0.1-0.13 of
     `docs/ref_worked_example.md`.
     """
-    raise NotImplementedError("PLAN section 2.5 - implemented in WO-002")
+    view = ref_make_planner_view(state, cfg, claim_history)
+    alloc = ref_allocate(view, cfg)
+    state, deliv, fill, consumer = ref_ship(state, alloc, view.claims, cfg)
+    state.last_fill = fill
+    state.consumer_delivery = consumer
+    return state, view, deliv, fill, consumer
 
 
 # ---------- schedule stage 2: PRODUCE (PLAN section 2.5) ----------
@@ -1047,7 +1612,54 @@ def ref_produce(state: RefState, action: RefAction, cfg: Config) -> tuple[RefSta
     the cost formula; inputs consumed equal `a * y_tilde` capped at stock; `H = 1` on a zero `a`
     row), T-U7, T-U1, and rows 2.1-2.15 of `docs/ref_worked_example.md`.
     """
-    raise NotImplementedError("PLAN section 2.6 - implemented in WO-002")
+    sup = cfg["supply"]
+    inc = cfg["incentive"]
+    n, n_goods = _n(cfg), _j(cfg)
+    m_steps = _m(cfg)
+    kappa = _f(inc["effort_cost"])
+    setup = _f(sup["setup_cost"])
+    kappa_q = _f(sup["quality_cost"])
+    theta = _f(sup["input_complementarity"])
+
+    sigmas = [_f(sup["yield_sigma"][_sector_of(cfg, i)]) for i in range(n)]  # type: ignore[index]
+
+    y_out: Vec = [0.0 for _ in range(n)]
+    cost: Vec = [0.0 for _ in range(n)]
+    consumed: Mat = [[0.0 for _ in range(n_goods)] for _ in range(n)]
+
+    for i in range(n):
+        s = _sector_of(cfg, i)
+        e = float(action.effort[i])
+        q = float(action.quality[i])
+        v = float(action.invest[i])
+        y_hat = (_f(sup["productivity"][s]) * float(state.capital[i]) / m_steps) * e  # type: ignore[index]
+        row = _io_row(cfg, s)
+        need = [val * y_hat for val in row]
+        h = ref_coverage(state.inv_inputs[i], need, _io_weights(row), theta)
+        shock = ref_draw(
+            state.seed_env,
+            "yield",
+            state.t_period,
+            state.k_step,
+            i,
+            shape=(1,),
+            dist="lognormal",
+            mean_log=-(sigmas[i] ** 2) / 2.0,
+            sigma=sigmas[i],
+        )[0]
+        y_tilde = y_hat * h * float(shock)
+        y_out[i] = y_tilde * (1.0 - v)
+        for j in range(n_goods):
+            take = min(float(state.inv_inputs[i][j]), row[j] * y_tilde)
+            state.inv_inputs[i][j] -= take
+            consumed[i][j] = take
+        cost[i] = kappa * e**2 + setup * (1.0 if e > 0.0 else 0.0) + kappa_q * q * e
+        state.cum_output[i] += y_out[i]
+        state.cum_cost[i] += cost[i]
+        state.quality_acc[i] += q
+        if state.pending_invest[i]:
+            state.pending_invest[i][-1] += y_tilde * v
+    return state, y_out, cost, consumed
 
 
 # ---------- schedule stage 3: REPORT (PLAN section 2.5) ----------
@@ -1086,7 +1698,37 @@ def ref_report(state: RefState, action: RefAction, cfg: Config) -> tuple[RefStat
     to `rho_max`), T-B8 (`BOUND_BINDING`), T-U1, and rows 3.1-3.8 of
     `docs/ref_worked_example.md`.
     """
-    raise NotImplementedError("PLAN section 2.8 - implemented in WO-002")
+    sup = cfg["supply"]
+    tech = cfg["tech"]
+    n, n_goods = _n(cfg), _j(cfg)
+    h = _f(sup["holding_loss"])
+    rho_max = _f(tech["report_max_ratio"])
+    r_max = _f(tech["request_max_multiple"])
+    need = _planned_need(cfg, state.target)
+
+    holding_loss: Vec = [0.0 for _ in range(n)]
+    cap_overflow: Vec = [0.0 for _ in range(n)]
+    period_output: Vec = [float(v) for v in state.cum_output]
+
+    for i in range(n):
+        stock_before = float(state.inv_output[i])
+        holding_loss[i] = h * stock_before
+        stock = (1.0 - h) * stock_before + period_output[i]
+        s_max = _f(tech["inventory_cap_mult"]) * float(state.capital[i])
+        if stock > s_max:
+            cap_overflow[i] = stock - s_max
+            stock = s_max
+        state.inv_output[i] = stock
+
+        t_i = float(state.target[i])
+        rho = min(max(float(action.report_ratio[i]), 0.0), rho_max)
+        state.last_report_ratio[i] = rho
+        state.last_report[i] = rho * t_i
+        state.request[i] = [
+            min(max(float(action.input_request[i][j]), 0.0), r_max * need[i][j])
+            for j in range(n_goods)
+        ]
+    return state, holding_loss, cap_overflow, period_output
 
 
 # ---------- schedule stage 4: AUDIT (PLAN section 2.5) ----------
@@ -1118,7 +1760,12 @@ def ref_audit(
     Binds: T-U8, `tests/unit/test_planner.py` (audit frequency) and rows 4.1-4.6 of
     `docs/ref_worked_example.md`.
     """
-    raise NotImplementedError("PLAN section 2.8 - implemented in WO-002")
+    audited = ref_select_audits(view, cfg, state.t_period)
+    penalty, audit_meas = ref_audit_penalty(state, audited, cfg, state.t_period)
+    view = replace(view, audited=audited, audit_meas=audit_meas)
+    state.last_audited = audited
+    state.last_penalty = penalty
+    return state, view, penalty
 
 
 # ---------- schedule stage 5: REWARD (PLAN section 2.5) ----------
@@ -1162,7 +1809,12 @@ def ref_reward(
     Binds: T-B6 (independent recomputation of the five-term formula), T-U2, T-U3 and rows 5.1-5.10
     of `docs/ref_worked_example.md`.
     """
-    raise NotImplementedError("PLAN section 2.9 - implemented in WO-002")
+    n = _n(cfg)
+    reward = ref_enterprise_reward(state, cfg, "report", None, penalty, [0.0 for _ in range(n)])
+    val_measured = ref_val_measured(state, cfg, view.measured_quality)
+    val_true = ref_val_true(state, cfg, period_output)
+    welfare = ref_welfare_true(consumer, cfg)
+    return reward, val_measured, val_true, welfare
 
 
 # ---------- schedule stage 6: TARGET (PLAN section 2.5) ----------
@@ -1185,7 +1837,8 @@ def ref_target(
 
     Binds: T-U4, T-B2 and rows 6.1-6.7 of `docs/ref_worked_example.md`.
     """
-    raise NotImplementedError("PLAN section 2.7.1 - implemented in WO-002")
+    state.target = ref_update_targets(view, cfg, initial_targets)
+    return state
 
 
 # ---------- schedule stage 7: TERMINATE (PLAN section 2.5) ----------
@@ -1216,7 +1869,23 @@ def ref_terminate(state: RefState, cfg: Config) -> bool:
     Binds: T-B9 (`tests/behavioural/test_termination.py`: empirical continuation equals `psi`) and
     rows 7.1-7.4 of `docs/ref_worked_example.md`.
     """
-    raise NotImplementedError("PLAN section 2.12 - implemented in WO-002")
+    inc = cfg["incentive"]
+    tech = cfg["tech"]
+    mode = str(tech["horizon_mode"])
+    p_min = int(_f(tech["min_periods"]))
+    p_max = int(_f(tech["max_periods"]))
+    completed = int(state.t_period) + 1
+    if completed >= p_max:
+        return True
+    if mode == "fixed":
+        return False
+    if completed < p_min:
+        return False
+    psi = _f(inc["tenure"])
+    cont = ref_draw(
+        state.seed_env, "terminate", int(state.t_period), shape=(1,), dist="bernoulli", p=psi
+    )
+    return not bool(cont[0])
 
 
 # ---------- drivers ----------
@@ -1264,7 +1933,10 @@ def ref_period(
     `docs/ref_worked_example.md`, which requires at least two periods so that the target written at
     stage 6 and the claim recorded at stage 3 are both carried across the period boundary.
     """
-    raise NotImplementedError("PLAN section 2.5 - implemented in WO-002")
+    m_steps = _m(cfg)
+    if len(actions) != m_steps + 1:
+        raise ValueError(f"expected {m_steps + 1} actions, got {len(actions)}")
+    return _run_period(state, cfg, initial_targets, claim_history, lambda k, _obs, _ph: actions[k])
 
 
 def ref_rollout(
@@ -1303,7 +1975,34 @@ def ref_rollout(
     and requires agreement to 1e-9 on observations and rewards, and exact agreement on the state
     digest.
     """
-    raise NotImplementedError("PLAN section 2.5 - implemented in WO-002")
+    rng = np.random.default_rng(np.random.SeedSequence([int(seed_policy)]))
+    out: list[RefStepRecord] = []
+
+    state = ref_initial_state(cfg, seed_env, seed_policy)
+    initial_targets = [float(v) for v in state.target]
+    claim_history: list[Vec] = []
+    period_index = 0
+    zero_deliv: Mat = [[0.0 for _ in range(_j(cfg))] for _ in range(_n(cfg))]
+
+    while len(out) < n_steps:
+        state.t_period = period_index
+        seed_obs = ref_observation(state, cfg, initial_targets, zero_deliv)
+        state, records = _run_period(
+            state,
+            cfg,
+            initial_targets,
+            claim_history,
+            lambda _k, obs, phase: policy(obs, phase, rng),
+            obs_seed=seed_obs,
+        )
+        out.extend(records)
+        period_index = state.t_period
+        if not state.alive:
+            state = ref_initial_state(cfg, seed_env, seed_policy)
+            state.t_period = period_index
+            initial_targets = [float(v) for v in state.target]
+            claim_history = []
+    return out[:n_steps]
 
 
 __all__ = [
