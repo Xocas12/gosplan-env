@@ -531,10 +531,20 @@ class EnvConfig:
         """Return the stable content hash of this configuration.
 
         Takes: nothing beyond `self`. Returns: the SHA-256 hex digest of the canonical JSON
-        encoding of the configuration (WO-003 notes): keys sorted, so the digest is invariant to
-        field order; floats formatted with `repr`; `float("inf")` serialised as the string `"inf"`;
-        tuples encoded as JSON arrays. The digest names the run directory `runs/<hash>/` and
-        appears in the manifest (CONTRACT rule 10).
+        encoding of the configuration, pinned byte-for-byte by ambiguity report #51:
+
+            json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+
+        over the nested per-section object `{"supply": {...}, "incentive": {...},
+        "information": {...}, "tech": {...}}`, with floats rendered by `repr`, `float("inf")` as the
+        string `"inf"`, tuples as JSON arrays, no trailing newline, encoded UTF-8 and hashed with
+        `hashlib.sha256`, rendered lowercase hex.
+
+        The bytes are pinned, not merely the semantics, because `ref/gen_golden.config_hash`
+        re-derives this digest independently and `tests/golden/` asserts the two agree; keys-sorted
+        alone still leaves the separators free, so two faithful implementations could disagree and
+        fail golden parity with no card at fault. The digest names the run directory `runs/<hash>/`
+        and appears in the manifest (CONTRACT rule 10).
 
         Binds: `tests/unit/test_config.py` - hash stable under field order, and two configurations
         that differ in any single parameter hash differently. Owning WO: **WO-003**.
