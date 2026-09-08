@@ -168,3 +168,45 @@ WO-009 (supplies `need` to the observation builder).
 **Suite.** 93 passed, 233 skipped - unchanged.
 
 **Approver.** LEAD. `spec/spec.py` remains provisional until WO-013 bumps it to `1.0.0` at gate G1.
+
+## 0.1.3 - 2026-09-07
+
+**Change.** The T-U1 conservation identity is corrected, and `ref_conservation_residual` gains the
+two arguments the correct identity needs. Found by the WO-002 hand-checked worked example.
+
+- **#64 (AMB-009) - the stated T-U1 identity does not balance.** PLAN section 11 states
+
+      sum y + sum S_prev = sum inputs consumed + sum consumer + sum S_next
+                           + holding loss + cap overflow
+
+  which omits the goods sitting in buyers' input stocks: a unit delivered into `X` has left the
+  seller's `S` but has not been consumed, so it appears on neither side and the residual is exactly
+  the period's change in `X`. Corrected to carry the input stocks explicitly, per good `j`:
+
+      sum_i y_i + sum_i S_prev_i + sum_i X_prev_ij
+          = sum_i S_next_i + sum_i X_next_ij + sum_i consumed_ij
+            + consumer_j + sum_i holding_i + sum_i overflow_i
+
+  Substituting `X_next = X_prev + deliv - consumed` reduces this to
+  `y + S_prev = S_next + deliv + consumer + holding + overflow`, and `deliv_j + consumer_j` is
+  exactly `sum_i shipped_i` for that good, which is why it balances. Verified: residual
+  `[0.0, -1.11e-16]` and `[0.0, 0.0]` over two periods of the worked example.
+
+- **Signature.** `ref_conservation_residual` now takes `inputs_prev` and `inputs_next` alongside
+  `inputs_consumed`. It is a `ref/`-only function - it mirrors no `spec/spec.py` callable - so no
+  frozen interface moves. `_run_period` snapshots `X` at the top of the period to supply it.
+
+**Why this mattered more than it looks.** `_run_period` asserts the identity every period, so under
+the stated form the reference could not run any economy in which goods are actually delivered. It
+passed only in two degenerate cases: an economy with no I-O links, and the cold-start deadlock of
+#62 where every quantity is zero - **zeros conserve**. Those are exactly the two situations
+reachable before this worked example existed, which is why the defect survived step 2.
+
+**Affected work orders.** WO-002 (writes T-U1 in `tests/unit/test_conservation.py`), WO-009 (the
+production step function must satisfy the same identity).
+
+**Golden files.** Still none, and still blocked on #62.
+
+**Suite.** 93 passed, 233 skipped - unchanged.
+
+**Approver.** LEAD. `spec/spec.py` remains provisional until WO-013 bumps it to `1.0.0` at gate G1.
