@@ -22,3 +22,6 @@ tests/unit/test_production.py
 tests/unit/test_obs.py
 tests/unit/test_planner.py
 tests/unit/test_reporting.py
+tests/unit/test_ledger.py
+tests/unit/test_env_api.py
+tests/unit/test_mc_sanity_runs.py
