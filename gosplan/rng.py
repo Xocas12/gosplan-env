@@ -124,10 +124,18 @@ def draw(
     `i`; `shape`, the shape of the array to return, vectorising over the trailing index; `dist`,
     one of the values of `Dist`; `**params`, the distribution parameters -
 
-        lognormal    mean_log, sigma      returns exp(N(mean_log, sigma**2))
-        normal       mean, sigma
-        bernoulli    p                    returns a boolean array
-        categorical  probs                returns integer category indices
+        lognormal    mean_log, sigma      gen.lognormal(mean=mean_log, sigma=sigma, size=shape)
+        normal       mean, sigma          gen.normal(loc=mean, scale=sigma, size=shape)
+        bernoulli    p                    gen.random(size=shape) < p
+        categorical  probs                gen.choice(len(probs), size=shape, p=probs)
+
+    The right-hand column is the EXACT generator call, not an illustration. `ref/ref_step.py`
+    re-derives the same table independently and states that it must match element for element, and
+    `tests/golden/` compares the two: `gen.random(size=shape) < p` and
+    `gen.binomial(1, p, shape).astype(bool)` draw the same distribution but consume the generator
+    differently, so a substitution here diverges every later draw and surfaces at WO-009 as an
+    unexplained golden-parity break. Pinned by ambiguity report #52; `ref/` is not on WO-004's
+    whitelist, so the table has to live here for the card to be executable at all.
 
     Returns: an `Array` of exactly the requested `shape` (boolean for `bernoulli`, integer for
     `categorical`, float otherwise).

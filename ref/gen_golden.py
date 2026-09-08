@@ -230,6 +230,16 @@ def config_hash(config: Config) -> str:
         - tuples encoded as JSON arrays;
         - the encoding UTF-8 bytes, hashed with `hashlib.sha256`, rendered lowercase hex.
 
+        Pinned byte-for-byte by ambiguity report #51, because this function is deliberately an
+        INDEPENDENT re-derivation of `EnvConfig.hash` and `tests/golden/` asserts the two digests
+        agree:
+
+            json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+
+        over the nested per-section object, floats rendered by `repr`, `float("inf")` as the string
+        "inf", tuples as JSON arrays, no trailing newline, UTF-8, `hashlib.sha256`, lowercase hex.
+
+
     Re-implemented here rather than imported, because `ref/` may not import `gosplan/` (WO-002
     "Forbidden"). That is the point: `tests/golden/test_golden_parity.py` asserts
     `config_hash(document) == EnvConfig(**document).hash()`, so an encoder bug on either side is
