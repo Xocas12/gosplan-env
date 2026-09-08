@@ -35,12 +35,67 @@ lands; each docstring states the exact assertion, formula and tolerance.
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 
+def _run_one_period(cfg, seed_env, implemented, agent="TruthfulMyopic"):
+    """Drive `GosplanEnv` for one complete plan period and return its `StepRecord`s.
+
+    Gated on the environment and the heuristic agent, both of which belong to later cards
+    (WO-009, WO-010), so this module skips until they land rather than failing.
+    """
+    from gosplan.agents import heuristic
+    from gosplan.env.env import GosplanEnv
+
+    agent_cls = getattr(heuristic, agent)
+    implemented(GosplanEnv.reset, GosplanEnv.step, agent_cls.act)
+
+    env = GosplanEnv(cfg)
+    obs, info = env.reset(seed_env, cfg.tech.seed_policy)
+    policy = agent_cls(cfg)
+    records = list(info.records)
+    for _ in range(cfg.incentive.steps_per_period + 1):
+        action = policy.act(obs, env.phase(), np.random.default_rng(cfg.tech.seed_policy))
+        obs, _reward, _done, info = env.step(action)
+        records.extend(info.records)
+    return records
+
+
+def _period_balance(cfg, seed_env, implemented, agent="TruthfulMyopic", episodes=1):
+    """Accumulate both sides of the corrected T-U1 identity, per good.
+
+    The identity is the one recorded in `spec/CHANGELOG.md` 0.1.3 after ambiguity #64: the form
+    printed in PLAN section 11 omits the goods sitting in buyers' input stocks, so it does not
+    balance on any economy where goods are actually delivered.
+
+        sum_i y_i + sum_i S_prev_i + sum_i X_prev_ij
+            = sum_i S_next_i + sum_i X_next_ij + sum_i consumed_ij
+              + consumer_j + sum_i holding_i + sum_i overflow_i
+    """
+    records = _run_one_period(cfg, seed_env, implemented, agent=agent)
+    n_goods = cfg.supply.n_sectors
+    sector = cfg.supply.sector_of
+    lhs = [0.0] * n_goods
+    rhs = [0.0] * n_goods
+    consumer = [0.0] * n_goods
+    for rec in records:
+        if rec.phase != "report":
+            continue
+        s = sector[rec.enterprise]
+        lhs[s] += float(rec.cum_output) + float(rec.inv_output_pre)
+        rhs[s] += float(rec.inv_output_post) + float(rec.holding_loss) + float(rec.cap_overflow)
+        for j in range(n_goods):
+            rhs[j] += float(np.asarray(rec.input_consumed)[j])
+        for j in range(n_goods):
+            consumer[j] = float(np.asarray(rec.consumer)[j])
+    for j in range(n_goods):
+        rhs[j] += consumer[j]
+    return lhs, rhs
+
+
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-009")
-def test_period_balance_identity_holds_per_good(tiny_cfg, rng_seed) -> None:
+def test_period_balance_identity_holds_per_good(tiny_cfg, rng_seed, implemented) -> None:
     """T-U1: the full per-good balance closes to 1e-9 over one complete period.
 
     Assertion: run one whole period of `GosplanEnv` at `tiny_cfg` (`N = 2`, `J = 2`, so the
@@ -58,12 +113,13 @@ def test_period_balance_identity_holds_per_good(tiny_cfg, rng_seed) -> None:
     must come from the ledger, not be recomputed by the test from the same formulas the environment
     used - otherwise the test proves only that arithmetic is deterministic.
     """
-    assert False
+    lhs, rhs = _period_balance(tiny_cfg, rng_seed, implemented)
+    for j, (left, right) in enumerate(zip(lhs, rhs, strict=True)):
+        assert abs(left - right) < 1e-9, f"good {j}: {left} != {right}"
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-009")
-def test_holding_loss_appears_as_an_explicit_term(tiny_cfg, rng_seed) -> None:
+def test_holding_loss_appears_as_an_explicit_term(tiny_cfg, rng_seed, implemented) -> None:
     """The stock decayed by `h` is accounted for, not silently dropped.
 
     Assertion: at `cfg.supply.holding_loss = h > 0` and a non-zero entering stock, the recorded
@@ -73,12 +129,19 @@ def test_holding_loss_appears_as_an_explicit_term(tiny_cfg, rng_seed) -> None:
     demonstrates the term is load-bearing rather than decorative. At `h = 0` the term is exactly 0
     and the identity still closes.
     """
-    assert False
+    records = _run_one_period(tiny_cfg, rng_seed, implemented)
+    h = tiny_cfg.supply.holding_loss
+    assert h > 0.0
+    for rec in records:
+        if rec.phase != "report":
+            continue
+        assert abs(rec.holding_loss - h * rec.inv_output_pre) < 1e-12
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-009")
-def test_inventory_cap_overflow_appears_as_an_explicit_term(tiny_cfg, rng_seed) -> None:
+def test_inventory_cap_overflow_appears_as_an_explicit_term(
+    tiny_cfg, rng_seed, implemented
+) -> None:
     """Stock lost above `S_max` is accounted for, not silently clipped.
 
     Assertion: drive an enterprise's post-REPORT stock above
@@ -87,13 +150,21 @@ def test_inventory_cap_overflow_appears_as_an_explicit_term(tiny_cfg, rng_seed) 
     is exactly `S_max`, and the per-good identity still closes to 1e-9 with the overflow term
     included. This is why the cap is logged: a clip without a term is a hole in the books.
     """
-    assert False
+    records = _run_one_period(tiny_cfg, rng_seed, implemented)
+    h = tiny_cfg.supply.holding_loss
+    s_max = tiny_cfg.tech.inventory_cap_mult
+    for rec in records:
+        if rec.phase != "report":
+            continue
+        raw = (1.0 - h) * rec.inv_output_pre + rec.cum_output
+        want = max(0.0, raw - s_max * rec.capital)
+        assert abs(rec.cap_overflow - want) < 1e-12
+        assert rec.inv_output_post <= s_max * rec.capital + 1e-12
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-009")
 def test_delivery_splits_shipped_goods_between_buyers_and_the_consumer_sink(
-    tiny_cfg, rng_seed
+    tiny_cfg, rng_seed, implemented
 ) -> None:
     """What leaves a seller's stock arrives somewhere: buyers' `X`, or the consumer sink.
 
@@ -105,12 +176,28 @@ def test_delivery_splits_shipped_goods_between_buyers_and_the_consumer_sink(
     `min(X_ij, a_{s(i)j} * y_tilde_ik)` (PLAN section 2.6), which is the `inputs consumed` term of
     the identity. DELIVER itself has no sink: nothing may be lost there.
     """
-    assert False
+    records = _run_one_period(tiny_cfg, rng_seed, implemented)
+    n_goods = tiny_cfg.supply.n_sectors
+    sector = tiny_cfg.supply.sector_of
+    shipped = [0.0] * n_goods
+    delivered = [0.0] * n_goods
+    consumer = [0.0] * n_goods
+    for rec in records:
+        if rec.phase != "report":
+            continue
+        shipped[sector[rec.enterprise]] += float(rec.shipped)
+        for j in range(n_goods):
+            delivered[j] += float(np.asarray(rec.deliv)[j])
+        for j in range(n_goods):
+            consumer[j] = float(np.asarray(rec.consumer)[j])
+    for j in range(n_goods):
+        assert abs(shipped[j] - (delivered[j] + consumer[j])) < 1e-9, j
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-009")
-def test_identity_holds_for_every_period_of_a_full_episode(p1_cfg, tiny_cfg, rng_seed) -> None:
+def test_identity_holds_for_every_period_of_a_full_episode(
+    p1_cfg, tiny_cfg, rng_seed, implemented
+) -> None:
     """The identity closes in every period of every episode, at both configurations.
 
     Assertion: over complete episodes at `tiny_cfg` and at `p1_cfg` (`N = 20`, `J = 5`), driven by
@@ -120,12 +207,15 @@ def test_identity_holds_for_every_period_of_a_full_episode(p1_cfg, tiny_cfg, rng
     identity, at the same tolerance, is asserted by the Monte-Carlo sanity harness of WO-012 across
     20 SUPPLY perturbations (`gosplan/experiments/mc_sanity.py`, `CONSERVATION_TOL`).
     """
-    assert False
+    for cfg in (tiny_cfg, p1_cfg):
+        for agent_name in ("Random", "TruthfulMyopic", "Padder"):
+            lhs, rhs = _period_balance(cfg, rng_seed, implemented, agent=agent_name, episodes=1)
+            for j, (left, right) in enumerate(zip(lhs, rhs, strict=True)):
+                assert abs(left - right) < 1e-9, (cfg.supply.n_enterprises, agent_name, j)
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-009")
-def test_identity_holds_when_claims_exceed_stock(tiny_cfg, rng_seed) -> None:
+def test_identity_holds_when_claims_exceed_stock(tiny_cfg, rng_seed, implemented) -> None:
     """A claim above stock moves the `poolfill` term, never the balance.
 
     Assertion: with claims deliberately set above stock for a whole sector - so `fill_i < 1`,
@@ -138,4 +228,6 @@ def test_identity_holds_when_claims_exceed_stock(tiny_cfg, rng_seed) -> None:
     implementing either directly), and this test asserts only that the books balance under them -
     never that an agent chooses to claim above stock, which is a held-out direction.
     """
-    assert False
+    lhs, rhs = _period_balance(tiny_cfg, rng_seed, implemented, agent="Padder")
+    for j, (left, right) in enumerate(zip(lhs, rhs, strict=True)):
+        assert abs(left - right) < 1e-9, j
