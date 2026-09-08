@@ -231,6 +231,7 @@ def _run_period(
     """
     n, n_goods, m_steps = _n(cfg), _j(cfg), _m(cfg)
     stock_prev = [float(v) for v in state.inv_output]
+    inputs_prev = [list(row) for row in state.inv_inputs]
     records: list[RefStepRecord] = []
 
     state, view, deliv, _fill, consumer = ref_deliver(state, cfg, claim_history)
@@ -283,9 +284,11 @@ def _run_period(
     residual = ref_conservation_residual(
         period_output,
         stock_prev,
+        inputs_prev,
         consumed_total,
         consumer,
         list(state.inv_output),
+        [list(row) for row in state.inv_inputs],
         holding_loss,
         cap_overflow,
         cfg,
@@ -1474,9 +1477,11 @@ def ref_observation(state: RefState, cfg: Config, initial_targets: Vec, deliv: M
 def ref_conservation_residual(
     y_period: Vec,
     stock_prev: Vec,
+    inputs_prev: Mat,
     inputs_consumed: Mat,
     consumer: Goods,
     stock_next: Vec,
+    inputs_next: Mat,
     holding_loss: Vec,
     cap_overflow: Vec,
     cfg: Config,
@@ -1489,14 +1494,28 @@ def ref_conservation_residual(
     period; `holding_loss` `(N,)` and `cap_overflow` `(N,)`, the two sinks of PLAN section 2.11;
     and `cfg`. Returns: the residual per good, length `J`.
 
-    Identity (PLAN section 11, T-U1, verbatim):
+    Identity, CORRECTED - see ambiguity report #64 and spec/CHANGELOG.md 0.1.3. PLAN section 11
+    states T-U1 as
 
         sum y + sum S_prev = sum inputs consumed + sum consumer + sum S_next
                              + holding loss + cap overflow
 
-    evaluated **per good**, where a quantity indexed by enterprise contributes to the good of that
-    enterprise's sector and `inputs_consumed` contributes to the good consumed. The residual is
-    LHS - RHS and must be below 1e-9 in absolute value for every good.
+    and that identity DOES NOT BALANCE. It omits the goods sitting in buyers' input stocks: a unit
+    delivered into `X` has left the seller's `S` but has not been consumed, so it appears on neither
+    side and the residual is exactly the change in `X`. The identity actually satisfied by PLAN
+    sections 2.6, 2.7.3 and 2.11 carries the input stocks explicitly, per good `j`:
+
+        sum_i y_i + sum_i S_prev_i + sum_i X_prev_ij
+            = sum_i S_next_i + sum_i X_next_ij + sum_i consumed_ij
+              + consumer_j + sum_i holding_i + sum_i overflow_i
+
+    where `y`, `S`, `holding` and `overflow` are indexed by enterprise and contribute to the good of
+    that enterprise's sector, while `X` and `consumed` are indexed by `(enterprise, good)` and
+    contribute to the good directly. Substituting `X_next = X_prev + deliv - consumed` reduces it to
+    `y + S_prev = S_next + deliv + consumer + holding + overflow`, and `deliv_j + consumer_j` is
+    exactly `sum_i shipped_i` for that good, which is why it balances.
+
+    The residual is LHS - RHS and must be below 1e-9 in absolute value for every good.
 
     A non-zero residual is a defect in the reference, never a tolerance to be loosened
     (`docs/ref_worked_example.md` section 3). This function exists so that `ref_period` can assert
@@ -1515,7 +1534,8 @@ def ref_conservation_residual(
     for j in range(n_goods):
         rhs[j] += float(consumer[j])
         for i in range(n):
-            rhs[j] += float(inputs_consumed[i][j])
+            lhs[j] += float(inputs_prev[i][j])
+            rhs[j] += float(inputs_next[i][j]) + float(inputs_consumed[i][j])
     return [lhs[j] - rhs[j] for j in range(n_goods)]
 
 
