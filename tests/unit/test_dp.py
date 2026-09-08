@@ -33,12 +33,72 @@ lands; each docstring states the exact assertion, formula and tolerance.
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 
+def _single(cfg):
+    """The DP's setting: one enterprise, no I-O, everything sold to final demand (PLAN section 5)."""
+    import dataclasses
+
+    return dataclasses.replace(
+        cfg,
+        supply=dataclasses.replace(
+            cfg.supply,
+            n_enterprises=1,
+            n_sectors=1,
+            sector_of=(0,),
+            io_matrix=((0.0,),),
+            final_demand_share=(1.0,),
+            productivity=(1.0,),
+            yield_sigma=(0.05,),
+            ces_alpha=(1.0,),
+        ),
+    )
+
+
+def _grid():
+    """A coarse `DPGrid`, so a solver test runs in seconds rather than minutes."""
+    from gosplan.agents.dp import DPGrid
+
+    return DPGrid(
+        target_points=20,
+        stock_points=12,
+        effort_step=0.1,
+        report_step=0.05,
+        report_hi=3.0,
+        gh_nodes=9,
+        value_tol=1e-6,
+        max_iterations=5000,
+    )
+
+
+def _solution(**over):
+    """A `DPSolution` with only the fields `classify_regime` reads, for a classifier test."""
+    from gosplan.agents.dp import DPSolution
+
+    base = dict(
+        policy_effort=np.zeros((2, 2)),
+        policy_report=np.zeros((2, 2)),
+        value=np.zeros((2, 2)),
+        stationary_rho=np.ones(1000),
+        rho_edge_frac=0.0,
+        excess_mass=0.0,
+        fictitious_padding=0.0,
+        hidden_reserves=0.0,
+        mean_effort=0.0,
+        regime="mixed",
+        converged=True,
+        n_iterations=1,
+        grid=_grid(),
+        config_hash="",
+    )
+    base.update(over)
+    return DPSolution(**base)
+
+
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-014")
-def test_value_iteration_converges(p1_cfg) -> None:
+def test_value_iteration_converges(p1_cfg, implemented) -> None:
     """The Bellman iteration reaches `grid.value_tol` and reports that it did.
 
     Assertion: `solve_single_enterprise(cfg, grid)` returns a `DPSolution` with `converged is True`
@@ -52,12 +112,17 @@ def test_value_iteration_converges(p1_cfg) -> None:
     First bullet of the WO-014 must-pass list. Policy iteration is an acceptable alternative
     provided the same convergence report is produced.
     """
-    assert False
+    from gosplan.agents.dp import solve_single_enterprise
+
+    implemented(solve_single_enterprise)
+    grid = _grid()
+    sol = solve_single_enterprise(_single(p1_cfg), grid)
+    assert sol.converged is True
+    assert 0 < sol.n_iterations <= grid.max_iterations
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-014")
-def test_policy_reports_truthfully_in_the_high_penalty_limit(p1_cfg) -> None:
+def test_policy_reports_truthfully_in_the_high_penalty_limit(p1_cfg, implemented) -> None:
     """With `audit_rate * penalty_scale -> inf` and `g = 0` the optimal report is truthful.
 
     Assertion: at `audit_rate = 1.0`, a very large `penalty_scale` (large enough that the expected
@@ -69,12 +134,23 @@ def test_policy_reports_truthfully_in_the_high_penalty_limit(p1_cfg) -> None:
 
     Second bullet of the WO-014 must-pass list.
     """
-    assert False
+    import dataclasses
+
+    from gosplan.agents.dp import solve_single_enterprise
+
+    implemented(solve_single_enterprise)
+    cfg = _single(p1_cfg)
+    harsh = dataclasses.replace(
+        cfg,
+        information=dataclasses.replace(cfg.information, audit_rate=1.0),
+        incentive=dataclasses.replace(cfg.incentive, penalty_scale=1e6, growth_directive=0.0),
+    )
+    sol = solve_single_enterprise(harsh, _grid())
+    assert float(sol.fictitious_padding) < 1e-3
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-014")
-def test_optimal_effort_is_zero_without_a_bonus(p1_cfg) -> None:
+def test_optimal_effort_is_zero_without_a_bonus(p1_cfg, implemented) -> None:
     """With `notch_height = 0` and `overfulfilment_slope = 0` the optimal effort is 0 everywhere.
 
     Assertion: at `beta = 0` and `s = 0` the bonus is identically 0, so the period return is
@@ -85,12 +161,22 @@ def test_optimal_effort_is_zero_without_a_bonus(p1_cfg) -> None:
 
     Third bullet of the WO-014 must-pass list.
     """
-    assert False
+    import dataclasses
+
+    from gosplan.agents.dp import solve_single_enterprise
+
+    implemented(solve_single_enterprise)
+    cfg = _single(p1_cfg)
+    no_bonus = dataclasses.replace(
+        cfg,
+        incentive=dataclasses.replace(cfg.incentive, notch_height=0.0, overfulfilment_slope=0.0),
+    )
+    sol = solve_single_enterprise(no_bonus, _grid())
+    assert float(sol.mean_effort) < 1e-9
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-014")
-def test_regime_classifier_labels_a_bunching_distribution(p1_cfg) -> None:
+def test_regime_classifier_labels_a_bunching_distribution(p1_cfg, implemented) -> None:
     """`classify_regime` returns `"bunching"` on a synthetic distribution with known mass.
 
     Assertion, thresholds verbatim from PLAN section 5: a `DPSolution` whose `stationary_rho` puts
@@ -101,12 +187,16 @@ def test_regime_classifier_labels_a_bunching_distribution(p1_cfg) -> None:
 
     Fourth bullet of the WO-014 must-pass list.
     """
-    assert False
+    from gosplan.agents.dp import classify_regime
+
+    implemented(classify_regime)
+    rho = np.concatenate([np.full(600, 1.002), np.linspace(0.6, 1.4, 400)])
+    sol = _solution(stationary_rho=rho, rho_edge_frac=0.01)
+    assert classify_regime(sol) == "bunching"
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-014")
-def test_regime_classifier_labels_a_pad_to_cap_distribution(p1_cfg) -> None:
+def test_regime_classifier_labels_a_pad_to_cap_distribution(p1_cfg, implemented) -> None:
     """`classify_regime` returns `"pad_to_cap"` when the grid edge holds most of the mass.
 
     Assertion: `rho_edge_frac > 0.5` gives `"pad_to_cap"`, whatever the mass near 1; at exactly 0.5
@@ -114,12 +204,17 @@ def test_regime_classifier_labels_a_pad_to_cap_distribution(p1_cfg) -> None:
     solver extends `rho_hi` when the optimum sits at the edge and logs every edge hit (PLAN section
     5), and this label is how the regime map of WO-015 colours that region.
     """
-    assert False
+    from gosplan.agents.dp import classify_regime
+
+    implemented(classify_regime)
+    rho = np.concatenate([np.full(700, 1.002), np.linspace(0.6, 1.4, 300)])
+    assert classify_regime(_solution(stationary_rho=rho, rho_edge_frac=0.7)) == "pad_to_cap"
+    # exactly at the threshold is NOT pad_to_cap: the comparison is strict
+    assert classify_regime(_solution(stationary_rho=rho, rho_edge_frac=0.5)) != "pad_to_cap"
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-014")
-def test_regime_classifier_labels_truthful_underfulfilment(p1_cfg) -> None:
+def test_regime_classifier_labels_truthful_underfulfilment(p1_cfg, implemented) -> None:
     """`classify_regime` returns `"truthful_underfulfilment"` on low mean `rho` with no padding.
 
     Assertion: a solution with `mean(stationary_rho) < 0.9` and `fictitious_padding < 0.01`
@@ -128,12 +223,16 @@ def test_regime_classifier_labels_truthful_underfulfilment(p1_cfg) -> None:
     the interesting parameter points sit in the interior of the bunching region (PLAN sections 5,
     13).
     """
-    assert False
+    from gosplan.agents.dp import classify_regime
+
+    implemented(classify_regime)
+    rho = np.full(1000, 0.8)
+    sol = _solution(stationary_rho=rho, rho_edge_frac=0.0, fictitious_padding=0.001)
+    assert classify_regime(sol) == "truthful_underfulfilment"
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-014")
-def test_regime_classifier_falls_back_to_mixed(p1_cfg) -> None:
+def test_regime_classifier_falls_back_to_mixed(p1_cfg, implemented) -> None:
     """Anything matching none of the three named regimes classifies as `"mixed"`.
 
     Assertion: a distribution with mass 0.3 near 1, an edge fraction of 0.1, mean `rho` of 1.05 and
@@ -142,12 +241,16 @@ def test_regime_classifier_falls_back_to_mixed(p1_cfg) -> None:
     in the order PLAN section 5 lists them, so a distribution satisfying two conditions gets the
     earlier label.
     """
-    assert False
+    from gosplan.agents.dp import classify_regime
+
+    implemented(classify_regime)
+    rho = np.concatenate([np.full(300, 1.002), np.full(700, 1.08)])
+    sol = _solution(stationary_rho=rho, rho_edge_frac=0.1, fictitious_padding=0.05)
+    assert classify_regime(sol) == "mixed"
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-014")
-def test_dp_reuses_the_environment_bonus_and_penalty_functions(p1_cfg) -> None:
+def test_dp_reuses_the_environment_bonus_and_penalty_functions(p1_cfg, implemented) -> None:
     """The DP calls `bonus` and the penalty of `audit_and_penalise`, never a re-derivation.
 
     Assertion: the period return the solver evaluates at a grid point equals
@@ -158,12 +261,21 @@ def test_dp_reuses_the_environment_bonus_and_penalty_functions(p1_cfg) -> None:
     PLAN section 5: "the DP must call the same functions the environment uses, never a
     re-derivation of them, so the two can never drift".
     """
-    assert False
+    import inspect
+
+    from gosplan.agents import dp
+
+    implemented(dp.solve_single_enterprise)
+    source = inspect.getsource(dp)
+    assert (
+        "from gosplan.env.reward import" in source or "reward.bonus" in source or "bonus(" in source
+    )
+    # the DP must not re-derive the schedule: no literal notch arithmetic in this module
+    assert "1 / (1 + exp" not in source.replace(" ", "")
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-014")
-def test_expectations_use_gauss_hermite_quadrature_in_log_space(p1_cfg) -> None:
+def test_expectations_use_gauss_hermite_quadrature_in_log_space(p1_cfg, implemented) -> None:
     """The yield and audit-noise expectations are `grid.gh_nodes`-node Gauss-Hermite in log space.
 
     Assertion: `gauss_hermite_lognormal_nodes(sigma, n_nodes)` returns nodes and weights whose
@@ -173,12 +285,21 @@ def test_expectations_use_gauss_hermite_quadrature_in_log_space(p1_cfg) -> None:
     approximation `sigmabar = sigma / sqrt(M)` is the one the solver uses, documented as an
     approximation in the solution it returns.
     """
-    assert False
+    from gosplan.agents.dp import gauss_hermite_lognormal_nodes
+
+    implemented(gauss_hermite_lognormal_nodes)
+    for sigma in (0.05, 0.15):
+        nodes, weights = gauss_hermite_lognormal_nodes(sigma, 9)
+        nodes = np.asarray(nodes)
+        weights = np.asarray(weights)
+        assert nodes.shape == weights.shape == (9,)
+        assert abs(float(weights.sum()) - 1.0) < 1e-12
+        # E[eps] = 1 for the mean-one lognormal of PLAN section 2.6
+        assert abs(float((weights * nodes).sum()) - 1.0) < 1e-6
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-014")
-def test_grid_edge_hits_are_measured_and_reported(p1_cfg) -> None:
+def test_grid_edge_hits_are_measured_and_reported(p1_cfg, implemented) -> None:
     """`rho_edge_frac` counts the stationary mass sitting at the report-grid edge.
 
     Assertion: `report_grid_edge_fraction(stationary_rho, rho_grid)` equals the fraction of samples
@@ -187,13 +308,19 @@ def test_grid_edge_hits_are_measured_and_reported(p1_cfg) -> None:
     PLAN section 5, with the edge hit still logged after the extension. An edge hit is a regime
     signal (the `"pad_to_cap"` label above), never something to be smoothed away.
     """
-    assert False
+    from gosplan.agents.dp import report_grid_edge_fraction
+
+    implemented(report_grid_edge_fraction)
+    rho_grid = np.linspace(0.0, 3.0, 61)
+    top = float(rho_grid[-1])
+    sample = np.concatenate([np.full(250, top), np.full(750, 1.0)])
+    got = report_grid_edge_fraction(sample, rho_grid)
+    assert abs(float(got) - 0.25) < 1e-12
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-014")
 def test_dpgreedy_reproduces_the_dp_policy_inside_the_environment_at_one_enterprise(
-    p1_cfg, rng_seed
+    p1_cfg, rng_seed, implemented
 ) -> None:
     """`DPGreedy` replays the solved policy exactly at `N = 1`, `a = 0`, `phi = 1`.
 
@@ -207,12 +334,22 @@ def test_dpgreedy_reproduces_the_dp_policy_inside_the_environment_at_one_enterpr
 
     Fifth bullet of the WO-014 must-pass list.
     """
-    assert False
+    from gosplan.agents.dp import solve_single_enterprise
+    from gosplan.agents.heuristic import DPGreedy
+
+    implemented(solve_single_enterprise, DPGreedy.act)
+    cfg = _single(p1_cfg)
+    sol = solve_single_enterprise(cfg, _grid())
+    agent = DPGreedy(cfg, sol)
+    rng = np.random.default_rng(rng_seed)
+    obs = np.zeros((1, 12 + 3 * cfg.supply.n_sectors))
+    first = agent.act(obs, "report", rng)
+    again = agent.act(obs, "report", rng)
+    assert np.max(np.abs(np.asarray(first.report_ratio) - np.asarray(again.report_ratio))) < 1e-12
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-014")
-def test_solution_records_the_grid_and_configuration_it_was_solved_for(p1_cfg) -> None:
+def test_solution_records_the_grid_and_configuration_it_was_solved_for(p1_cfg, implemented) -> None:
     """A `DPSolution` carries `grid` and `config_hash`, so it can never be mis-attributed.
 
     Assertion: `sol.grid` equals the `DPGrid` passed in and `sol.config_hash == cfg.hash()`; two
@@ -222,4 +359,18 @@ def test_solution_records_the_grid_and_configuration_it_was_solved_for(p1_cfg) -
     pre-registered estimator settings of PLAN section 4.5, the same ones the learned runs use, or
     the G2 criterion-2 comparison `b_hat >= 0.5 * b_hat_dp` compares two different quantities.
     """
-    assert False
+    import dataclasses
+
+    from gosplan.agents.dp import solve_single_enterprise
+
+    implemented(solve_single_enterprise)
+    cfg = _single(p1_cfg)
+    grid = _grid()
+    sol = solve_single_enterprise(cfg, grid)
+    assert sol.grid == grid
+    assert sol.config_hash == cfg.hash()
+    other = dataclasses.replace(
+        cfg,
+        incentive=dataclasses.replace(cfg.incentive, notch_height=cfg.incentive.notch_height + 1.0),
+    )
+    assert solve_single_enterprise(other, grid).config_hash != sol.config_hash

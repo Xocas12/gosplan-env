@@ -26,12 +26,12 @@ lands; each docstring states the exact assertion, formula and tolerance.
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-017")
-def test_forward_signature_takes_obs_and_nothing_else(p1_cfg) -> None:
+def test_forward_signature_takes_obs_and_nothing_else() -> None:
     """T-B5, adapter half: `IPPO.forward` accepts exactly `(self, obs)`.
 
     Assertion: `inspect.signature(IPPO.forward)` has parameters `("self", "obs")` and no others -
@@ -45,12 +45,16 @@ def test_forward_signature_takes_obs_and_nothing_else(p1_cfg) -> None:
     absent from every observation - is test T-B5 in
     `tests/behavioural/test_welfare_blindness.py`.
     """
-    assert False
+    import inspect
+
+    from gosplan.agents.ppo.adapter import IPPO
+
+    params = tuple(inspect.signature(IPPO.forward).parameters)
+    assert params == ("self", "obs"), params
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-017")
-def test_no_running_reward_normalisation_on_the_wrapped_object(p1_cfg) -> None:
+def test_no_running_reward_normalisation_on_the_wrapped_object() -> None:
     """No `RunningMeanStd` (or equivalent) touches rewards or returns anywhere in the adapter.
 
     Assertion, by inspection of the constructed `IPPO` and of the reference-PPO object it wraps:
@@ -66,12 +70,18 @@ def test_no_running_reward_normalisation_on_the_wrapped_object(p1_cfg) -> None:
     effective reward over training and, with heavy-tailed penalties, shrink the notch in normalised
     units - which would dissolve the very discontinuity the Phase-1 design measures.
     """
-    assert False
+    import inspect
+
+    from gosplan.agents.ppo import adapter
+
+    source = inspect.getsource(adapter)
+    executable = "\n".join(line for line in source.splitlines() if not line.strip().startswith("#"))
+    for banned in ("RunningMeanStd", "NormalizeReward", "VecNormalize"):
+        assert f"{banned}(" not in executable, banned
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-017")
-def test_sampled_actions_lie_inside_the_action_spec_boxes(p1_cfg, rng_seed) -> None:
+def test_sampled_actions_lie_inside_the_action_spec_boxes(p1_cfg, rng_seed, implemented) -> None:
     """Every sampled action is inside its `action_spec(cfg)` box, at every phase.
 
     Assertion: over many samples from a freshly constructed and from a randomly perturbed policy,
@@ -84,12 +94,26 @@ def test_sampled_actions_lie_inside_the_action_spec_boxes(p1_cfg, rng_seed) -> N
 
     Third bullet of the WO-017 must-pass list.
     """
-    assert False
+    from gosplan.agents.ppo.adapter import IPPO, PPOConfig
+    from gosplan.env.env import GosplanEnv
+
+    implemented(IPPO.act)
+    policy = IPPO(p1_cfg, PPOConfig())
+    spec = GosplanEnv(p1_cfg).action_spec()
+    rng = np.random.default_rng(rng_seed)
+    n, j = p1_cfg.supply.n_enterprises, p1_cfg.supply.n_sectors
+    obs = np.zeros((n, 12 + 3 * j))
+    for phase in ("produce", "report"):
+        action = policy.act(obs, phase, rng)
+        for name in policy.head_names:
+            shape, lo, hi = spec[name]
+            got = np.asarray(getattr(action, name))
+            assert got.shape == shape, name
+            assert np.all(got >= lo - 1e-9) and np.all(got <= hi + 1e-9), name
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-017")
-def test_heads_exist_only_for_the_active_action_dimensions(p1_cfg) -> None:
+def test_heads_exist_only_for_the_active_action_dimensions(p1_cfg, implemented) -> None:
     """`head_names == tuple(active_action_dims(cfg))`, fixed for the life of the run.
 
     Assertion: at `p1_cfg` the adapter builds heads for exactly `("effort", "report_ratio",
@@ -100,12 +124,16 @@ def test_heads_exist_only_for_the_active_action_dimensions(p1_cfg) -> None:
     at construction. `head_names` does not change within a run, which is what lets the observation
     dimension `len(obs_spec(cfg)) = 12 + 3J` be fixed once at construction.
     """
-    assert False
+    from gosplan.agents.ppo.adapter import IPPO, PPOConfig
+    from gosplan.env.env import GosplanEnv
+
+    implemented(IPPO.__init__)
+    policy = IPPO(p1_cfg, PPOConfig())
+    assert tuple(policy.head_names) == tuple(GosplanEnv(p1_cfg).active_action_dims())
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-017")
-def test_report_head_is_initialised_on_the_notch(p1_cfg) -> None:
+def test_report_head_is_initialised_on_the_notch(p1_cfg, implemented) -> None:
     """The report head starts with squashed mean `rho = 1` and standard deviation 0.05.
 
     Assertion: at construction, sampling `report_ratio` from the untrained policy gives a mean of
@@ -116,12 +144,23 @@ def test_report_head_is_initialised_on_the_notch(p1_cfg) -> None:
     question is what the policy does around `rho = 1`, and an initialisation far from it would make
     the answer a fact about exploration.
     """
-    assert False
+    from gosplan.agents.ppo.adapter import IPPO, PPOConfig
+
+    implemented(IPPO.act)
+    policy = IPPO(p1_cfg, PPOConfig())
+    rng = np.random.default_rng(0)
+    n, j = p1_cfg.supply.n_enterprises, p1_cfg.supply.n_sectors
+    obs = np.zeros((n, 12 + 3 * j))
+    samples = np.concatenate(
+        [np.asarray(policy.act(obs, "report", rng).report_ratio) for _ in range(200)]
+    )
+    assert abs(float(samples.mean()) - policy.report_head_init_ratio) < 0.05
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-017")
-def test_phase_masking_disables_the_heads_the_step_does_not_read(p1_cfg, rng_seed) -> None:
+def test_phase_masking_disables_the_heads_the_step_does_not_read(
+    p1_cfg, rng_seed, implemented
+) -> None:
     """`act` masks heads by phase; `forward` does not.
 
     Assertion: `phase_mask("produce")` marks `effort` active and `report_ratio` and `input_request`
@@ -132,12 +171,20 @@ def test_phase_masking_disables_the_heads_the_step_does_not_read(p1_cfg, rng_see
     2.3) and never trusts the agent to have masked correctly - the mask is for the learner's
     gradients, not for the environment's safety.
     """
-    assert False
+    from gosplan.agents.ppo.adapter import IPPO, PPOConfig
+
+    implemented(IPPO.phase_mask)
+    policy = IPPO(p1_cfg, PPOConfig())
+    produce = policy.phase_mask("produce")
+    report = policy.phase_mask("report")
+    assert produce["effort"] is True
+    assert produce["report_ratio"] is False
+    assert report["report_ratio"] is True
+    assert report["effort"] is False
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-017")
-def test_reward_scale_is_stored_analytically_and_never_reapplied(p1_cfg) -> None:
+def test_reward_scale_is_stored_analytically_and_never_reapplied(p1_cfg, implemented) -> None:
     """`IPPO.scale == reward_scale(cfg)`, computed from the configuration and applied once.
 
     Assertion: the adapter stores `scale = reward_scale(cfg)` at construction, equal to the
@@ -147,12 +194,16 @@ def test_reward_scale_is_stored_analytically_and_never_reapplied(p1_cfg) -> None
     and changing `cfg` changes `scale` deterministically, with no dependence on rollout data
     (PLAN section 2.9.1, finding F9).
     """
-    assert False
+    from gosplan.agents.ppo.adapter import IPPO, PPOConfig
+    from gosplan.env.reward import reward_scale
+
+    implemented(IPPO.__init__, reward_scale)
+    policy = IPPO(p1_cfg, PPOConfig())
+    assert abs(float(policy.scale) - reward_scale(p1_cfg)) < 1e-12
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-017")
-def test_parameter_sharing_uses_the_sector_one_hot(p1_cfg) -> None:
+def test_parameter_sharing_uses_the_sector_one_hot(p1_cfg, implemented) -> None:
     """One shared policy acts for all `N` enterprises, identified only by the sector one-hot.
 
     Assertion: at `cfg.tech.param_sharing = "shared"` (Phase 1) a single parameter set produces
@@ -161,12 +212,19 @@ def test_parameter_sharing_uses_the_sector_one_hot(p1_cfg) -> None:
     the policy cannot condition on an enterprise index it is never given; and the observation
     dimension the adapter was built with equals `len(obs_spec(cfg))`.
     """
-    assert False
+    from gosplan.agents.ppo.adapter import IPPO, PPOConfig
+
+    implemented(IPPO.act)
+    assert p1_cfg.tech.param_sharing == "shared"
+    policy = IPPO(p1_cfg, PPOConfig())
+    n, j = p1_cfg.supply.n_enterprises, p1_cfg.supply.n_sectors
+    obs = np.zeros((n, 12 + 3 * j))
+    action = policy.act(obs, "produce", np.random.default_rng(0))
+    assert np.asarray(action.effort).shape == (n,)
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason="skeleton: implemented in WO-017")
-def test_manifest_entry_pins_the_reference_implementation(p1_cfg) -> None:
+def test_manifest_entry_pins_the_reference_implementation(p1_cfg, implemented) -> None:
     """`manifest_entry()` records the pinned learner, as CONTRACT rule 10 requires.
 
     Assertion: the mapping returned carries `reference_impl` and `reference_version` (both non-empty
@@ -176,4 +234,10 @@ def test_manifest_entry_pins_the_reference_implementation(p1_cfg) -> None:
     `normalise_advantages = True`; and those values reach the manifest's `reference_ppo_version`
     field. A run whose learner version is unknown is not a reportable run.
     """
-    assert False
+    from gosplan.agents.ppo.adapter import IPPO, PPOConfig
+
+    implemented(IPPO.manifest_entry)
+    entry = IPPO(p1_cfg, PPOConfig()).manifest_entry()
+    for key in ("reference_impl", "reference_version"):
+        assert key in entry, key
+        assert isinstance(entry[key], str) and entry[key].strip(), key
