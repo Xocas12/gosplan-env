@@ -26,7 +26,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
-      - run: uv venv && uv pip install -e '.[dev]'
+      - run: uv venv && uv pip install -e '.[geo,dev]'
       - run: .venv/bin/ruff check . && .venv/bin/ruff format --check .
       - run: .venv/bin/pytest
       - run: .venv/bin/euc run --config configs/fast.yaml
