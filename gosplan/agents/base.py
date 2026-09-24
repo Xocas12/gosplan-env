@@ -99,7 +99,7 @@ class Agent(Protocol):
         from the PLAN section 6.1 table. Binds: T-B1 (no hard-coded pathology), T-B2 (fixed point),
         T-B3 (shortage propagation), T-B5 (welfare blindness). Owning WO: **WO-010**.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-010")
+        ...
 
     def reset(self) -> None:
         """Clear any per-episode internal state.
@@ -113,7 +113,7 @@ class Agent(Protocol):
 
         Owning WO: **WO-010**.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-010")
+        ...
 
 
 __all__ = ["Agent", "Array", "Phase"]
