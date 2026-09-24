@@ -59,7 +59,6 @@ because `step` calls it.
 
 from __future__ import annotations
 
-import copy
 import dataclasses
 from typing import TYPE_CHECKING
 
@@ -196,7 +195,7 @@ class GosplanEnv:
     produces is appended as one `StepRecord` per enterprise. `None` means the run is not being
     recorded; nothing else changes (CONTRACT rule 6 - the ledger never feeds back)."""
 
-    def __init__(self, cfg: EnvConfig) -> None:
+    def __init__(self, cfg: EnvConfig, *, records: bool = True) -> None:
         """Construct the environment for one configuration.
 
         Takes: `cfg`, already validated. Returns: nothing. Stores the configuration, precomputes the
@@ -214,6 +213,10 @@ class GosplanEnv:
         """
         self.cfg = cfg
         self.ledger = None
+        # `records=False` (spec 1.1.1): per-enterprise `StepRecord`s are not built except where the
+        # observation needs them (the DELIVER step). For training throughput only; any run that
+        # attaches a ledger or reads `StepInfo.records` keeps the default.
+        self._records = bool(records)
         self._plan_prices = np.array(initial_prices(cfg), dtype=float)
         self._scale = reward_scale(cfg)
         self._t0 = initial_targets(cfg)
@@ -307,8 +310,9 @@ class GosplanEnv:
             self._period_delivery = self._no_delivery()
         # A fresh State per step: a State handed out earlier (e.g. to a harness keeping a
         # trajectory) is never mutated afterwards.
-        state = copy.deepcopy(self.state)
-        state, reward, done, info = advance(state, action, self.cfg)
+        state = _copy_state(self.state)
+        records = self._records or self.ledger is not None
+        state, reward, done, info = advance(state, action, self.cfg, records=records)
         self.state = state
         if info.k_step == 0 and info.phase == "produce":
             self._deliv = np.array([rec.deliv for rec in info.records], dtype=float)
@@ -318,11 +322,12 @@ class GosplanEnv:
             ]
         # The period's DELIVER quantities are period-level: carried on every row of the period so
         # each row (in particular the REPORT row) is self-contained for the ledger.
-        records = tuple(
-            dataclasses.replace(r, episode=self._episode, **self._period_delivery[r.enterprise])
-            for r in info.records
-        )
-        info = dataclasses.replace(info, records=records)
+        if records:
+            rows = tuple(
+                dataclasses.replace(r, episode=self._episode, **self._period_delivery[r.enterprise])
+                for r in info.records
+            )
+            info = dataclasses.replace(info, records=rows)
         # The observation describes the step just executed (golden files, PLAN section 2.4).
         executed = dataclasses.replace(
             state, t_period=info.t_period, k_step=info.k_step, phase=info.phase
@@ -446,3 +451,16 @@ class GosplanEnv:
             {"alloc": zeros, "deliv": zeros, "fill": 0.0, "shipped": 0.0}
             for _ in range(self.cfg.supply.n_enterprises)
         ]
+
+
+def _copy_state(state: State) -> State:
+    """A fresh `State` whose arrays are copies (a harness keeping earlier states never sees them
+    mutate). Field-wise `numpy` copies; cheaper than `copy.deepcopy`."""
+    return dataclasses.replace(
+        state,
+        **{
+            f.name: np.array(getattr(state, f.name))
+            for f in dataclasses.fields(state)
+            if isinstance(getattr(state, f.name), np.ndarray)
+        },
+    )
