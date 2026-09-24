@@ -1351,7 +1351,7 @@ class GosplanEnv:
     state: State
     ledger: Optional[Ledger]
 
-    def __init__(self, cfg: EnvConfig) -> None:
+    def __init__(self, cfg: EnvConfig, *, records: bool = True) -> None:
         """Construct the environment for one configuration.
 
         Takes: `cfg`, already validated. Returns: nothing. Stores the configuration, precomputes the
