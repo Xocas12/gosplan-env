@@ -28,10 +28,10 @@ D. `S'` is capped at `S_max` before the audit and delivery, exactly as `process_
    DP models the environment, and the environment is the ground truth G2 compares against.
 E. `N(0, sigma_aud**2)` Gauss-Hermite nodes, matching `audit_and_penalise`. Inert in Phase 1
    (`sigma_aud = 0`).
-F. `dp_excess_mass` calls `gosplan.metrics.resolve_estimators()["bunching_estimate"]` (the vendored
-   `_fallback.estimate` while `forensics_core` is absent) with the section 4.5 constants from
-   `phenomena.py`. The estimator and `resolve_estimators` are pulled forward from WO-016 as an
-   early slice, since the regime map needs `b_hat_DP` before G1; the rest of WO-016 stays after G1.
+F. `dp_excess_mass` calls `gosplan.metrics._fallback.estimate` directly with the section 4.5
+   constants from `phenomena.py` and returns its `excess_mass` (point estimate). The estimator's
+   point estimate is pulled forward from WO-016 because the regime map needs `b_hat_DP` before G1;
+   its bootstrap and `resolve_estimators` stay open (AMBIGUITY-011) until the human decides.
 G. `seed = cfg.tech.seed_env`; the per-period yield shock is `draw(seed, "yield", episode, t, ...)`
    and the audit draw `draw(seed, "audit", episode, t, ...)`: the DP simulation is its own
    stream, not a common-random-number twin of the environment (whose shocks are per step).
