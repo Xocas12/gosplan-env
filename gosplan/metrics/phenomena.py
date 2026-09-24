@@ -201,7 +201,8 @@ def phenomenon_padding(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
         padding = mean_i max(0, R_i - S_i) / T_i
 
     over the measurement window of PLAN section 4.4, where `R_i` is the claim, `S_i` the own-good
-    stock on hand at the REPORT step (`inv_output_pre` on the report row, before shipment) and
+    stock the audit compares against - `inv_output_post` on the report row: the period's output
+    booked, before the next period's shipment (LEAD ruling AMBIGUITY-019 A) - and
     `T_i` the target. Reported together with
 
         padding_index = val_measured / val_true                       (PLAN section 2.9.4)
@@ -222,7 +223,9 @@ def phenomenon_padding(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
     # `val_measured` and `val_true` (one value per (episode, period)); the elasticity across the
     # three `a * pen` levels is computed by the caller (WO-019/WO-020) from three calls.
     rows = _measured_reports(ledger)
-    ratios = [max(0.0, rec.report - rec.inv_output_pre) / rec.target for rec in rows]
+    # AMBIGUITY-019 A: `S_i` is the audited stock, `inv_output_post` on the REPORT row (the DP's
+    # `S'`); `inv_output_pre` omits the period's own output and counts truthful reports as padding.
+    ratios = [max(0.0, rec.report - rec.inv_output_post) / rec.target for rec in rows]
     periods = {(rec.episode, rec.t_period): (rec.val_measured, rec.val_true) for rec in rows}
     measured = np.mean([vm for vm, _ in periods.values()])
     true = np.mean([vt for _, vt in periods.values()])

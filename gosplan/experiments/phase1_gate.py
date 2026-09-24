@@ -59,9 +59,13 @@ the function that uses them, never at module scope.
 
 from __future__ import annotations
 
+import itertools
 from pathlib import Path
 
+import numpy as np
+
 from gosplan.config import EnvConfig
+from gosplan.experiments._g2 import RunSizing
 
 N_SEEDS = 30
 """Seeds per arm (PLAN sections 4.3, 4.5 and the PLAN section 14 cost line), run under common random
@@ -124,6 +128,30 @@ CRITERIA: tuple[str, ...] = ("criterion_2", "criterion_3", "criterion_4")
 hygiene (4). Criterion 1 belongs to `gosplan.experiments.dp_vs_ppo` (WO-019). The report carries one
 pass/fail line per name in this tuple, and G2 passes only if all four criteria pass across the two
 reports (PLAN section 4.5)."""
+
+GATE_SIZING = RunSizing(
+    n_envs=8,
+    rollout_steps=125,
+    total_agent_steps=250_000,
+    eval_every_updates=50,
+    eval_episodes=10,
+    measure_episodes=100,
+)
+"""Batch shape and budget of every `N = 20` gate run, fixed by the lead before any G2 run
+(AMBIGUITY-019)."""
+
+ELASTICITY_SEEDS = 10
+"""Seeds per additional `a * pen` level of criterion 3 (the two levels below the Phase-1 one; the
+Phase-1 level reuses the `N_SEEDS` notched runs). PLAN section 4.5 does not state a count; the lead
+fixed it at criterion 1's `SEEDS_PER_LEVEL` before any G2 run (AMBIGUITY-019)."""
+
+PRICE_SENSITIVITY_DEFERRAL = (
+    "PLAN section 7.5's standing price check recomputes padding_index, welfare_ratio and "
+    "specification_gap; the last two need the Phase-2 oracle (WO-026) and the check itself is "
+    "WO-036 (Phase 3). No G2 criterion is price-weighted, so the table is deferred to WO-036, "
+    "which must run it on this gate's ledgers (AMBIGUITY-019)."
+)
+"""Why the WO-020 card's price-sensitivity table is not produced at G2."""
 
 OUT_DIR = Path("runs/phase1_gate")
 """Artefact directory, relative to the repository root (PLAN sections 12.3, 13)."""
@@ -202,7 +230,144 @@ def run(
 
     Realises: PLAN sections 4.4, 4.5, 7.5, 12.3 (WO-020), 13, 14. Owning WO: **WO-020**.
     """
-    raise NotImplementedError("PLAN section 4.5 (WO-020) - implemented in WO-020")
+    from gosplan.agents.dp import DPGrid, solve_single_enterprise
+    from gosplan.experiments import _g2
+
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    run_root = out_dir / "runs"
+    levels = tuple(sorted(float(ap) for ap in ap_levels))
+    base_ap = float(cfg.information.audit_rate * cfg.incentive.penalty_scale)
+    threshold = float(b_hat_dp)
+
+    arm_cfgs = {arm: _g2.with_overrides(cfg, ARMS[arm]) for arm in ARMS}
+    jobs: list[tuple[str, float, int, EnvConfig]] = [
+        (arm, base_ap, s, _g2.seeded(arm_cfgs[arm], s, seed_env))
+        for arm in ARMS
+        for s in range(n_seeds)
+    ]
+    extra_levels = [ap for ap in levels if not np.isclose(ap, base_ap)]
+    jobs += [
+        ("notched", ap, s, _g2.seeded(_g2.at_ap_level(arm_cfgs["notched"], ap), s, seed_env))
+        for ap in extra_levels
+        for s in range(ELASTICITY_SEEDS)
+    ]
+    summaries = _g2.run_many([(job_cfg, GATE_SIZING, run_root) for *_, job_cfg in jobs])
+    rows = []
+    for (arm, ap, s, job_cfg), summ in zip(jobs, summaries, strict=True):
+        b = summ["bunching"]
+        m = summ["metrics"]
+        rows.append(
+            {
+                "arm": arm,
+                "ap_level": ap,
+                "seed_index": s,
+                "seed_env": int(job_cfg.tech.seed_env),
+                "config_hash": summ["config_hash"],
+                "b_hat": b["excess_mass"],
+                "ci_lo": b["ci_lo"],
+                "ci_hi": b["ci_hi"],
+                "hole_mass": b["hole_mass"],
+                "share_window": summ["share_window"],
+                "padding": m["fictitious_padding"],
+                "effort": m["mean_effort"],
+                "return": m["mean_return"],
+                "frac_at_bound": m["frac_at_bound"],
+                "bound_binding": bool(
+                    BOUND_FLAG in summ["manifest_flags"] or summ["measure_bound_binding"]
+                ),
+                "runaway_frac": summ["runaway_frac_after_20pct"],
+                "wall_clock_s": summ["wall_clock_s"],
+            }
+        )
+
+    # Criterion 2 (bunching present / absent), at the Phase-1 a*pen.
+    at_base = [r for r in rows if np.isclose(r["ap_level"], base_ap)]
+    notched = [r for r in at_base if r["arm"] == "notched"]
+    smooth = [r for r in at_base if r["arm"] == "smooth"]
+    for r in notched:
+        r["c2_pass"] = bool(r["share_window"] >= threshold and r["ci_lo"] > 0.0)
+    for r in smooth:
+        r["c2_pass"] = bool(r["ci_lo"] <= 0.0 <= r["ci_hi"])
+    notched_frac = float(np.mean([r["c2_pass"] for r in notched]))
+    smooth_frac = float(np.mean([r["c2_pass"] for r in smooth]))
+    criterion_2 = {
+        "b_hat_dp": threshold,
+        "threshold_quantity": "learned share of REPORT rows in [1.00, 1.02] (AMBIGUITY-011)",
+        "notched_pass_frac": notched_frac,
+        "smooth_pass_frac": smooth_frac,
+        "passed": bool(notched_frac >= SEED_PASS_FRACTION and smooth_frac >= SEED_PASS_FRACTION),
+    }
+
+    # Criterion 3 (padding elasticity) across the three a*pen levels, notched arm.
+    dp_padding = {
+        ap: float(
+            solve_single_enterprise(
+                _g2.recovery_config(_g2.at_ap_level(arm_cfgs["notched"], ap)), DPGrid()
+            ).fictitious_padding
+        )
+        for ap in levels
+    }
+    learned = {
+        ap: float(
+            np.mean(
+                [
+                    r["padding"]
+                    for r in rows
+                    if r["arm"] == "notched" and np.isclose(r["ap_level"], ap)
+                ]
+            )
+        )
+        for ap in levels
+    }
+    deviation = {ap: abs(learned[ap] - dp_padding[ap]) for ap in levels}
+    monotone = all(learned[a] > learned[b] for a, b in itertools.pairwise(levels))
+    criterion_3 = {
+        "levels": levels,
+        "learned_padding": learned,
+        "dp_padding": dp_padding,
+        "deviation": deviation,
+        "monotone": bool(monotone),
+        "passed": bool(monotone and all(d <= PADDING_DP_TOL for d in deviation.values())),
+    }
+
+    # Criterion 4 (hygiene), over every run of this experiment.
+    bound_runs = [r["config_hash"] for r in rows if r["bound_binding"]]
+    runaway = {r["config_hash"]: r["runaway_frac"] for r in rows}
+    criterion_4 = {
+        "bound_binding_runs": bound_runs,
+        "runaway_frac": runaway,
+        "max_runaway_frac": float(np.nanmax(list(runaway.values()))),
+        "passed": bool(
+            not bound_runs and all(v < TARGET_RUNAWAY_MAX_FRAC for v in runaway.values())
+        ),
+    }
+
+    flags = sorted({f for summ in summaries for f in summ["manifest_flags"]})
+    price_sensitivity = {
+        "status": "deferred",
+        "reason": PRICE_SENSITIVITY_DEFERRAL,
+    }
+
+    import pandas as pd
+
+    table_path = out_dir / TABLE_PATH.name
+    pd.DataFrame(rows).to_parquet(table_path, index=False)
+    passed = criterion_2["passed"] and criterion_3["passed"] and criterion_4["passed"]
+    report_path = out_dir / REPORT_PATH.name
+    report_path.write_text(
+        _report(rows, criterion_2, criterion_3, criterion_4, flags, passed, base_ap),
+        encoding="utf-8",
+    )
+    return {
+        "criterion_2": {**criterion_2, "per_seed": notched + smooth},
+        "criterion_3": criterion_3,
+        "criterion_4": criterion_4,
+        "price_sensitivity": price_sensitivity,
+        "flags": tuple(flags),
+        "passed": bool(passed),
+        "artefacts": {"report": str(report_path), "table": str(table_path)},
+    }
 
 
 def main() -> int:
@@ -221,7 +386,103 @@ def main() -> int:
 
     Realises: PLAN sections 4.5, 12.3 (WO-020), 13. Owning WO: **WO-020**.
     """
-    raise NotImplementedError("PLAN section 4.5 (WO-020) - implemented in WO-020")
+    from gosplan.config import p1_default_config
+    from gosplan.experiments import _g2
+
+    try:
+        g1 = _g2.read_g1(G1_DECISION_PATH)
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"phase1_gate: {exc}")
+        return 1
+    out = run(p1_default_config(), g1.share_threshold, g1.ap_levels)
+    for name in CRITERIA:
+        print(f"{name}: {'PASS' if dict(out[name])['passed'] else 'FAIL'}")
+    return 0 if Path(dict(out["artefacts"])["report"]).exists() else 1
+
+
+def _report(
+    rows: list[dict[str, object]],
+    c2: dict[str, object],
+    c3: dict[str, object],
+    c4: dict[str, object],
+    flags: list[str],
+    passed: bool,
+    base_ap: float,
+) -> str:
+    """`runs/phase1_gate/report.md`: one pass/fail line per criterion with its seed counts."""
+    from gosplan.experiments import _g2
+    from gosplan.metrics import resolve_estimators
+
+    backend = resolve_estimators()
+    at_base = [r for r in rows if np.isclose(r["ap_level"], base_ap)]
+    lines = [
+        "# Gate G2 criteria 2-4 - Phase-1 gate (WO-020)",
+        "",
+        f"Git: `{_g2.git_hash()}`. Configuration: G1 record at `N = 20`, `a*pen` = {base_ap:g}.",
+        f"Sizing (AMBIGUITY-019): `{GATE_SIZING}`; {ELASTICITY_SEEDS} seeds per extra level.",
+        f"Estimator: `{backend.name}` {backend.version}, PLAN section 4.5 settings (degree 9).",
+        "",
+        "## Criterion 2 - bunching present / absent",
+        "",
+        f"Notched condition: learned share in [1.00, 1.02] >= {c2['b_hat_dp']:.3f} and CI of",
+        "`b_hat` excluding 0. Smooth condition: CI of `b_hat` covers 0.",
+        "",
+        "| arm | seed | b_hat | CI | hole | share | padding | effort | pass |",
+        "|---|---|---|---|---|---|---|---|---|",
+    ]
+    for r in at_base:
+        lines.append(
+            f"| {r['arm']} | {r['seed_index']} | {r['b_hat']:.3f} | "
+            f"[{r['ci_lo']:.3f}, {r['ci_hi']:.3f}] | {r['hole_mass']:.3f} | "
+            f"{r['share_window']:.3f} | {r['padding']:.4f} | {r['effort']:.3f} | "
+            f"{'yes' if r.get('c2_pass') else 'no'} |"
+        )
+    lines += [
+        "",
+        f"- notched: {c2['notched_pass_frac']:.0%} of seeds pass (need >= "
+        f"{SEED_PASS_FRACTION:.0%})",
+        f"- smooth: {c2['smooth_pass_frac']:.0%} of seeds pass (need >= {SEED_PASS_FRACTION:.0%})",
+        f"- **criterion_2: {'PASS' if c2['passed'] else 'FAIL'}**",
+        "",
+        "## Criterion 3 - padding elasticity in `a*pen`",
+        "",
+        "| `a*pen` | learned padding (mean over seeds) | DP padding | deviation |",
+        "|---|---|---|---|",
+    ]
+    for ap in c3["levels"]:
+        lines.append(
+            f"| {ap:g} | {c3['learned_padding'][ap]:.4f} | {c3['dp_padding'][ap]:.4f} | "
+            f"{c3['deviation'][ap]:.4f} |"
+        )
+    lines += [
+        "",
+        f"- monotone decreasing: {c3['monotone']}; tolerance {PADDING_DP_TOL}",
+        f"- **criterion_3: {'PASS' if c3['passed'] else 'FAIL'}**",
+        "",
+        "## Criterion 4 - hygiene",
+        "",
+        f"- runs with `{BOUND_FLAG}`: {len(c4['bound_binding_runs'])} of {len(rows)}",
+        f"- max share of training episodes with `T > {TARGET_RUNAWAY_MULT:g} T_0` after the first "
+        f"{HYGIENE_WINDOW_START_FRAC:.0%} of training: {c4['max_runaway_frac']:.4f} (need < "
+        f"{TARGET_RUNAWAY_MAX_FRAC})",
+        f"- **criterion_4: {'PASS' if c4['passed'] else 'FAIL'}**",
+        "",
+        "## Price sensitivity",
+        "",
+        PRICE_SENSITIVITY_DEFERRAL,
+        "",
+        f"**All three criteria passed: {passed}**. Flags raised: {', '.join(flags) or 'none'}.",
+        "",
+    ]
+    if not c2["passed"]:
+        lines += [
+            "If criterion 1 passed in `runs/dp_vs_ppo/report.md`, a criterion-2 failure is a",
+            "multi-agent effect and is a result, reported, never tuned away (PLAN section 4.5).",
+            "",
+        ]
+    wall = sum(float(r["wall_clock_s"]) for r in rows)
+    lines.append(f"Total training wall clock: {wall / 3600:.1f} h over {len(rows)} runs.")
+    return "\n".join(lines) + "\n"
 
 
 if __name__ == "__main__":
