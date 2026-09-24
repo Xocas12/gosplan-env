@@ -70,7 +70,7 @@ def _record(cfg, **over):
         at_bound=False,
         audited=False,
         audit_meas=0.0,
-        penalty_arg=cfg.incentive.penalty_arg,
+        penalty_arg=0.0,
         penalty=0.0,
         fill=1.0,
         shipped=0.0,
