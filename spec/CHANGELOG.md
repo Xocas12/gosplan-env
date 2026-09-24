@@ -80,8 +80,9 @@ at the WO-013 freeze): AMBIGUITY-003 (yield shock keyed per enterprise, as `ref_
 AMBIGUITY-004 (`GosplanEnv.step` after `done` continues as `ref_rollout` does), AMBIGUITY-005
 (`Ledger.append` keeps `BOUND_BINDING` in step; lead edit of the `tests/unit/test_ledger.py` fixture
 under `.github/FROZEN_TEST_EXEMPTION`), and the WO-003 follow-up (`EnvConfig.hash` covers the
-four-section object only, per ambiguity #51). AMBIGUITY-006 (bonus kink in the smooth arm) is open
-and needs a human decision.
+four-section object only, per ambiguity #51). AMBIGUITY-006 (smooth-arm slope term smoothed by a softplus
+at the notch width in both `gosplan/env/reward.py` and `ref/ref_step.py`; golden set regenerated;
+lead edit of T-U3's threshold in `tests/unit/test_reward.py` under `.github/FROZEN_TEST_EXEMPTION`).
 
 New entries are added here, in the format above, and are promoted to a numbered section when the
 version is bumped in `spec/spec.py`.

@@ -1216,7 +1216,13 @@ def ref_bonus(rho: float, cfg: Config) -> float:
     cap = _f(inc["overfulfilment_cap"])
     x = float(rho) - 1.0
     indicator = (1.0 if x >= 0.0 else 0.0) if w == 0.0 else 1.0 / (1.0 + math.exp(-x / w))
-    over = max(0.0, x) if not math.isfinite(cap) else min(max(0.0, x), cap - 1.0)
+    if not math.isfinite(cap) and w > 0.0:
+        # smooth arm: softplus at the notch width, so no kink anywhere (AMBIGUITY-006)
+        over = w * (max(x / w, 0.0) + math.log1p(math.exp(-abs(x / w))))
+    elif not math.isfinite(cap):
+        over = max(0.0, x)
+    else:
+        over = min(max(0.0, x), cap - 1.0)
     return beta * indicator + slope * over
 
 
