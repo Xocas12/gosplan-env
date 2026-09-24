@@ -33,6 +33,10 @@ runs/**/*.parquet
 runs/**/*.png
 runs/**/*.pkl
 runs/**/*.npz
+runs/**/run.log
+runs/**/train_log.jsonl
+runs/**/checkpoints/
+runs/**/g2_measure.json
 !runs/.gitkeep
 
 # --- golden files are generated from the reference dynamics by ref/gen_golden.py
