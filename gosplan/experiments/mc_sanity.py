@@ -196,7 +196,415 @@ def run(
 
     Realises: PLAN sections 12.3 (WO-012), 13, 14. Owning WO: **WO-012**.
     """
-    raise NotImplementedError("PLAN section 12.3 (WO-012) - implemented in WO-012")
+    import dataclasses
+    import math
+    import shutil
+    import subprocess
+    import time
+
+    import numpy as np
+    import pandas as pd
+
+    from gosplan.agents import heuristic
+    from gosplan.env.env import GosplanEnv
+    from gosplan.env.state import initial_targets
+    from gosplan.metrics.ledger import BOUND_BINDING_FLAG, Ledger, write_manifest
+
+    harness_start = time.perf_counter()
+    out_dir = Path(out_dir)
+    runs_root = out_dir.parent  # `runs/` at the default `OUT_DIR`: run dirs are `runs/<hash>/`
+    root_seed = int(cfg.tech.seed_env if seed_env is None else seed_env)
+    # The one seed_env of every configuration and every agent (CRN, PLAN sections 2.15, 4.3); it
+    # is written into the configuration so each manifest records the seed actually used.
+    base = dataclasses.replace(cfg, tech=dataclasses.replace(cfg.tech, seed_env=root_seed))
+    base.validate()
+
+    # AMBIGUITY-007 (LEAD): these three StepRecord columns are NaN by construction because their
+    # owning functions do not return them. NaN there is a placeholder, not a defect; any inf there
+    # is still counted as non-finite. Every other numeric column is scanned for NaN and inf.
+    nan_placeholder_columns = ("coverage", "audit_meas", "penalty_arg")
+    chunk_episodes = 100  # episodes per ledger part file; memory only, no semantic content
+
+    # 1. Configuration list: baseline, then SUPPLY-only perturbations (PLAN section 3 ranges).
+    perturb_rng = np.random.default_rng(root_seed)
+    configs: list[EnvConfig] = [base]
+    draws: list[dict[str, float]] = [{}]
+    for _ in range(n_perturbations):
+        drawn: dict[str, float] = {}
+        for name, (lo, hi) in SUPPLY_PERTURBATION_RANGES.items():
+            drawn[name] = float(perturb_rng.uniform(lo, hi))
+        for name, grid in SUPPLY_PERTURBATION_CHOICES.items():
+            drawn[name] = float(grid[int(perturb_rng.integers(len(grid)))])
+        n_sec = base.supply.n_sectors
+        supply = dataclasses.replace(
+            base.supply,
+            yield_sigma=tuple(s * drawn["yield_sigma_multiplier"] for s in base.supply.yield_sigma),
+            final_demand_share=tuple(drawn["final_demand_share"] for _ in range(n_sec)),
+            holding_loss=drawn["holding_loss"],
+            input_complementarity=drawn["input_complementarity"],
+        )
+        pert = dataclasses.replace(base, supply=supply)
+        pert.validate()
+        for name in PERTURBATION_EXCLUDED:
+            for section in ("supply", "incentive", "information", "tech"):
+                if hasattr(getattr(base, section), name):
+                    if getattr(getattr(pert, section), name) != getattr(
+                        getattr(base, section), name
+                    ):
+                        raise RuntimeError(f"perturbation moved locked parameter {name}")
+        configs.append(pert)
+        draws.append(drawn)
+    if n_perturbations == N_SUPPLY_PERTURBATIONS and len(configs) != N_CONFIGS:
+        raise RuntimeError(f"built {len(configs)} configurations, expected {N_CONFIGS}")
+    hashes = tuple(c.hash() for c in configs)
+
+    try:
+        git_hash = subprocess.run(
+            ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True
+        ).stdout.strip()
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain"], capture_output=True, text=True, check=True
+        ).stdout.strip()
+        git_hash = git_hash + ("-dirty" if dirty else "")
+    except (OSError, subprocess.CalledProcessError):
+        git_hash = None
+
+    def check_chunk(df: pd.DataFrame, c: EnvConfig, starts: dict, cell: dict) -> None:
+        """Fold one ledger part's assertions into `cell` (observed extremes, failure counts)."""
+        n_goods = c.supply.n_sectors
+        # No NaN / inf in any ledger column.
+        for col in df.columns:
+            if not (pd.api.types.is_float_dtype(df[col]) or pd.api.types.is_integer_dtype(df[col])):
+                continue
+            values = df[col].to_numpy(dtype=float)
+            if col in nan_placeholder_columns:
+                cell["placeholder_nan"] += int(np.isnan(values).sum())
+                bad = int(np.isinf(values).sum())
+            else:
+                bad = int((~np.isfinite(values)).sum())
+            if bad:
+                cell["nonfinite_by_column"][col] = cell["nonfinite_by_column"].get(col, 0) + bad
+                cell["n_nonfinite"] += bad
+        # T inside [T_min, T_0 * ((1 + g) * (1 + lambda * c_up))**P_max], per enterprise.
+        t0 = np.asarray(initial_targets(c), dtype=float)
+        inc = c.incentive
+        t_lo = c.tech.target_floor_frac * t0
+        t_hi = (
+            t0
+            * ((1.0 + inc.growth_directive) * (1.0 + inc.ratchet_lambda * inc.ratchet_cap_up))
+            ** c.tech.max_periods
+        )
+        ent = df["enterprise"].to_numpy()
+        target = df["target"].to_numpy(dtype=float)
+        cell["target_failures"] += int(((target < t_lo[ent]) | (target > t_hi[ent])).sum())
+        cell["target_min_over_floor"] = min(
+            cell["target_min_over_floor"], float(np.min(target / t_lo[ent]))
+        )
+        cell["target_max_over_cap"] = max(
+            cell["target_max_over_cap"], float(np.max(target / t_hi[ent]))
+        )
+        cell["target_min"] = min(cell["target_min"], float(target.min()))
+        cell["target_max"] = max(cell["target_max"], float(target.max()))
+        # S inside [0, inventory_cap_mult * cap_i], before and after every step.
+        s_max = c.tech.inventory_cap_mult * df["capital"].to_numpy(dtype=float)
+        for col in ("inv_output_pre", "inv_output_post"):
+            s = df[col].to_numpy(dtype=float)
+            cell["stock_failures"] += int(((s < 0.0) | (s > s_max)).sum())
+            cell["stock_min"] = min(cell["stock_min"], float(s.min()))
+            cell["stock_max_over_cap"] = max(cell["stock_max_over_cap"], float(np.max(s / s_max)))
+        cell["stock_cap"] = float(np.max(s_max))
+        # fill inside FILL_BOUNDS.
+        fill = df["fill"].to_numpy(dtype=float)
+        lo, hi = FILL_BOUNDS
+        cell["fill_failures"] += int(((fill < lo) | (fill > hi)).sum())
+        cell["fill_min"] = min(cell["fill_min"], float(fill.min()))
+        cell["fill_max"] = max(cell["fill_max"], float(fill.max()))
+        # T-U1 per period and per good, in the CHANGELOG 0.1.3 form (ambiguity #64):
+        #   sum y + sum S_prev + sum X_prev
+        #     = sum S_next + sum X_next + sum consumed + consumer + sum holding + sum overflow
+        # S_prev / X_prev are the previous period's REPORT-row values, or the reset state at t = 0.
+        keys = ["episode", "t_period"]
+        goods = list(range(n_goods))
+        rep = df[df["phase"] == "report"]
+        consumed = df.groupby(keys)[[f"input_consumed_{j}" for j in goods]].sum()
+        x_next = rep.groupby(keys)[[f"inv_inputs_{j}" for j in goods]].sum()
+        consumer = rep.groupby(keys)[[f"consumer_{j}" for j in goods]].first()
+        per_good = {}
+        for col in ("cum_output", "inv_output_post", "holding_loss", "cap_overflow"):
+            table = rep.pivot_table(
+                index=keys, columns="sector", values=col, aggfunc="sum", fill_value=0.0
+            )
+            per_good[col] = table.reindex(columns=goods, fill_value=0.0).fillna(0.0)
+        index = x_next.index
+        consumed = consumed.reindex(index).to_numpy(dtype=float)
+        consumer = consumer.reindex(index).to_numpy(dtype=float)
+        y = per_good["cum_output"].reindex(index).to_numpy(dtype=float)
+        s_next = per_good["inv_output_post"].reindex(index).to_numpy(dtype=float)
+        hold = per_good["holding_loss"].reindex(index).to_numpy(dtype=float)
+        over = per_good["cap_overflow"].reindex(index).to_numpy(dtype=float)
+        x_nx = x_next.to_numpy(dtype=float)
+        episodes = index.get_level_values("episode").to_numpy()
+        periods = index.get_level_values("t_period").to_numpy()
+        s_prev = np.empty_like(s_next)
+        x_prev = np.empty_like(x_nx)
+        for row in range(len(index)):
+            if periods[row] == 0:
+                s_prev[row], x_prev[row] = starts[int(episodes[row])]
+            else:
+                if episodes[row - 1] != episodes[row] or periods[row - 1] != periods[row] - 1:
+                    raise RuntimeError("ledger part is missing a period")
+                s_prev[row], x_prev[row] = s_next[row - 1], x_nx[row - 1]
+        lhs = y + s_prev + x_prev
+        rhs = s_next + x_nx + consumed + consumer + hold + over
+        residual = np.abs(lhs - rhs)
+        if residual.size:
+            cell["max_conservation_error"] = max(
+                cell["max_conservation_error"], float(np.max(residual))
+            )
+        cell["n_periods"] += len(index)
+        cell["report_rows"] += len(rep)
+
+    all_cells: list[dict] = []
+    for ci, c in enumerate(configs):
+        run_dir = runs_root / hashes[ci]
+        run_dir.mkdir(parents=True, exist_ok=True)
+        config_flags: set[str] = set()
+        for agent_name in AGENTS:
+            agent = getattr(heuristic, agent_name)(c)
+            env = GosplanEnv(c)
+            ledger = Ledger()
+            env.attach_ledger(ledger)
+            policy_rng = np.random.default_rng(c.tech.seed_policy)  # one seed_policy stream/cell
+            ledger_dir = run_dir / "ledger" / agent_name
+            if ledger_dir.exists():
+                shutil.rmtree(ledger_dir)
+            ledger_dir.mkdir(parents=True)
+            cell = {
+                "config_index": ci,
+                "config_hash": hashes[ci],
+                "agent": agent_name,
+                "n_episodes": 0,
+                "episode_seconds": [],
+                "n_nonfinite": 0,
+                "nonfinite_by_column": {},
+                "placeholder_nan": 0,
+                "target_failures": 0,
+                "target_min": math.inf,
+                "target_max": -math.inf,
+                "target_min_over_floor": math.inf,
+                "target_max_over_cap": -math.inf,
+                "stock_failures": 0,
+                "stock_min": math.inf,
+                "stock_max_over_cap": -math.inf,
+                "stock_cap": 0.0,
+                "fill_failures": 0,
+                "fill_min": math.inf,
+                "fill_max": -math.inf,
+                "max_conservation_error": 0.0,
+                "n_periods": 0,
+                "report_rows": 0,
+                "step_flags": set(),
+                "ledger_parts": 0,
+            }
+            starts: dict[int, tuple] = {}
+            sector = np.asarray(c.supply.sector_of, dtype=int)
+            done_episodes = 0
+            while done_episodes < n_episodes:
+                batch = min(chunk_episodes, n_episodes - done_episodes)
+                starts.clear()
+                for _ in range(batch):
+                    t_start = time.perf_counter()
+                    obs, info = env.reset(root_seed, c.tech.seed_policy)
+                    agent.reset()
+                    s0 = np.bincount(
+                        sector,
+                        weights=np.asarray(env.state.inv_output, dtype=float),
+                        minlength=c.supply.n_sectors,
+                    )
+                    x0 = np.asarray(env.state.inv_inputs, dtype=float).sum(axis=0)
+                    done = False
+                    while not done:
+                        action = agent.act(obs, env.phase(), policy_rng)
+                        obs, _reward, done, info = env.step(action)
+                        cell["step_flags"].update(info.flags)
+                    cell["episode_seconds"].append(time.perf_counter() - t_start)
+                    starts[int(ledger.records[-1].episode)] = (s0, x0)
+                    done_episodes += 1
+                part = ledger_dir / f"part-{cell['ledger_parts']:05d}.parquet"
+                ledger.to_parquet(str(part))
+                ledger.records.clear()  # flushed to disk; `ledger.flags` keeps the running counts
+                cell["ledger_parts"] += 1
+                check_chunk(pd.read_parquet(part), c, starts, cell)
+                cell["n_episodes"] = done_episodes
+            cell["flags"] = tuple(sorted(set(ledger.flags) | cell["step_flags"]))
+            config_flags.update(cell["flags"])
+            all_cells.append(cell)
+        write_manifest(
+            str(run_dir),
+            c,
+            {
+                "git_hash": git_hash,
+                "reference_ppo_version": None,
+                "estimator_version": None,
+                "estimator_backend": None,
+                "llm_models": None,
+                "solver": None,
+                "solver_version": None,
+                "solver_optimality_gap": None,
+                "bunching_settings": None,
+                "flags": sorted(config_flags),
+            },
+        )
+
+    # Aggregate.
+    seconds = [s for cell in all_cells for s in cell["episode_seconds"]]
+    padder_cells = [cell for cell in all_cells if cell["agent"] == "Padder"]
+    padder_min_fill = min(cell["fill_min"] for cell in padder_cells)
+    padder_shortage = all(cell["fill_min"] < 1.0 for cell in padder_cells)
+    flags = tuple(sorted({f for cell in all_cells for f in cell["flags"]}))
+    max_cons = max(cell["max_conservation_error"] for cell in all_cells)
+    n_nonfinite = sum(cell["n_nonfinite"] for cell in all_cells)
+    t_fail = sum(cell["target_failures"] for cell in all_cells)
+    s_fail = sum(cell["stock_failures"] for cell in all_cells)
+    f_fail = sum(cell["fill_failures"] for cell in all_cells)
+    passed = (
+        max_cons < CONSERVATION_TOL
+        and n_nonfinite == 0
+        and t_fail == 0
+        and s_fail == 0
+        and f_fail == 0
+        and padder_shortage
+    )
+    leontief = any(math.isinf(c.supply.input_complementarity) for c in configs)
+    total_seconds = time.perf_counter() - harness_start
+
+    # 4. Report.
+    def verdict(ok: bool) -> str:
+        return "HELD" if ok else "FAILED"
+
+    doc = __doc__ or ""
+    prohibition = doc[doc.index("FORBIDDEN - HELD-OUT") : doc.index("Runtime bindings.")].rstrip()
+    lines = [
+        "# Monte-Carlo sanity report (WO-012, gate G0 artefact)",
+        "",
+        "This report is an input to gate G0; it is not the gate. G0 is the lead's written",
+        "sign-off on this report together with a green frozen suite and the CONTRACT rule 7",
+        "diff review of `gosplan/env/` (PLAN section 13).",
+        "",
+        "## Held-out prohibition this harness ran under",
+        "",
+        f"`HELD_OUT_PHENOMENON_ROWS = {HELD_OUT_PHENOMENON_ROWS}`. Restated verbatim from the",
+        "module docstring of `gosplan/experiments/mc_sanity.py`:",
+        "",
+        "```",
+        prohibition,
+        "```",
+        "",
+        "## Run summary",
+        "",
+        f"- overall: **{'ALL ASSERTIONS HELD' if passed else 'ASSERTION FAILURE'}**",
+        f"- seed_env (shared by every agent and configuration; CRN): {root_seed}",
+        f"- seed_policy: {base.tech.seed_policy} (one generator per configuration x agent cell)",
+        f"- perturbation generator: `numpy.random.default_rng({root_seed})` (the harness seed)",
+        f"- configurations: {len(configs)} (1 baseline + {n_perturbations} SUPPLY perturbations)",
+        f"- agents: {', '.join(AGENTS)}; episodes per cell: {n_episodes}",
+        f"- theta = inf (Leontief branch) exercised: {'yes' if leontief else 'NO'}",
+        f"- max conservation error: {max_cons:.3e} (tolerance {CONSERVATION_TOL:g}) - "
+        f"{verdict(max_cons < CONSERVATION_TOL)}",
+        f"- non-finite values: {n_nonfinite} - {verdict(n_nonfinite == 0)}",
+        f"- T bound failures: {t_fail}; S bound failures: {s_fail}; fill bound failures: {f_fail}",
+        f"- Padder minimum fill: {padder_min_fill:.6g}; shortage in every configuration: "
+        f"{padder_shortage}",
+        f"- mean wall clock per episode: {float(np.mean(seconds)):.4f} s over {len(seconds)} "
+        f"episodes; harness total {total_seconds:.1f} s",
+        f"- flags raised: {', '.join(flags) if flags else 'none'} "
+        f"(`{BOUND_BINDING_FLAG}` is CONTRACT rule 8)",
+        f"- git: {git_hash}",
+        "",
+        "Conventions. Conservation is the per-period, per-good T-U1 identity in the form recorded",
+        "in `spec/CHANGELOG.md` 0.1.3 (ambiguity #64), which carries the input stocks explicitly:",
+        "`sum y + sum S_prev + sum X_prev = sum S_next + sum X_next + sum consumed + consumer +",
+        "sum holding + sum overflow`, with `S_prev`, `X_prev` the previous period's REPORT row",
+        "(the reset state in period 0). Only the residual is reported. The non-finite scan covers",
+        "every numeric ledger column; in `" + "`, `".join(nan_placeholder_columns) + "` NaN is",
+        "the placeholder ruled in AMBIGUITY-007 (their owning functions do not return them) and is",
+        "counted separately, while inf there still counts as non-finite. `T` bounds are",
+        "`[target_floor_frac * T_0, T_0 * ((1 + g) * (1 + lambda * c_up))**P_max]` per",
+        "enterprise; `S` bounds `[0, inventory_cap_mult * cap_i]` on both `inv_output_pre` and",
+        "`inv_output_post`; `fill` bounds `FILL_BOUNDS` on every row.",
+        "",
+    ]
+    for ci, c in enumerate(configs):
+        s = c.supply
+        lines += [
+            f"## Configuration {ci}: `{hashes[ci]}`",
+            "",
+            f"- run directory: `{runs_root / hashes[ci]}/` (manifest.json, ledger/<agent>/)",
+            "- kind: " + ("baseline (`p1_default_config()`)" if ci == 0 else "SUPPLY perturbation"),
+            f"- yield_sigma: {tuple(round(v, 6) for v in s.yield_sigma)}"
+            + (f" (x{draws[ci]['yield_sigma_multiplier']:.6f})" if ci else ""),
+            f"- final_demand_share: {s.final_demand_share[0]:.6f} (every sector)",
+            f"- holding_loss: {s.holding_loss:.6f}",
+            f"- input_complementarity: {s.input_complementarity}",
+            "- locked (PERTURBATION_EXCLUDED) at Phase-1 values: "
+            + ", ".join(PERTURBATION_EXCLUDED),
+            "",
+        ]
+        for cell in (x for x in all_cells if x["config_index"] == ci):
+            ep_s = cell["episode_seconds"]
+            nonfin = cell["nonfinite_by_column"]
+            lines += [
+                f"### Configuration {ci} x {cell['agent']}",
+                "",
+                f"- episodes: {cell['n_episodes']}; periods: {cell['n_periods']}; ledger parts: "
+                f"{cell['ledger_parts']}",
+                f"- wall clock per episode: mean {float(np.mean(ep_s)):.4f} s, max "
+                f"{float(np.max(ep_s)):.4f} s",
+                f"- conservation: max |residual| {cell['max_conservation_error']:.3e} - "
+                f"{verdict(cell['max_conservation_error'] < CONSERVATION_TOL)}",
+                f"- non-finite: {cell['n_nonfinite']}"
+                + (f" {nonfin}" if nonfin else "")
+                + f" (AMBIGUITY-007 NaN placeholders: {cell['placeholder_nan']}) - "
+                f"{verdict(cell['n_nonfinite'] == 0)}",
+                f"- T: min {cell['target_min']:.6g}, max {cell['target_max']:.6g}; min T/T_min "
+                f"{cell['target_min_over_floor']:.6g}, max T/T_upper "
+                f"{cell['target_max_over_cap']:.6g}; failures {cell['target_failures']} - "
+                f"{verdict(cell['target_failures'] == 0)}",
+                f"- S: min {cell['stock_min']:.6g}, max S/S_max {cell['stock_max_over_cap']:.6g} "
+                f"(S_max {cell['stock_cap']:.6g}); failures {cell['stock_failures']} - "
+                f"{verdict(cell['stock_failures'] == 0)}",
+                f"- fill: min {cell['fill_min']:.6g}, max {cell['fill_max']:.6g}; failures "
+                f"{cell['fill_failures']} - {verdict(cell['fill_failures'] == 0)}",
+            ]
+            if cell["agent"] == "Padder":
+                lines.append(
+                    f"- Padder shortage (T-B3 property, fill < 1 somewhere): "
+                    f"{cell['fill_min'] < 1.0} - {verdict(cell['fill_min'] < 1.0)}"
+                )
+            lines += [
+                f"- flags: {', '.join(cell['flags']) if cell['flags'] else 'none'}",
+                "",
+            ]
+    out_dir.mkdir(parents=True, exist_ok=True)
+    report_path = out_dir / "report.md"
+    report_path.write_text("\n".join(lines), encoding="utf-8")
+
+    return {
+        "n_configs": len(configs),
+        "config_hashes": hashes,
+        "n_episodes": n_episodes,
+        "max_conservation_error": max_cons,
+        "n_nonfinite": n_nonfinite,
+        "target_bound_failures": t_fail,
+        "stock_bound_failures": s_fail,
+        "fill_bound_failures": f_fail,
+        "padder_min_fill": padder_min_fill,
+        "padder_shortage": padder_shortage,
+        "seconds_per_episode": float(np.mean(seconds)),
+        "flags": flags,
+        "passed": passed,
+        "report_path": str(report_path),
+    }
 
 
 def main() -> int:
@@ -215,7 +623,16 @@ def main() -> int:
 
     Realises: PLAN sections 12.3 (WO-012), 13. Owning WO: **WO-012**.
     """
-    raise NotImplementedError("PLAN section 12.3 (WO-012) - implemented in WO-012")
+    from gosplan.config import p1_default_config
+
+    try:
+        result = run(p1_default_config())
+    except OSError as exc:  # the report (or a run directory) could not be written
+        print(f"mc_sanity: could not write artefacts: {exc}")
+        return 1
+    for key, value in result.items():
+        print(f"{key}: {value}")
+    return 0 if result["passed"] else 1
 
 
 if __name__ == "__main__":
