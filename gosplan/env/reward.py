@@ -170,8 +170,12 @@ def bonus(rho: Array, cfg: EnvConfig) -> Array:
         with np.errstate(over="ignore"):
             lam = 1.0 / (1.0 + np.exp(-x / w))
 
-    if np.isinf(rho_cap):
-        over = np.maximum(x, 0.0)  # no cap, no kink: not clipped from above
+    if np.isinf(rho_cap) and w > 0:
+        # Smooth counterfactual arm: the slope term is smoothed at the notch's own width, so the
+        # arm has no kink anywhere (PLAN section 2.8, T-U3). LEAD ruling AMBIGUITY-006.
+        over = w * np.logaddexp(0.0, x / w)
+    elif np.isinf(rho_cap):
+        over = np.maximum(x, 0.0)  # no cap: not clipped from above
     else:
         over = np.clip(x, 0.0, rho_cap - 1.0)
 

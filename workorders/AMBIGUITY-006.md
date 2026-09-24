@@ -28,4 +28,13 @@ Tests blocked:
 tests/unit/test_reward.py::test_bonus_has_a_continuous_derivative_only_in_the_smooth_configuration
 (fails; CI `test` is red until resolved).
 
-STATUS: open, awaiting a human decision. Code keeps option A (the written formula).
+RESOLUTION (2026-09-24; the human delegated the call to the LEAD's judgement):
+B. In the smooth arm only (w > 0 and rho_cap = inf) the slope term is `s * w * softplus((rho - 1) /
+w)`, the smooth counterpart of `s * max(rho - 1, 0)` at the notch's own width; the notched (w = 0)
+and kink-only (finite rho_cap) arms keep the written formula. Reason: PLAN section 2.8 states the
+smooth arm has no kink anywhere, and a kink at rho = 1 would itself pull reports to rho = 1 and
+blur the G2 criterion-2 contrast. `ref/ref_step.py::ref_bonus` changed identically; the golden
+set was regenerated (the six `smooth` cells changed). Separately, T-U3's `< 1e-3` bound was below
+the logistic notch's own curvature at w = 0.25 on the test's 1e-3 grid (about 1.5e-3), so no
+formula with the specified notch could pass it; a lead edit loosens it to `< 1e-2`, which a kink
+(step about s/2 = 0.25) still fails. PLAN section 2.8's formula text is to be amended at WO-013.

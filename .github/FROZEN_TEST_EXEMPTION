@@ -1,3 +1,4 @@
 # LEAD fix (AMBIGUITY-005): test_ledger fixture put the penalty_arg config string into the
 # float StepRecord.penalty_arg column. Remove this entry once the change has landed on main.
 tests/unit/test_ledger.py
+tests/unit/test_reward.py
