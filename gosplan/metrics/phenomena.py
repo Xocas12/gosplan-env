@@ -82,7 +82,7 @@ fitted *without* (PLAN section 4.5). Passed as `excl_lo`."""
 BUNCHING_EXCL_HI: float = 1.02
 """Upper edge of the excluded window (PLAN section 4.5). Passed as `excl_hi`."""
 
-BUNCHING_POLY_DEGREE: int = 7
+BUNCHING_POLY_DEGREE: int = 9
 """Degree of the counterfactual polynomial fitted outside the excluded window (PLAN section 4.5).
 Passed as `degree`."""
 
@@ -125,7 +125,7 @@ def phenomenon_bunching(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
       * bins of width `BUNCHING_BIN_WIDTH` = 0.005 over `rho` in
         `[BUNCHING_WINDOW_LO, BUNCHING_WINDOW_HI]` = [0.6, 1.4];
       * excluded window `[BUNCHING_EXCL_LO, BUNCHING_EXCL_HI]` = [0.95, 1.02];
-      * polynomial of degree `BUNCHING_POLY_DEGREE` = 7 fitted to the bins *outside* that window;
+      * polynomial of degree `BUNCHING_POLY_DEGREE` = 9 fitted to the bins *outside* that window;
       * `b_hat = (observed - counterfactual mass in [BUNCHING_EXCESS_LO, BUNCHING_EXCESS_HI])
         / (mean counterfactual density in the window)`;
       * `hole_mass` computed identically on `[BUNCHING_HOLE_LO, BUNCHING_HOLE_HI)` = [0.95, 1.00);

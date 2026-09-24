@@ -51,3 +51,26 @@ from the DP solved without the notch (w > 0 / beta = 0), which is the "exact no-
 counterfactual" PLAN section 5 lists among the DP's uses. Not patched: `dp_excess_mass` returns the
 estimator's value as is. G2 criterion 2's threshold `0.5 * b_hat_DP` is undefined until decided;
 G1 itself can proceed on the regime labels, with `b_hat_DP` shown as non-finite where it is.
+
+RESOLUTION (2026-09-24; the owner delegated these decisions to the LEAD's judgement):
+1. Bias -> PRE-REGISTRATION AMENDED, before any learning run: `BUNCHING_POLY_DEGREE` 7 -> 9.
+   Evidence (noise-free densities, excess-window bias in counts-per-bin units, degree 7 / 9):
+   N(1,0.15) 0.058 / 0.011; N(1,0.10) 0.427 / 0.147; N(0.95,0.12) 0.113 / 0.025;
+   N(1.05,0.20) 0.008 / 0.001; N(1,0.25) 0.002 / 0.000. On the frozen test samples the seed-level
+   bootstrap SE is essentially unchanged (0.028 / 0.029), planted-mass recovery stays within ~1%
+   (3.83 / 3.76 vs about 3.80) and hole recovery likewise; the smooth-null 95% interval moves from
+   [0.026, 0.136] (excludes 0) to [-0.029, 0.086] (covers 0). Degree 7 would have manufactured a
+   G2 smooth-arm failure out of estimator bias on any report distribution peaked near 1.
+   Residual bias remains for sharply peaked distributions (0.147 at sigma = 0.10); the G2 report
+   states it beside every smooth-arm interval.
+2. Bootstrap: `x` as a sequence of per-seed arrays -> the seed is the resampling unit (all gate
+   harnesses pass it this way); a single array -> each report is its own unit (documented, never
+   presented as a seed bootstrap). 1,000 replicates, 95% percentile interval, generator seed 0,
+   recorded in `bunching_settings`.
+3. Non-finite `b_hat_DP` (addendum K) -> G2 criterion 2's notched-arm threshold, AMENDED before
+   any learning run: when `b_hat_DP` is finite, `b_hat >= 0.5 * b_hat_DP` as pre-registered; when
+   it is not (the DP puts all its stationary report mass on grid points, so the polynomial
+   counterfactual has no support), the threshold is the DP's predicted SHARE of REPORT rows in the
+   excess window [1.00, 1.02]: the learned share must be >= 0.5 x the DP share, and the seed-level
+   CI for `b_hat` must exclude 0. The DP share at each G1 configuration is recorded in
+   `runs/G1_decision.md`.

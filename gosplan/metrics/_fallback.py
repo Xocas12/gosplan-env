@@ -202,10 +202,12 @@ def estimate(
     estimator recovers it within 5%, recovers the hole mass likewise, produces a bootstrap SE, and
     has a signature identical to `forensics_core.bunching.estimate`. Owning WO: **WO-016**.
     """
-    # LEAD early slice of WO-016 (AMBIGUITY-011): the point estimate only. The seed-grouped
-    # bootstrap is not yet specified (grouping format, replicates, level, seed), so `se`, `ci_lo`
-    # and `ci_hi` are NaN until the lead/human decision; `resolve_estimators` stays unimplemented
-    # so no caller can mistake this for the finished estimator.
+    # AMBIGUITY-011 resolution (LEAD, under the owner's delegation): `x` is either a sequence of
+    # per-seed arrays - the resampling unit is then the seed, as PLAN section 4.5 requires, and
+    # every gate harness passes it that way - or a single array, in which case the grouping is
+    # unknown and each report is its own unit (documented, never silently promoted to seeds).
+    # Percentile bootstrap, `_BOOTSTRAP_REPLICATES` replicates, level `_BOOTSTRAP_LEVEL`, a
+    # generator keyed on `_BOOTSTRAP_SEED`; all three are recorded in `bunching_settings`.
     from numpy.polynomial import Polynomial
 
     from gosplan.metrics.phenomena import (
@@ -216,40 +218,71 @@ def estimate(
     )
 
     if isinstance(x, (list, tuple)):
-        sample = np.concatenate([np.asarray(g, dtype=float).ravel() for g in x])
+        groups = [np.asarray(g, dtype=float).ravel() for g in x]
     else:
-        sample = np.asarray(x, dtype=float).ravel()
+        groups = None
+    sample = np.concatenate(groups) if groups is not None else np.asarray(x, dtype=float).ravel()
     n_bins = round((window_hi - window_lo) / bin_width)
     edges = np.linspace(window_lo, window_hi, n_bins + 1)
-    observed, _ = np.histogram(sample, bins=edges)
     centres = 0.5 * (edges[:-1] + edges[1:])
     keep = ~((centres >= excl_lo) & (centres <= excl_hi))
-    counterfactual = Polynomial.fit(centres[keep], observed[keep], degree)(centres)
+    # Bins assigned by centre; density = mean counterfactual COUNT PER BIN in the window.
+    excess = (centres >= BUNCHING_EXCESS_LO) & (centres <= BUNCHING_EXCESS_HI)
+    hole = (centres >= BUNCHING_HOLE_LO) & (centres < BUNCHING_HOLE_HI)
 
-    def window_mask(lo: float, hi: float, closed_hi: bool) -> np.ndarray:
-        upper = centres <= hi if closed_hi else centres < hi
-        return (centres >= lo) & upper
+    def masses(counts: np.ndarray) -> tuple[float, float, np.ndarray]:
+        cf = Polynomial.fit(centres[keep], counts[keep], degree)(centres)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            b = (counts[excess].sum() - cf[excess].sum()) / cf[excess].mean()
+            h = (cf[hole].sum() - counts[hole].sum()) / cf[hole].mean()  # missing mass
+        return float(b), float(h), cf
 
-    # Density is the mean counterfactual count per bin in the window (AMBIGUITY-011).
-    excess = window_mask(BUNCHING_EXCESS_LO, BUNCHING_EXCESS_HI, True)
-    excess_mass = (observed[excess].sum() - counterfactual[excess].sum()) / counterfactual[
-        excess
-    ].mean()
-    # The hole is MISSING mass (counterfactual - observed), per the field docstring and T-test.
-    hole = window_mask(BUNCHING_HOLE_LO, BUNCHING_HOLE_HI, False)
-    hole_mass = (counterfactual[hole].sum() - observed[hole].sum()) / counterfactual[hole].mean()
-    nan = float("nan")
+    observed, _ = np.histogram(sample, bins=edges)
+    excess_mass, hole_mass, counterfactual = masses(observed.astype(float))
+
+    rng = np.random.default_rng(_BOOTSTRAP_SEED)
+    replicates = np.empty(_BOOTSTRAP_REPLICATES)
+    if groups is not None:
+        per_group = np.array([np.histogram(g, bins=edges)[0] for g in groups], dtype=float)
+        for r in range(_BOOTSTRAP_REPLICATES):
+            pick = rng.integers(0, len(groups), len(groups))
+            replicates[r] = masses(per_group[pick].sum(axis=0))[0]
+    else:
+        # Report-level resampling of an ungrouped sample, drawn exactly as a multinomial over
+        # the window's bins plus one "outside the window" cell.
+        n_total = sample.size
+        outside = n_total - observed.sum()
+        probs = np.append(observed, outside) / max(n_total, 1)
+        for r in range(_BOOTSTRAP_REPLICATES):
+            replicates[r] = masses(rng.multinomial(n_total, probs)[:-1].astype(float))[0]
+    finite = replicates[np.isfinite(replicates)]
+    alpha = 0.5 * (1.0 - _BOOTSTRAP_LEVEL)
+    if finite.size:
+        se = float(np.std(finite, ddof=1)) if finite.size > 1 else 0.0
+        ci_lo, ci_hi = (float(v) for v in np.quantile(finite, [alpha, 1.0 - alpha]))
+    else:
+        se = ci_lo = ci_hi = float("nan")
     return BunchingResult(
-        excess_mass=float(excess_mass),
-        hole_mass=float(hole_mass),
-        se=nan,
-        ci_lo=nan,
-        ci_hi=nan,
+        excess_mass=excess_mass,
+        hole_mass=hole_mass,
+        se=se,
+        ci_lo=ci_lo,
+        ci_hi=ci_hi,
         n_obs=int(sample.size),
         bin_edges=edges,
         observed_counts=observed,
         counterfactual_counts=counterfactual,
     )
+
+
+_BOOTSTRAP_REPLICATES = 1000
+"""Bootstrap replicates for `se` and the interval (AMBIGUITY-011 resolution)."""
+
+_BOOTSTRAP_LEVEL = 0.95
+"""Two-sided level of the percentile interval (AMBIGUITY-011 resolution)."""
+
+_BOOTSTRAP_SEED = 0
+"""Seed of the bootstrap generator, fixed so an interval is reproducible from the data alone."""
 
 
 def ledger_test(
