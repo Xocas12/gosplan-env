@@ -38,7 +38,7 @@ import tomllib
 from dataclasses import dataclass, field
 from typing import Literal
 
-SPEC_VERSION = "0.1.0"
+SPEC_VERSION = "1.0.0"
 """Mirror of `spec.spec.SPEC_VERSION` - the provisional (v0) interface version.
 
 WO-013 bumps it to `"1.0.0"` at gate G1 and every later change needs a `spec/CHANGELOG.md` entry
