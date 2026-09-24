@@ -202,7 +202,54 @@ def estimate(
     estimator recovers it within 5%, recovers the hole mass likewise, produces a bootstrap SE, and
     has a signature identical to `forensics_core.bunching.estimate`. Owning WO: **WO-016**.
     """
-    raise NotImplementedError("PLAN section 7.3 - implemented in WO-016")
+    # LEAD early slice of WO-016 (AMBIGUITY-011): the point estimate only. The seed-grouped
+    # bootstrap is not yet specified (grouping format, replicates, level, seed), so `se`, `ci_lo`
+    # and `ci_hi` are NaN until the lead/human decision; `resolve_estimators` stays unimplemented
+    # so no caller can mistake this for the finished estimator.
+    from numpy.polynomial import Polynomial
+
+    from gosplan.metrics.phenomena import (
+        BUNCHING_EXCESS_HI,
+        BUNCHING_EXCESS_LO,
+        BUNCHING_HOLE_HI,
+        BUNCHING_HOLE_LO,
+    )
+
+    if isinstance(x, (list, tuple)):
+        sample = np.concatenate([np.asarray(g, dtype=float).ravel() for g in x])
+    else:
+        sample = np.asarray(x, dtype=float).ravel()
+    n_bins = round((window_hi - window_lo) / bin_width)
+    edges = np.linspace(window_lo, window_hi, n_bins + 1)
+    observed, _ = np.histogram(sample, bins=edges)
+    centres = 0.5 * (edges[:-1] + edges[1:])
+    keep = ~((centres >= excl_lo) & (centres <= excl_hi))
+    counterfactual = Polynomial.fit(centres[keep], observed[keep], degree)(centres)
+
+    def window_mask(lo: float, hi: float, closed_hi: bool) -> np.ndarray:
+        upper = centres <= hi if closed_hi else centres < hi
+        return (centres >= lo) & upper
+
+    # Density is the mean counterfactual count per bin in the window (AMBIGUITY-011).
+    excess = window_mask(BUNCHING_EXCESS_LO, BUNCHING_EXCESS_HI, True)
+    excess_mass = (observed[excess].sum() - counterfactual[excess].sum()) / counterfactual[
+        excess
+    ].mean()
+    # The hole is MISSING mass (counterfactual - observed), per the field docstring and T-test.
+    hole = window_mask(BUNCHING_HOLE_LO, BUNCHING_HOLE_HI, False)
+    hole_mass = (counterfactual[hole].sum() - observed[hole].sum()) / counterfactual[hole].mean()
+    nan = float("nan")
+    return BunchingResult(
+        excess_mass=float(excess_mass),
+        hole_mass=float(hole_mass),
+        se=nan,
+        ci_lo=nan,
+        ci_hi=nan,
+        n_obs=int(sample.size),
+        bin_edges=edges,
+        observed_counts=observed,
+        counterfactual_counts=counterfactual,
+    )
 
 
 def ledger_test(
