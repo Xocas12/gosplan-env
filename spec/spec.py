@@ -40,7 +40,7 @@ Array = np.ndarray
 """Alias for every numeric array in the interface (PLAN section 10). The JAX port substitutes its
 own array type behind the same name; no module may rely on numpy-only methods in a signature."""
 
-SPEC_VERSION = "0.1.0"
+SPEC_VERSION = "1.0.0"
 """Provisional spec version (PLAN section 10 header). Bumped to "1.0.0" by WO-013 at the v1 freeze;
 every later change needs a `spec/CHANGELOG.md` entry (CONTRACT rule 1). Written into every run
 manifest (CONTRACT rule 10)."""
@@ -646,7 +646,7 @@ class EnterpriseAction:
     quality: Array  # (N,) q_ik in [0, 1]; Phase 2
     invest: Array  # (N,) v_ik in [0, 1], fraction of step output diverted to capital; Phase 2
     report_ratio: Array  # (N,) in [0, rho_max]; active in Phase 1; read only at the REPORT step
-    input_request: Array  # (N, J) q_ij in [0, r_max * need_ij]; logged in Phase 1, inert at eta_q=0
+    input_request: Array  # (N, J) multiple of need in [0, r_max]; rescaled by need when read
     trade_offer: Array  # (N, J) in [-1, 1]; positive = offer, negative = want; Phase 2
 
 
@@ -1089,7 +1089,8 @@ def process_reports(state: State, action: EnterpriseAction, cfg: EnvConfig) -> S
 
     The function also stores `last_report_ratio`, `last_report` (the claim in units, kept because
     the ratchet moves `T` later in the same period - PLAN section 2.5 steps 3 then 6) and
-    `request`, clipped to `r_max * need_ij`, and it records whether the report sat at `rho_max`
+    `request = clip(q_ij, 0, r_max) * need_ij` (the action is a multiple of need; AMBIGUITY-008),
+    and it records whether the report sat at `rho_max`
     (CONTRACT rule 8).
 
     Binds: `tests/unit/test_reporting.py` (holding loss applied before `y` is added; the report
@@ -1372,7 +1373,8 @@ class GosplanEnv:
         Phase 1, and the opening `StepInfo`.
 
         Initial state (PLAN sections 2.1-2.2, 3): `target = T_0`, `capital = cap = 1`,
-        `inv_output = 0`, `inv_inputs = 0`, all `last_*` fields zero, `last_fill = 1`,
+        `inv_output = 0`, `inv_inputs = a_{s(i)j} * T_0_i` (the opening input endowment,
+        ambiguity #62), all `last_*` fields zero, `last_fill = 1`,
         `t_period = 0`, `k_step = 0`, `phase = "produce"`, `plan_prices = initial_prices(cfg)`,
         `planner_io = a`, `alive = True`.
 
@@ -1393,6 +1395,11 @@ class GosplanEnv:
         it runs `process_reports`, `select_audits`, `audit_and_penalise`, the REWARD,
         `update_targets` and the termination draw, in that order; the next period opens with
         DELIVER, which consumes the `PlannerView` built from this period's reports.
+
+        After a step returns, the state's counters sit at the NEXT agent-step (AMBIGUITY-007); the
+        returned `obs` describes the step just executed. A `step` after `done` continues into a
+        fresh episode under the same seeds with `t_period` carried on (AMBIGUITY-004); harnesses
+        treat `done` as the episode boundary and call `reset`.
 
         Nothing here may leak a true quantity into `obs` (CONTRACT rule 6), and every draw goes
         through `draw` (CONTRACT rule 9).

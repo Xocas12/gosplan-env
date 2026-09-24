@@ -56,38 +56,7 @@ tests are touched, including cards already completed that must be reissued.
 
 ## Unreleased
 
-**Reason.** Defect in the reference golden generator found while checking WO-003:
-`ref/gen_golden.py::_base` wrote `"invest_lag": 0`, contradicting its own docstring ("every
-unstated default is the one declared on `SupplyConfig`", which is 1) and the `invest_lag >= 1`
-rule of `EnvConfig.validate` (spec/spec.py, WO-003). With golden files present, every golden
-parity test failed in `validate()` before comparing anything.
-
-**Change.** `ref/gen_golden.py`: `invest_lag` 0 -> 1 in the base golden configuration. No change
-to `spec/spec.py`; `SPEC_VERSION` unchanged. The only dynamics effect is the width of
-`pending_invest`, which is inert in Phase 1 (`v == 0`).
-
-**Affected work orders.** WO-002 (ref), WO-009 (golden parity must-pass).
-
-**Golden files.** Regenerated locally (git-ignored; not committed).
-
-**Suite.** `tests/golden`: 31 passed (config hash and obs layout parity), 120 skipped awaiting
-WO-009/WO-010.
-
-**Approver.** LEAD.
-
-Further unreleased LEAD rulings on this branch (no `spec/spec.py` change; docstrings to be corrected
-at the WO-013 freeze): AMBIGUITY-003 (yield shock keyed per enterprise, as `ref_produce`),
-AMBIGUITY-004 (`GosplanEnv.step` after `done` continues as `ref_rollout` does), AMBIGUITY-005
-(`Ledger.append` keeps `BOUND_BINDING` in step; lead edit of the `tests/unit/test_ledger.py` fixture
-under `.github/FROZEN_TEST_EXEMPTION`), and the WO-003 follow-up (`EnvConfig.hash` covers the
-four-section object only, per ambiguity #51). AMBIGUITY-006 (smooth-arm slope term smoothed by a softplus
-at the notch width in both `gosplan/env/reward.py` and `ref/ref_step.py`; golden set regenerated;
-lead edit of T-U3's threshold in `tests/unit/test_reward.py` under `.github/FROZEN_TEST_EXEMPTION`),
-AMBIGUITY-007 (state counters advance eagerly; `ref_step` renders the digest at the next position)
-and AMBIGUITY-008 (golden truthful policy, post-REPORT truthful report, `input_request` as a
-multiple of need, rollout observation, and two lead test edits). Golden set regenerated after each.
-AMBIGUITY-009 (`DPGreedy` grid lookup) and AMBIGUITY-010 (WO-014 DP rulings; the one `spec/spec.py`
-change is entry 0.1.6 below).
+No unreleased changes.
 
 New entries are added here, in the format above, and are promoted to a numbered section when the
 version is bumped in `spec/spec.py`.
@@ -341,3 +310,78 @@ declared names by a lead edit (AMBIGUITY-010 A).
 **Suite.** Full frozen suite 455 passed, 16 skipped, 0 failed.
 
 **Approver.** LEAD.
+
+## 1.0.0 - 2026-09-24
+
+**Reason.** WO-013, the v1 freeze at gate G1 (PLAN sections 10, 12.3, 13), after gate G0 was signed
+off (`runs/G0_signoff.md`: full frozen suite green; MC sanity report clean over 126,000 episodes;
+LEAD rule-7 review clean). Each amendment below names the G0 finding or ambiguity report behind it.
+
+**Change.**
+- `SPEC_VERSION`: "0.1.0" -> "1.0.0" in `spec/spec.py` and the mirror in `gosplan/config.py`.
+- Recorded as owed by the v0 file: `draw`'s `purpose` / `dist` are narrowed from `str` (PLAN
+  section 10) to the `Purpose` and `Dist` literals, which enumerate exactly the values of PLAN
+  section 2.15 and the WO-004 card; `Purpose` carries `selfobs` beyond section 2.15's list, for the
+  self-observation noise of WO-008 (PLAN section 2.4).
+- `GosplanEnv.reset` docstring: `inv_inputs = a_{s(i)j} * T_0_i` (ambiguity #62, CHANGELOG 0.1.4;
+  confirmed by golden parity in G0).
+- `EnterpriseAction.input_request` comment and `process_reports` docstring: the action is a
+  multiple of need in `[0, r_max]`, rescaled by need when read (AMBIGUITY-008; G0 T-B1).
+- `GosplanEnv.step` docstring: counters advance to the next agent-step, the observation describes
+  the executed step (AMBIGUITY-007), and a step after `done` auto-continues (AMBIGUITY-004).
+- Seeding convention for every harness after G0 (AMBIGUITY-014, a G0 finding): episode `e` uses
+  `seed_env = root + e`, shared across agents and arms at the same `e`; root and rule in the
+  manifest `flags`. No signature change.
+- No signature, field, enum member or default moved at this version; the only field added since
+  0.1.0 is `DPGrid.max_iterations` (0.1.6).
+
+Folded in from "Unreleased" (LEAD rulings on this branch, none a `spec/spec.py` signature change):
+
+**Reason.** Defect in the reference golden generator found while checking WO-003:
+`ref/gen_golden.py::_base` wrote `"invest_lag": 0`, contradicting its own docstring ("every
+unstated default is the one declared on `SupplyConfig`", which is 1) and the `invest_lag >= 1`
+rule of `EnvConfig.validate` (spec/spec.py, WO-003). With golden files present, every golden
+parity test failed in `validate()` before comparing anything.
+
+**Change.** `ref/gen_golden.py`: `invest_lag` 0 -> 1 in the base golden configuration. No change
+to `spec/spec.py`; `SPEC_VERSION` unchanged. The only dynamics effect is the width of
+`pending_invest`, which is inert in Phase 1 (`v == 0`).
+
+**Affected work orders.** WO-002 (ref), WO-009 (golden parity must-pass).
+
+**Golden files.** Regenerated locally (git-ignored; not committed).
+
+**Suite.** `tests/golden`: 31 passed (config hash and obs layout parity), 120 skipped awaiting
+WO-009/WO-010.
+
+**Approver.** LEAD.
+
+Further unreleased LEAD rulings on this branch (no `spec/spec.py` change; docstrings to be corrected
+at the WO-013 freeze): AMBIGUITY-003 (yield shock keyed per enterprise, as `ref_produce`),
+AMBIGUITY-004 (`GosplanEnv.step` after `done` continues as `ref_rollout` does), AMBIGUITY-005
+(`Ledger.append` keeps `BOUND_BINDING` in step; lead edit of the `tests/unit/test_ledger.py` fixture
+under `.github/FROZEN_TEST_EXEMPTION`), and the WO-003 follow-up (`EnvConfig.hash` covers the
+four-section object only, per ambiguity #51). AMBIGUITY-006 (smooth-arm slope term smoothed by a softplus
+at the notch width in both `gosplan/env/reward.py` and `ref/ref_step.py`; golden set regenerated;
+lead edit of T-U3's threshold in `tests/unit/test_reward.py` under `.github/FROZEN_TEST_EXEMPTION`),
+AMBIGUITY-007 (state counters advance eagerly; `ref_step` renders the digest at the next position)
+and AMBIGUITY-008 (golden truthful policy, post-REPORT truthful report, `input_request` as a
+multiple of need, rollout observation, and two lead test edits). Golden set regenerated after each.
+AMBIGUITY-009 (`DPGreedy` grid lookup) and AMBIGUITY-010 (WO-014 DP rulings; the one `spec/spec.py`
+change is entry 0.1.6 below).
+
+**Affected work orders.** WO-003 (mirror constant), WO-004 (narrowing recorded), WO-008
+(`selfobs`), WO-009 (docstrings), WO-012 (seeding convention going forward), WO-013 (this entry;
+gate harnesses G0 and G1 implemented in `tests/acceptance/`, G2-G4 remain stubs until their
+experiments exist), WO-016 onward (seeding convention). No completed card needs reissuing: no
+behaviour changed.
+
+**Golden files.** Regenerated: `ref.gen_golden --check` reported all 30 stale solely because each
+document embeds `spec_version`; a key-by-key comparison of the regenerated set against the previous
+one showed `spec_version` as the only differing key (dynamics unchanged).
+
+**Suite.** Full frozen suite after the freeze: 456 passed, 16 skipped (later cards), 0 failed - identical to before the freeze; no skip introduced.
+
+**Approver.** LEAD. Crosses gate G1: the human's G1 decision (`runs/G1_decision.md`) follows this
+freeze and does not alter it; the daggered PLAN section 3 values stay at their provisional
+placeholders until then.
