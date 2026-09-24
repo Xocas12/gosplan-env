@@ -26,10 +26,13 @@ them (WO-011), never at module scope, so the skeleton imports in an environment 
 
 from __future__ import annotations
 
+import dataclasses
+import json
+import os
 from dataclasses import dataclass
 from typing import Literal
 
-from gosplan.config import EnvConfig
+from gosplan.config import SPEC_VERSION, EnvConfig
 
 Phase = Literal["produce", "report"]
 """Agent-step phase within a plan period (PLAN section 2.5), restated from `spec/spec.py`.
@@ -192,6 +195,13 @@ class Ledger:
     records: list[StepRecord]
     flags: set[str]
 
+    def __init__(self) -> None:
+        # Construction is WO-011's (class docstring): both attributes start empty.
+        self.records = []
+        self.flags = set()
+        self._n_report = 0
+        self._n_at_bound = 0
+
     def append(self, rec: StepRecord) -> None:
         """Append one record and maintain the run's flag set.
 
@@ -211,7 +221,16 @@ class Ledger:
                 `rho = rho_max` in more than 1% of reports sets `BOUND_BINDING`, and at or below 1% it does
                 not. Owning WO: **WO-011**.
         """
-        raise NotImplementedError("PLAN section 4 - implemented in WO-011")
+        self.records.append(rec)
+        # LEAD ruling AMBIGUITY-005: the frozen tests read `flags` after appends alone, so the
+        # BOUND_BINDING membership tracks the same predicate as `bound_binding`, incrementally.
+        if rec.phase == "report":
+            self._n_report += 1
+            self._n_at_bound += int(bool(rec.at_bound))
+            if self._n_at_bound / self._n_report > AT_BOUND_FLAG_THRESHOLD:
+                self.flags.add(BOUND_BINDING_FLAG)
+            else:
+                self.flags.discard(BOUND_BINDING_FLAG)
 
     def to_parquet(self, path: str) -> None:
         """Write the ledger to a columnar file.
@@ -231,7 +250,9 @@ class Ledger:
         Binds: `tests/unit/test_ledger.py` - a parquet round-trip preserves every column and dtype.
         Owning WO: **WO-011**.
         """
-        raise NotImplementedError("PLAN section 4 - implemented in WO-011")
+        import pyarrow.parquet as pq
+
+        pq.write_table(_to_arrow_table(self.records), path)
 
     def to_dataframe(self) -> object:
         """Return the ledger as an in-memory frame, with the same columns as `to_parquet`.
@@ -250,7 +271,9 @@ class Ledger:
         Binds: `tests/unit/test_ledger.py` - the frame's columns equal the parquet file's, and a
         round-trip through either preserves the records. Owning WO: **WO-011**.
         """
-        raise NotImplementedError("PLAN section 4 - implemented in WO-011")
+        import pandas  # noqa: F401 - needed by `Table.to_pandas`; never imported at module scope
+
+        return _to_arrow_table(self.records).to_pandas()
 
 
 def bound_binding(ledger: Ledger) -> bool:
@@ -276,7 +299,11 @@ def bound_binding(ledger: Ledger) -> bool:
 
     Binds: test T-B8 (`tests/behavioural/`) and `tests/unit/test_ledger.py`. Owning WO: **WO-011**.
     """
-    raise NotImplementedError("PLAN section 4 - implemented in WO-011")
+    reports = [rec for rec in ledger.records if rec.phase == "report"]
+    if not reports:
+        return False
+    n_at_bound = sum(1 for rec in reports if rec.at_bound)
+    return n_at_bound / len(reports) > AT_BOUND_FLAG_THRESHOLD
 
 
 def write_manifest(run_dir: str, cfg: EnvConfig, extra: dict) -> None:
@@ -305,4 +332,93 @@ def write_manifest(run_dir: str, cfg: EnvConfig, extra: dict) -> None:
     Binds: `tests/unit/test_ledger.py` - every rule-10 field is present, and `null` appears where a
     field does not apply. Owning WO: **WO-011**.
     """
-    raise NotImplementedError("PLAN section 4 - implemented in WO-011")
+    unknown = sorted(key for key in extra if key not in _EXTRA_FIELDS)
+    if unknown:
+        raise ValueError(
+            f"write_manifest: unknown key(s) in extra: {unknown}; allowed: {list(_EXTRA_FIELDS)}"
+        )
+    from_config = {
+        "config_hash": cfg.hash(),
+        "config": {
+            name: _canonical(dataclasses.asdict(getattr(cfg, name)))
+            for name in ("supply", "incentive", "information", "tech")
+        },
+        "spec_version": SPEC_VERSION,
+        "seed_env": cfg.tech.seed_env,
+        "seed_policy": cfg.tech.seed_policy,
+    }
+    doc = {
+        name: from_config[name] if name in from_config else extra.get(name)
+        for name in MANIFEST_FIELDS
+    }
+    with open(os.path.join(run_dir, "manifest.json"), "w", encoding="utf-8") as handle:
+        json.dump(doc, handle, indent=2)
+
+
+_EXTRA_FIELDS: tuple[str, ...] = (
+    "git_hash",
+    "reference_ppo_version",
+    "estimator_version",
+    "estimator_backend",
+    "llm_models",
+    "solver",
+    "solver_version",
+    "solver_optimality_gap",
+    "bunching_settings",
+    "flags",
+)
+# The `MANIFEST_FIELDS` entries `extra` supplies, as enumerated in `write_manifest`'s docstring; the
+# other five are determined by `cfg` alone.
+
+_SCALAR_ARROW_TYPES: dict[str, str] = {
+    "str": "string",
+    "Phase": "string",
+    "int": "int64",
+    "float": "float64",
+    "bool": "bool",
+}
+_TUPLE_ANNOTATION = "tuple[float, ...]"
+
+
+def _canonical(value: object) -> object:
+    """`EnvConfig.hash`'s canonical encoding: `inf` -> "inf", tuples -> lists, recursively."""
+    if isinstance(value, float) and value == float("inf"):
+        return "inf"
+    if isinstance(value, tuple):
+        return [_canonical(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _canonical(item) for key, item in value.items()}
+    return value
+
+
+def _to_arrow_table(records: list[StepRecord]) -> object:
+    """Build the columnar table shared by `to_parquet` and `to_dataframe`.
+
+    Columns follow the `StepRecord` field order, each tuple-valued field exploded in place into
+    `name_0 .. name_{J-1}`; every column carries the arrow type of its declared field type.
+    """
+    import pyarrow as pa
+
+    if not records:
+        raise ValueError(
+            "Ledger is empty: the per-good column count J cannot be determined from the records"
+        )
+    names: list[str] = []
+    types: list[object] = []
+    columns: list[list[object]] = []
+    for field in dataclasses.fields(StepRecord):
+        values = [getattr(rec, field.name) for rec in records]
+        if field.type == _TUPLE_ANNOTATION:
+            widths = {len(value) for value in values}
+            if len(widths) != 1:
+                raise ValueError(f"{field.name}: tuple lengths differ across records: {widths}")
+            for k in range(widths.pop()):
+                names.append(f"{field.name}_{k}")
+                types.append(pa.float64())
+                columns.append([value[k] for value in values])
+        else:
+            names.append(field.name)
+            types.append(pa.type_for_alias(_SCALAR_ARROW_TYPES[field.type]))
+            columns.append(values)
+    arrays = [pa.array(col, type=typ) for col, typ in zip(columns, types, strict=True)]
+    return pa.Table.from_arrays(arrays, names=names)
