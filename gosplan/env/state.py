@@ -196,7 +196,9 @@ def initial_targets(cfg: EnvConfig) -> Array:
     Binds: `tests/unit/test_obs.py` (observation field 2 is 0 at reset), test T-U4 (the target
     floor is respected). Owning WO: **WO-009**.
     """
-    raise NotImplementedError("PLAN sections 2.7.1, 3 - implemented in WO-009")
+    sector = np.asarray(cfg.supply.sector_of, dtype=int)
+    productivity = np.asarray(cfg.supply.productivity, dtype=float)[sector]
+    return cfg.tech.initial_target_frac * productivity * INITIAL_CAPACITY
 
 
 def initial_state(cfg: EnvConfig) -> State:
@@ -244,7 +246,38 @@ def initial_state(cfg: EnvConfig) -> State:
     and `tests/golden/*` (T-B7 - the opening state must match `ref/ref_step.py` to 1e-9). Owning
     WO: **WO-009**.
     """
-    raise NotImplementedError("PLAN section 2.2 - implemented in WO-009")
+    from gosplan.env.prices import initial_prices
+
+    n, j = cfg.supply.n_enterprises, cfg.supply.n_sectors
+    lag = cfg.supply.invest_lag
+    target = initial_targets(cfg)
+    a_rows = np.asarray(cfg.supply.io_matrix, dtype=float)[np.asarray(cfg.supply.sector_of)]
+    return State(
+        target=target,
+        capital=np.full(n, INITIAL_CAPACITY),
+        inv_output=np.zeros(n),
+        # Opening input endowment X_ij = a_{s(i)j} * T_0_i (ambiguity #62, CHANGELOG 0.1.4).
+        inv_inputs=a_rows * target[:, None],
+        cum_output=np.zeros(n),
+        cum_cost=np.zeros(n),
+        quality_acc=np.zeros(n),
+        last_report_ratio=np.zeros(n),
+        last_report=np.zeros(n),
+        last_audited=np.zeros(n, dtype=bool),
+        last_penalty=np.zeros(n),
+        last_fill=np.ones(n),
+        request=np.zeros((n, j)),
+        pending_invest=np.zeros((n, lag)),
+        t_period=0,
+        k_step=0,
+        phase="produce",
+        plan_prices=np.array(initial_prices(cfg), dtype=float),
+        planner_io=np.array(cfg.supply.io_matrix, dtype=float),
+        consumer_delivery=np.zeros(j),
+        alive=True,
+        seed_env=int(cfg.tech.seed_env),
+        seed_policy=int(cfg.tech.seed_policy),
+    )
 
 
 def reset_period_accumulators(state: State) -> State:
@@ -266,7 +299,11 @@ def reset_period_accumulators(state: State) -> State:
     Binds: test T-U1 (`tests/unit/test_conservation.py`) - the conservation identity is stated per
     period, so an accumulator not zeroed at exactly this boundary breaks it. Owning WO: **WO-009**.
     """
-    raise NotImplementedError("PLAN sections 2.2, 2.5 - implemented in WO-009")
+    state.cum_output = np.zeros_like(np.asarray(state.cum_output, dtype=float))
+    state.cum_cost = np.zeros_like(np.asarray(state.cum_cost, dtype=float))
+    state.quality_acc = np.zeros_like(np.asarray(state.quality_acc, dtype=float))
+    state.consumer_delivery = np.zeros_like(np.asarray(state.consumer_delivery, dtype=float))
+    return state
 
 
 def advance_phase(state: State, cfg: EnvConfig) -> State:
@@ -291,4 +328,14 @@ def advance_phase(state: State, cfg: EnvConfig) -> State:
     agent-steps, and the phase sequence within a period is `M` times "produce" then "report") and
     `tests/golden/*` (T-B7). Owning WO: **WO-009**.
     """
-    raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+    m = cfg.incentive.steps_per_period
+    if state.phase == "report":
+        state.t_period += 1
+        state.k_step = 0
+        state.phase = "produce"
+    elif state.k_step < m - 1:
+        state.k_step += 1
+    else:
+        state.k_step = m
+        state.phase = "report"
+    return state
