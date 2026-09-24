@@ -44,7 +44,8 @@ AMBIGUITY REPORT (CONTRACT rule 3), not a hidden stream.
 
 from __future__ import annotations
 
-from typing import Literal
+import zlib
+from typing import Literal, get_args
 
 import numpy as np
 
@@ -173,4 +174,35 @@ def draw(
     stated moments (the PLAN section 2.6 yield shock has mean 1 to 1e-3 over 1e5 draws, which
     `tests/unit/test_production.py` also checks). Owning WO: **WO-004**.
     """
-    raise NotImplementedError("PLAN section 2.15 - implemented in WO-004")
+    if purpose not in PURPOSES:
+        raise ValueError(f"draw: unknown purpose {purpose!r}; must be one of {PURPOSES}")
+    if dist not in _DIST_PARAMS:
+        raise ValueError(f"draw: unknown dist {dist!r}; must be one of {get_args(Dist)}")
+    required = _DIST_PARAMS[dist]
+    missing = [name for name in required if name not in params]
+    if missing:
+        raise ValueError(f"draw: dist {dist!r} is missing parameter(s) {missing}")
+    unknown = sorted(set(params) - set(required))
+    if unknown:
+        raise ValueError(f"draw: dist {dist!r} got unknown parameter(s) {unknown}")
+
+    seq = np.random.SeedSequence([seed_env, zlib.crc32(purpose.encode()), *indices])
+    gen = np.random.default_rng(seq)
+    if dist == "lognormal":
+        return gen.lognormal(mean=params["mean_log"], sigma=params["sigma"], size=shape)
+    if dist == "normal":
+        return gen.normal(loc=params["mean"], scale=params["sigma"], size=shape)
+    if dist == "bernoulli":
+        return gen.random(size=shape) < params["p"]
+    probs = params["probs"]
+    return gen.choice(len(probs), size=shape, p=probs)
+
+
+_DIST_PARAMS: dict[str, tuple[str, ...]] = {
+    "lognormal": ("mean_log", "sigma"),
+    "normal": ("mean", "sigma"),
+    "bernoulli": ("p",),
+    "categorical": ("probs",),
+}
+"""The distribution-parameter table of the WO-004 card: for each `Dist`, exactly the keyword
+parameters `draw` accepts. A missing or unknown parameter raises; none is defaulted or aliased."""
