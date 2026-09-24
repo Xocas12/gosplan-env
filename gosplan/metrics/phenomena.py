@@ -37,8 +37,10 @@ plus `estimator_version` (CONTRACT rule 10). This module never imports `forensic
 
 from __future__ import annotations
 
+import numpy as np
+
 from gosplan.config import EnvConfig
-from gosplan.metrics.ledger import Ledger
+from gosplan.metrics.ledger import Ledger, StepRecord
 
 # ---------- measurement window (PLAN section 4.4) ----------
 
@@ -152,7 +154,38 @@ def phenomenon_bunching(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
 
     Owning WO: **WO-016**.
     """
-    raise NotImplementedError("PLAN section 4.1 - implemented in WO-016")
+    # Grouping unit for the seed-level bootstrap: a ledger is one run (one `cfg`, one `seed_env`),
+    # so it carries no seed column; the `episode` column is the grouping unit, per the WO-016 lead
+    # direction for a single ledger. `x` is passed as a LIST of per-episode arrays so the
+    # estimator resamples groups, never individual reports (AMBIGUITY-011 resolution, point 2).
+    from gosplan.metrics import resolve_estimators
+
+    rows = _measured_reports(ledger)
+    by_episode: dict[int, list[float]] = {}
+    for rec in rows:
+        by_episode.setdefault(rec.episode, []).append(rec.report_ratio)
+    x = [np.asarray(by_episode[ep], dtype=float) for ep in sorted(by_episode)]
+    res = resolve_estimators().bunching_estimate(
+        x,
+        BUNCHING_WINDOW_LO,
+        BUNCHING_WINDOW_HI,
+        BUNCHING_BIN_WIDTH,
+        BUNCHING_POLY_DEGREE,
+        BUNCHING_EXCL_LO,
+        BUNCHING_EXCL_HI,
+    )
+    # At-bound reports are in `x` (MEASUREMENT_INCLUDE_AT_BOUND); `at_bound_frac` is their share of
+    # the same measured sample `n_obs` counts (CONTRACT rule 8).
+    at_bound_frac = sum(1 for rec in rows if rec.at_bound) / len(rows)
+    return {
+        "excess_mass": float(res.excess_mass),
+        "hole_mass": float(res.hole_mass),
+        "se": float(res.se),
+        "ci_lo": float(res.ci_lo),
+        "ci_hi": float(res.ci_hi),
+        "n_obs": int(res.n_obs),
+        "at_bound_frac": float(at_bound_frac),
+    }
 
 
 def phenomenon_padding(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
@@ -185,7 +218,33 @@ def phenomenon_padding(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
 
     Binds: `tests/unit/test_phenomena_p1.py` (WO-016). Owning WO: **WO-016**.
     """
-    raise NotImplementedError("PLAN section 4.1 - implemented in WO-016")
+    # LEAD ruling AMBIGUITY-017: `padding_index` is the ratio of window means of the period-level
+    # `val_measured` and `val_true` (one value per (episode, period)); the elasticity across the
+    # three `a * pen` levels is computed by the caller (WO-019/WO-020) from three calls.
+    rows = _measured_reports(ledger)
+    ratios = [max(0.0, rec.report - rec.inv_output_pre) / rec.target for rec in rows]
+    periods = {(rec.episode, rec.t_period): (rec.val_measured, rec.val_true) for rec in rows}
+    measured = np.mean([vm for vm, _ in periods.values()])
+    true = np.mean([vt for _, vt in periods.values()])
+    index = float(measured / true) if true != 0.0 else float("nan")
+    return {"padding": float(np.mean(ratios)), "padding_index": index}
+
+
+def _measured_reports(ledger: Ledger) -> list[StepRecord]:
+    """REPORT rows inside the PLAN section 4.4 measurement window, at-bound rows included.
+
+    `t_period >= MEASUREMENT_FIRST_PERIOD`; no end-of-episode exclusion
+    (`MEASUREMENT_EXCLUDE_EPISODE_END`); at-bound reports kept (`MEASUREMENT_INCLUDE_AT_BOUND`).
+    The window is applied here, by the reader, never by the ledger writer.
+    """
+    rows = [
+        rec
+        for rec in ledger.records
+        if rec.phase == "report" and rec.t_period >= MEASUREMENT_FIRST_PERIOD
+    ]
+    if not rows:
+        raise ValueError("no REPORT rows inside the PLAN section 4.4 measurement window")
+    return rows
 
 
 # =================================================================================================
