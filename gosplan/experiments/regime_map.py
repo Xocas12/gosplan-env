@@ -63,6 +63,7 @@ from __future__ import annotations
 
 import dataclasses
 import math
+import multiprocessing
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import get_args
@@ -532,7 +533,11 @@ def run(
     points = _design(n_points, seed)
     cfgs = [_point_config(base_cfg, point) for point in points]
     jobs = [(i, point, cfg) for i, (point, cfg) in enumerate(zip(points, cfgs, strict=True))]
-    with ProcessPoolExecutor(max_workers=max(1, min(_MAX_WORKERS, len(jobs)))) as pool:
+    # `spawn`, not `fork`: the parent may already hold JAX threads (AMBIGUITY-018).
+    with ProcessPoolExecutor(
+        max_workers=max(1, min(_MAX_WORKERS, len(jobs))),
+        mp_context=multiprocessing.get_context("spawn"),
+    ) as pool:
         rows = list(pool.map(_solve_point, jobs))
 
     paths = {
