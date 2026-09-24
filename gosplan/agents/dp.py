@@ -43,10 +43,14 @@ WO-015 is about one CPU-hour on eight cores.
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
+import numpy as np
+
 from gosplan.agents.base import Array
+from gosplan.env.state import INITIAL_CAPACITY
 
 if TYPE_CHECKING:  # runtime home of the configuration: gosplan/config.py (WO-003, PLAN section 8)
     from gosplan.config import EnvConfig
@@ -115,6 +119,10 @@ class DPGrid:
     value_tol: float = 1e-6
     """Value-iteration convergence tolerance on the sup-norm change in `V`. Policy iteration is an
     acceptable alternative (PLAN section 5) provided it reports the same `converged` flag."""
+
+    max_iterations: int = 5000
+    """Iteration cap. Reaching it without meeting `value_tol` returns the solution with
+    `converged = False` - non-convergence is a result, never silently used (AMBIGUITY-010)."""
 
     sim_episodes: int = 200
     """Episodes simulated under the optimal policy to obtain the stationary `rho_report`
@@ -188,6 +196,316 @@ class DPSolution:
     config_hash: str
     """`EnvConfig.hash()` of the configuration solved. `DPGreedy` checks it against its own `cfg`
     before acting, and the run manifest records it (CONTRACT rule 10)."""
+
+
+def _state_grids(cfg: EnvConfig, grid: DPGrid, productivity: float) -> tuple[Array, Array]:
+    """The `(T, S)` state grids of PLAN section 5, for sector productivity `A = productivity`.
+
+    `T`: `grid.n_target` points, log-spaced on `[T_min, grid.target_hi_mult * A * cap]` with
+    `T_min = cfg.tech.target_floor_frac * T_0` and `T_0 = cfg.tech.initial_target_frac * A * cap`.
+    `S`: `grid.n_stock` points, linear on `[0, S_max]`, `S_max = cfg.tech.inventory_cap_mult * cap`.
+    `cap` is the fixed Phase-1 capacity (`INITIAL_CAPACITY`, PLAN section 2.1: `cap_i = Kap_i = 1`).
+    One definition, shared by the solver, the simulation and `DPGreedy`, so the three can never
+    disagree about where a table entry sits.
+    """
+    cap = INITIAL_CAPACITY
+    t0 = cfg.tech.initial_target_frac * productivity * cap
+    t_min = cfg.tech.target_floor_frac * t0
+    t_grid = np.geomspace(t_min, grid.target_hi_mult * productivity * cap, grid.n_target)
+    s_grid = np.linspace(0.0, cfg.tech.inventory_cap_mult * cap, grid.n_stock)
+    return t_grid, s_grid
+
+
+def _nearest_index(axis: Array, x: Array) -> Array:
+    """Index of the nearest point of the increasing `axis` to each entry of `x`.
+
+    Ties go to the lower index; values off either end clamp to the end point. This is the lookup
+    rule of the lead ruling on `DPGreedy` (AMBIGUITY-009); callers pass `log` of the target axis
+    and of the target, since the `T` axis is log-spaced, and the stock axis and stock as they are.
+    """
+    axis = np.asarray(axis, dtype=float)
+    x = np.asarray(x, dtype=float)
+    if axis.size == 1:
+        return np.zeros(x.shape, dtype=int)
+    hi = np.clip(np.searchsorted(axis, x, side="left"), 1, axis.size - 1)
+    lo = hi - 1
+    pick_lo = (x - axis[lo]) <= (axis[hi] - x)
+    idx = np.where(pick_lo, lo, hi)
+    return np.clip(idx, 0, axis.size - 1)
+
+
+_BUNCH_LO = 1.00
+_BUNCH_HI = 1.005
+# The `bunching` regime window `[1.00, 1.005]` of PLAN section 5 (closed; `classify_regime`).
+
+_BURN_IN = 2
+# Measurement window of PLAN section 4.4: periods `t >= 2` are retained, `t < 2` discarded.
+
+
+def _enterprise_sector(cfg: EnvConfig) -> tuple[float, float]:
+    """`(A, sigma)` of the single enterprise's sector: enterprise 0's, `cfg.supply.sector_of[0]`.
+
+    Lead ruling AMBIGUITY-010 J. With `J > 1` sectors this is an APPROXIMATION: the DP solves the
+    problem of enterprise 0 alone and ignores the other sectors' productivities and yield noise.
+    The configurations built for G2 criterion 1 have `J = 1`, where it is exact.
+    """
+    j = int(cfg.supply.sector_of[0])
+    return float(cfg.supply.productivity[j]), float(cfg.supply.yield_sigma[j])
+
+
+def _effort_grid(grid: DPGrid) -> Array:
+    """Period effort grid `{0, grid.effort_step, ..., 1}` (PLAN section 5; 21 points by default)."""
+    n = int(np.floor(1.0 / grid.effort_step + 1e-9)) + 1
+    return np.round(grid.effort_step * np.arange(n), 10)
+
+
+def _next_target(target: Array, rho: Array, cfg: EnvConfig, t_min: float) -> Array:
+    """Target rule of PLAN section 2.7.1, transcribed (the DP has no `PlannerView` to call with).
+
+    step = clip(rho - 1, -c_dn, +c_up);  step = 0 if |rho - 1| <= delta
+    T'   = max(T_min, (1 + g) * T * (1 + lambda * step))
+    """
+    inc = cfg.incentive
+    step = np.clip(rho - 1.0, -inc.ratchet_cap_dn, inc.ratchet_cap_up)
+    step = np.where(np.abs(rho - 1.0) <= inc.ratchet_deadband, 0.0, step)
+    return np.maximum(
+        t_min, (1.0 + inc.growth_directive) * target * (1.0 + inc.ratchet_lambda * step)
+    )
+
+
+def _normal_log_nodes(sigma: float, n_nodes: int) -> tuple[Array, Array]:
+    """Gauss-Hermite nodes and weights for `exp(nu)`, `nu ~ N(0, sigma**2)` - the audit noise of
+    PLAN section 2.8 exactly as `audit_and_penalise` draws it (NOT mean-one; lead ruling
+    AMBIGUITY-010 E). At `sigma == 0` a single node at 1."""
+    if sigma == 0.0:
+        return np.ones(1), np.ones(1)
+    x, w = np.polynomial.hermite.hermgauss(int(n_nodes))
+    return np.exp(np.sqrt(2.0) * sigma * x), w / np.sqrt(np.pi)
+
+
+def _penalty(report: Array, s_hat: Array, target: float, cfg: EnvConfig) -> Array:
+    """The PLAN section 2.8 penalty `Pen` on the DP's scalar state, both branches of each switch.
+
+        f   = max(0, R - S_hat) / T     penalty_arg = positive_part
+            = |R - S_hat| / T           penalty_arg = absolute
+        Pen = pen * f                   penalty_form = proportional
+            = pen * 1[f > 0]            penalty_form = fixed
+
+    `gosplan.env.reporting.audit_and_penalise` computes the same quantity but takes a `State`,
+    which the DP does not have (WO-014 card); this is a transcription of the same four lines, and
+    `S_hat = S' * exp(nu)` is formed by the caller against the capped `S'` as the env does.
+    """
+    inc = cfg.incentive
+    if inc.penalty_arg == "positive_part":
+        f = np.maximum(0.0, report - s_hat) / target
+    elif inc.penalty_arg == "absolute":
+        f = np.abs(report - s_hat) / target
+    else:
+        raise ValueError(f"incentive.penalty_arg: unknown value {inc.penalty_arg!r}")
+    if inc.penalty_form == "proportional":
+        return inc.penalty_scale * f
+    if inc.penalty_form == "fixed":
+        return inc.penalty_scale * (f > 0.0).astype(float)
+    raise ValueError(f"incentive.penalty_form: unknown value {inc.penalty_form!r}")
+
+
+def _solve_on_grid(
+    cfg: EnvConfig, grid: DPGrid, rho_grid: Array, v0: Array | None
+) -> tuple[Array, Array, Array, int, bool]:
+    """Policy iteration on one report grid. Returns `(effort, rho, value, n_iterations, converged)`.
+
+    Each iteration is one Bellman improvement sweep over the full `(e, rho)` grid (vectorised per
+    target row) followed by an exact evaluation of the greedy policy (a sparse linear solve).
+    Convergence: the sup-norm change in `V` produced by the last Bellman sweep is below
+    `grid.value_tol`; the policy and value returned are that sweep's. Reaching
+    `grid.max_iterations` sweeps first returns `converged = False` (AMBIGUITY-010 A).
+    """
+    from scipy.sparse import coo_matrix, identity  # not at module scope (WO-014 card)
+    from scipy.sparse.linalg import spsolve
+
+    from gosplan.env.reward import bonus
+
+    inc = cfg.incentive
+    cap = INITIAL_CAPACITY
+    a_prod, sigma = _enterprise_sector(cfg)
+    m_steps = inc.steps_per_period
+    h = cfg.supply.holding_loss
+    a_rate = cfg.information.audit_rate
+    beta = inc.tenure * DP_DISCOUNT  # economic continuation x technical discount (PLAN 5)
+
+    t_grid, s_grid = _state_grids(cfg, grid, a_prod)
+    e_grid = _effort_grid(grid)
+    n_t, n_s, n_e, n_r = t_grid.size, s_grid.size, e_grid.size, rho_grid.size
+    t_min = float(t_grid[0])
+    s_max = float(s_grid[-1])
+    ds = s_grid[1] - s_grid[0]
+
+    # Period yield: y = A * cap * e * epsbar, epsbar ~ LogNormal(-sbar**2 / 2, sbar), sbar =
+    # sigma / sqrt(M). APPROXIMATION (PLAN section 5): the sum of the M per-step lognormal shocks
+    # is not lognormal; one period shock with the aggregated log-sd stands in for it.
+    eps, w_eps = gauss_hermite_lognormal_nodes(sigma / np.sqrt(m_steps), grid.gh_nodes)
+    nu, w_nu = _normal_log_nodes(cfg.information.audit_noise, grid.gh_nodes)
+
+    # S' = min((1 - h) * S + y, S_max): capped before audit and delivery, as process_reports
+    # does (AMBIGUITY-010 D).  Shape (n_s, n_e, n_eps).
+    s_prime = np.minimum(
+        (1.0 - h) * s_grid[:, None, None] + a_prod * cap * e_grid[None, :, None] * eps,
+        s_max,
+    )
+
+    # T' on (T, rho), and its bilinear weights on the log-T axis, clamped at the ends
+    # (AMBIGUITY-010 B).
+    t_next = _next_target(t_grid[:, None], rho_grid[None, :], cfg, t_min)
+    log_t = np.log(t_grid)
+    x = np.clip(np.log(t_next), log_t[0], log_t[-1])
+    it0 = np.clip(np.searchsorted(log_t, x, side="right") - 1, 0, n_t - 2)
+    wt = np.clip((x - log_t[it0]) / (log_t[it0 + 1] - log_t[it0]), 0.0, 1.0)
+
+    # Period return E_eps[B(rho) - M kappa e^2 - a E_nu[Pen]], shape (n_t, n_s, n_e, n_r).
+    # UNSCALED (recorded here, as the docstring of `solve_single_enterprise` requires):
+    # `reward_scale(cfg)` is a positive constant that changes no argmax, and it is undefined (it
+    # raises) at `beta = s = 0`, a configuration this solver must handle; `value` and
+    # `value_tol` are therefore in unscaled ratio units.
+    b = np.asarray(bonus(rho_grid, cfg), dtype=float)
+    cost = m_steps * inc.effort_cost * e_grid**2
+    s_hat = s_prime[..., None] * nu  # (n_s, n_e, n_eps, n_nu)
+    flow = np.empty((n_t, n_s, n_e, n_r))
+    for i in range(n_t):
+        report = rho_grid * t_grid[i]
+        pen = _penalty(report[None, None, :, None, None], s_hat[:, :, None], t_grid[i], cfg)
+        e_pen = np.einsum("sernu,n,u->ser", pen, w_eps, w_nu)
+        flow[i] = b[None, None, :] - cost[None, :, None] - a_rate * e_pen
+
+    def s_interp(s_pp: Array) -> tuple[Array, Array]:
+        js = np.clip(np.floor(s_pp / ds).astype(np.int64), 0, n_s - 2)
+        ws = np.clip((s_pp - s_grid[js]) / ds, 0.0, 1.0)
+        return js, ws
+
+    def sweep(v: Array) -> tuple[Array, Array]:
+        """One Bellman sweep: greedy flat action index and max value per state."""
+        act = np.empty((n_t, n_s), dtype=np.int64)
+        vmax = np.empty((n_t, n_s))
+        for i in range(n_t):
+            # V interpolated in log T at T'(T_i, rho): (n_r, n_s)
+            v_t = (1.0 - wt[i])[:, None] * v[it0[i]] + wt[i][:, None] * v[it0[i] + 1]
+            s_pp = np.maximum(
+                s_prime[:, :, None, :] - (rho_grid * t_grid[i])[None, None, :, None], 0
+            )
+            js, ws = s_interp(s_pp)  # (n_s, n_e, n_r, n_eps)
+            flat = np.arange(n_r)[None, None, :, None] * n_s + js
+            v_flat = v_t.ravel()
+            cont = (v_flat[flat] * (1.0 - ws) + v_flat[flat + 1] * ws) @ w_eps
+            q = (flow[i] + beta * cont).reshape(n_s, n_e * n_r)
+            act[i] = np.argmax(q, axis=1)  # ties: lowest effort, then lowest rho
+            vmax[i] = q[np.arange(n_s), act[i]]
+        return act, vmax
+
+    def evaluate(act: Array) -> Array:
+        """Exact value of the stationary policy `act`: solve (I - beta P) V = r."""
+        ii, jj = np.meshgrid(np.arange(n_t), np.arange(n_s), indexing="ij")
+        m_idx, k_idx = act // n_r, act % n_r
+        r = flow[ii, jj, m_idx, k_idx].ravel()
+        s_pp = np.maximum(s_prime[jj, m_idx] - (rho_grid[k_idx] * t_grid[ii])[..., None], 0.0)
+        js, ws = s_interp(s_pp)  # (n_t, n_s, n_eps)
+        t_lo = it0[ii, k_idx][..., None]
+        w_t = wt[ii, k_idx][..., None]
+        row = np.broadcast_to((ii * n_s + jj)[..., None], js.shape)
+        rows, cols, vals = [], [], []
+        for dt, wtt in ((0, 1.0 - w_t), (1, w_t)):
+            for dj, wss in ((0, 1.0 - ws), (1, ws)):
+                rows.append(row.ravel())
+                cols.append(((t_lo + dt) * n_s + js + dj).ravel())
+                vals.append((wtt * wss * w_eps).ravel())
+        n = n_t * n_s
+        p = coo_matrix(
+            (np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(n, n)
+        ).tocsr()
+        return spsolve((identity(n, format="csr") - beta * p).tocsc(), r).reshape(n_t, n_s)
+
+    v = np.zeros((n_t, n_s)) if v0 is None else np.asarray(v0, dtype=float)
+    converged = False
+    n_iter = 0
+    act = np.zeros((n_t, n_s), dtype=np.int64)
+    while n_iter < grid.max_iterations:
+        n_iter += 1
+        act, v_new = sweep(v)
+        change = float(np.max(np.abs(v_new - v)))
+        v = v_new
+        if change < grid.value_tol:
+            converged = True
+            break
+        if n_iter < grid.max_iterations:
+            v = evaluate(act)
+    effort = e_grid[act // n_r]
+    rho = rho_grid[act % n_r]
+    return effort, rho, v, n_iter, converged
+
+
+def _simulate(
+    cfg: EnvConfig, grid: DPGrid, policy_effort: Array, policy_rho: Array, seed_env: int
+) -> tuple[Array, Array, Array, Array]:
+    """`simulate_stationary_reports` plus the retained efforts (for `DPSolution.mean_effort`)."""
+    from gosplan.rng import draw
+
+    inc = cfg.incentive
+    cap = INITIAL_CAPACITY
+    a_prod, sigma = _enterprise_sector(cfg)
+    sbar = sigma / np.sqrt(inc.steps_per_period)  # aggregation APPROXIMATION, as in the solver
+    h = cfg.supply.holding_loss
+    t_grid, s_grid = _state_grids(cfg, grid, a_prod)
+    log_t = np.log(t_grid)
+    t0 = cfg.tech.initial_target_frac * a_prod * cap
+    t_min = cfg.tech.target_floor_frac * t0
+    s_max = cfg.tech.inventory_cap_mult * cap
+    pe = np.asarray(policy_effort, dtype=float)
+    pr = np.asarray(policy_rho, dtype=float)
+    n_ep, n_per = grid.sim_episodes, grid.sim_periods
+
+    # Yield shocks keyed (seed, "yield", episode, t) - AMBIGUITY-010 G. The policy never reads the
+    # audit outcome and no returned quantity depends on it, so no audit draw is needed here.
+    eps = np.array(
+        [
+            [
+                draw(
+                    seed_env,
+                    "yield",
+                    ep,
+                    t,
+                    shape=(1,),
+                    dist="lognormal",
+                    mean_log=-(sbar**2) / 2.0,
+                    sigma=sbar,
+                )[0]
+                for t in range(n_per)
+            ]
+            for ep in range(n_ep)
+        ]
+    )
+    target = np.full(n_ep, t0)
+    stock = np.zeros(n_ep)
+    out_rho, out_pad, out_res, out_e = [], [], [], []
+    for t in range(n_per):
+        # Nearest-grid-point lookup, the DPGreedy rule (AMBIGUITY-009).
+        it = _nearest_index(log_t, np.log(target))
+        js = _nearest_index(s_grid, stock)
+        e = pe[it, js]
+        rho = pr[it, js]
+        s_prime = np.minimum((1.0 - h) * stock + a_prod * cap * e * eps[:, t], s_max)
+        report = rho * target
+        if t >= _BURN_IN:
+            out_rho.append(rho)
+            out_pad.append(np.maximum(0.0, report - s_prime) / target)
+            # stock left after delivery, S'' = S' - min(S', R) = max(0, S' - R), over T
+            out_res.append(np.maximum(0.0, s_prime - report) / target)
+            out_e.append(e)
+        stock = s_prime - np.minimum(s_prime, report)
+        target = _next_target(target, rho, cfg, t_min)
+    return (
+        np.concatenate(out_rho),
+        np.concatenate(out_pad),
+        np.concatenate(out_res),
+        np.concatenate(out_e),
+    )
 
 
 def solve_single_enterprise(cfg: EnvConfig, grid: DPGrid) -> DPSolution:
@@ -268,7 +586,43 @@ def solve_single_enterprise(cfg: EnvConfig, grid: DPGrid) -> DPSolution:
     `overfulfilment_slope = 0` optimal effort is 0; `DPGreedy` reproduces this policy inside the
     environment at `N = 1`. Owning WO: **WO-014**.
     """
-    raise NotImplementedError("PLAN section 5 - implemented in WO-014")
+    # Extension rule (lead ruling AMBIGUITY-010 C): while the stationary mass at the top report
+    # grid point is positive, extend `rho_hi` by the original span and re-solve, stopping at the
+    # environment's bound `cfg.tech.report_max_ratio`; the final edge fraction is the regime
+    # signal. `n_iterations` / `converged` are those of the final solve.
+    rho_max = float(cfg.tech.report_max_ratio)
+    span = grid.rho_hi - grid.rho_lo
+    rho_hi = float(grid.rho_hi)
+    v0: Array | None = None
+    while True:
+        rho_grid = report_action_grid(grid, rho_hi)
+        effort, rho, value, n_iter, converged = _solve_on_grid(cfg, grid, rho_grid, v0)
+        rho_s, padding, reserves, e_s = _simulate(cfg, grid, effort, rho, cfg.tech.seed_env)
+        edge = report_grid_edge_fraction(rho_s, rho_grid)
+        if edge > 0.0 and rho_hi < rho_max:
+            rho_hi = min(rho_hi + span, rho_max)
+            v0 = value  # warm start only; the fixed point does not depend on it
+            continue
+        break
+    out_grid = grid if rho_hi == grid.rho_hi else dataclasses.replace(grid, rho_hi=rho_hi)
+    sol = DPSolution(
+        policy_effort=effort,
+        policy_rho=rho,
+        value=value,
+        stationary_rho=rho_s,
+        b_hat_dp=dp_excess_mass(rho_s),
+        fictitious_padding=float(np.mean(padding)),
+        hidden_reserves=float(np.mean(reserves)),  # held out (PLAN 4.1 row 7): stored, never shown
+        mean_effort=float(np.mean(e_s)),
+        regime="mixed",
+        rho_edge_frac=edge,
+        n_iterations=n_iter,
+        converged=converged,
+        grid=out_grid,
+        config_hash=cfg.hash(),
+    )
+    sol.regime = classify_regime(sol)
+    return sol
 
 
 def classify_regime(sol: DPSolution) -> RegimeLabel:
@@ -296,7 +650,20 @@ def classify_regime(sol: DPSolution) -> RegimeLabel:
     Binds: `tests/unit/test_dp.py` - the classifier on synthetic distributions with known labels.
     Owning WO: **WO-014**.
     """
-    raise NotImplementedError("PLAN section 5 - implemented in WO-014")
+    rho = np.asarray(sol.stationary_rho, dtype=float)
+    edge = float(sol.rho_edge_frac)
+    # Thresholds verbatim from PLAN section 5, checked in the order the WO-014 card lists them.
+    # `bunching` (edge < 0.05) and `pad_to_cap` (edge > 0.5) are mutually exclusive, so their
+    # relative order cannot change a label.
+    notch_mass = float(np.mean((rho >= _BUNCH_LO) & (rho <= _BUNCH_HI))) if rho.size else 0.0
+    if notch_mass > 0.5 and edge < 0.05:
+        return "bunching"
+    if edge > 0.5:
+        return "pad_to_cap"
+    mean_rho = float(np.mean(rho)) if rho.size else float("nan")
+    if mean_rho < 0.9 and float(sol.fictitious_padding) < 0.01:
+        return "truthful_underfulfilment"
+    return "mixed"
 
 
 def gauss_hermite_lognormal_nodes(sigma: float, n_nodes: int) -> tuple[Array, Array]:
@@ -327,7 +694,13 @@ def gauss_hermite_lognormal_nodes(sigma: float, n_nodes: int) -> tuple[Array, Ar
     weights sum to 1 and the node-weighted mean is 1 to 1e-10 for the sigmas of
     `cfg.supply.yield_sigma`. Owning WO: **WO-014**.
     """
-    raise NotImplementedError("PLAN section 5 - implemented in WO-014")
+    if sigma == 0.0:
+        # Degenerate rule: the shock is identically 1 (docstring above).
+        return np.ones(1), np.ones(1)
+    x, w = np.polynomial.hermite.hermgauss(int(n_nodes))
+    nodes = np.exp(-(sigma**2) / 2.0 + np.sqrt(2.0) * sigma * x)
+    weights = w / np.sqrt(np.pi)
+    return nodes, weights
 
 
 def report_action_grid(grid: DPGrid, rho_hi: float | None = None) -> Array:
@@ -352,7 +725,12 @@ def report_action_grid(grid: DPGrid, rho_hi: float | None = None) -> Array:
 
     Owning WO: **WO-014**.
     """
-    raise NotImplementedError("PLAN section 5 - implemented in WO-014")
+    hi = grid.rho_hi if rho_hi is None else float(rho_hi)
+    # Inclusive of both ends: `n = (hi - lo) / step + 1` points. The 1e-9 guards the float division
+    # only (0.02 is not exact in binary); the rounding removes representation noise so that the
+    # grid point at 1 is exactly 1.0 and the `w = 0` notch (a strict `>=` Heaviside) sees it.
+    n = int(np.floor((hi - grid.rho_lo) / grid.rho_step + 1e-9)) + 1
+    return np.round(grid.rho_lo + grid.rho_step * np.arange(n), 10)
 
 
 def report_grid_edge_fraction(stationary_rho: Array, rho_grid: Array) -> float:
@@ -371,7 +749,10 @@ def report_grid_edge_fraction(stationary_rho: Array, rho_grid: Array) -> float:
 
     Owning WO: **WO-014**.
     """
-    raise NotImplementedError("PLAN section 5 - implemented in WO-014")
+    rho = np.asarray(stationary_rho, dtype=float)
+    if rho.size == 0:
+        return 0.0
+    return float(np.mean(rho == float(np.asarray(rho_grid)[-1])))
 
 
 def simulate_stationary_reports(
@@ -406,7 +787,8 @@ def simulate_stationary_reports(
 
     Owning WO: **WO-014**.
     """
-    raise NotImplementedError("PLAN section 5 - implemented in WO-014")
+    rho_s, padding, reserves, _ = _simulate(cfg, grid, policy_effort, policy_rho, seed_env)
+    return rho_s, padding, reserves
 
 
 def dp_excess_mass(stationary_rho: Array) -> float:
@@ -438,7 +820,29 @@ def dp_excess_mass(stationary_rho: Array) -> float:
 
     Owning WO: **WO-014** (this wrapper), **WO-016** (the estimator it calls).
     """
-    raise NotImplementedError("PLAN sections 5, 4.5 - implemented in WO-014")
+    # Imported here, not at module scope. Lead ruling AMBIGUITY-010 F (amended, AMBIGUITY-011):
+    # call the vendored estimator's point estimate directly with the section 4.5 constants;
+    # its `se` / `ci_*` are NaN by design and unused (the DP distribution is exact).
+    from gosplan.metrics._fallback import estimate
+    from gosplan.metrics.phenomena import (
+        BUNCHING_BIN_WIDTH,
+        BUNCHING_EXCL_HI,
+        BUNCHING_EXCL_LO,
+        BUNCHING_POLY_DEGREE,
+        BUNCHING_WINDOW_HI,
+        BUNCHING_WINDOW_LO,
+    )
+
+    result = estimate(
+        np.asarray(stationary_rho, dtype=float),
+        window_lo=BUNCHING_WINDOW_LO,
+        window_hi=BUNCHING_WINDOW_HI,
+        bin_width=BUNCHING_BIN_WIDTH,
+        degree=BUNCHING_POLY_DEGREE,
+        excl_lo=BUNCHING_EXCL_LO,
+        excl_hi=BUNCHING_EXCL_HI,
+    )
+    return float(result.excess_mass)
 
 
 __all__ = [

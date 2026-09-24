@@ -1502,6 +1502,10 @@ class DPGrid:
     value_tol: float = 1e-6
     """Value-iteration convergence tolerance (policy iteration is an acceptable alternative)."""
 
+    max_iterations: int = 5000
+    """Iteration cap. Reaching it without meeting `value_tol` returns the solution with
+    `converged = False` - non-convergence is a result, never silently used (AMBIGUITY-010)."""
+
     sim_episodes: int = 200
     """Episodes simulated under the optimal policy to obtain the stationary report distribution."""
 

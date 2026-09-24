@@ -376,7 +376,36 @@ class DPGreedy:
 
         Owning WO: **WO-010**.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-010")
+        # Lead ruling on AMBIGUITY-009: nearest grid point, log-T on the target axis, linear S on
+        # the stock axis, ties to the lower index, clamped at the ends; one DPSolution holds one
+        # grid, so every sector must share the productivity that grid was built for.
+        from gosplan.agents.dp import _nearest_index, _state_grids
+
+        cfg = self.cfg
+        sol = self.solution
+        obs = np.asarray(obs, dtype=float)
+        productivity = np.asarray(cfg.supply.productivity, dtype=float)
+        if not np.all(productivity == productivity[0]):
+            raise ValueError(
+                "DPGreedy: sector productivities differ; one DPSolution holds one (T, S) grid"
+            )
+        a_prod = float(productivity[0])
+        t_grid, s_grid = _state_grids(cfg, sol.grid, a_prod)
+        # T_i = T_0 * exp(obs[:, 2]); S_i = obs[:, 5] * T_i, the stock carried into the period,
+        # which is the DP's state S (PLAN section 5: S' = (1 - h) * S + y is formed after the
+        # decision). Field 5 carries that stock at both PRODUCE and REPORT (AMBIGUITY-008).
+        target = cfg.tech.initial_target_frac * a_prod * np.exp(obs[:, 2])
+        stock = obs[:, 5] * target
+        it = _nearest_index(np.log(t_grid), np.log(target))
+        js = _nearest_index(s_grid, stock)
+        action = _zero_action(cfg)
+        if phase == "produce":
+            action.effort = np.asarray(sol.policy_effort, dtype=float)[it, js]
+        else:
+            rho = np.asarray(sol.policy_rho, dtype=float)[it, js]
+            action.report_ratio = np.clip(rho, 0.0, cfg.tech.report_max_ratio)
+            action.input_request[:] = REQUEST_MULTIPLE_NEED
+        return action
 
     def reset(self) -> None:
         """No-op: the lookup carries no episode state.
