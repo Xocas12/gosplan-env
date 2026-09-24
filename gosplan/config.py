@@ -674,7 +674,9 @@ class EnvConfig:
                 return {key: canonical(item) for key, item in value.items()}
             return value
 
-        payload = canonical(dataclasses.asdict(self))
+        # The nested per-section object only (spec docstring; ambiguity report #51).
+        sections = ("supply", "incentive", "information", "tech")
+        payload = {name: canonical(dataclasses.asdict(getattr(self, name))) for name in sections}
         encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
         return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
