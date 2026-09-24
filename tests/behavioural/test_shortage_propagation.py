@@ -176,12 +176,26 @@ def test_zero_stock_claim_gives_zero_fill(implemented) -> None:
     one call, so a failure localises to `deliver` rather than to the schedule. Owning WO:
     **WO-002**; binds **WO-006**.
     """
+    # LEAD edit (AMBIGUITY-008): the constructed-state form this docstring specifies. The earlier
+    # rollout body could never pair a zero stock with its own claim (the Padder produces output).
+    from gosplan.env.planner import allocate, deliver, make_planner_view
+    from gosplan.env.state import initial_state
+
     cfg = _cfg()
-    rows = _report_rows(_episode(cfg, PADDING_AGENT, TB3_SEEDS[0], implemented))
-    zero_stock = [r for r in rows if float(r.inv_output_pre) <= FILL_TOL and float(r.report) > 0.0]
-    assert zero_stock, "the Padder must produce at least one zero-stock claim"
-    for r in zero_stock:
-        assert float(r.fill) <= FILL_TOL
+    implemented(make_planner_view, allocate, deliver, initial_state)
+    state = initial_state(cfg)
+    state.inv_output = np.zeros(cfg.supply.n_enterprises)
+    state.last_report = np.array(state.target, dtype=float)
+    state.last_report_ratio = np.ones(cfg.supply.n_enterprises)
+    alloc = np.asarray(allocate(make_planner_view(state, cfg), cfg), dtype=float)
+    stock_before = np.array(state.inv_output, dtype=float)
+    after, deliv, fill, consumer = deliver(state, alloc, cfg)
+    shipped = stock_before - np.asarray(after.inv_output, dtype=float)
+    assert np.max(np.abs(np.asarray(fill, dtype=float))) <= FILL_TOL
+    assert np.max(np.abs(shipped)) <= FILL_TOL
+    assert np.max(np.abs(np.asarray(deliv, dtype=float))) <= FILL_TOL
+    assert np.max(np.abs(np.asarray(consumer, dtype=float))) <= FILL_TOL
+    assert np.max(alloc) > 0.0, "the promise must exist, or the four lines above are vacuous"
 
 
 @pytest.mark.skeleton

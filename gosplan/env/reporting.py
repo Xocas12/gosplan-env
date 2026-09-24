@@ -136,7 +136,8 @@ def process_reports(state: State, action: EnterpriseAction, cfg: EnvConfig) -> S
     # request clipped to [0, r_max * need_ij], need_ij = planner_io[s(i), j] * T_i (section 2.7.2)
     sector = np.asarray(cfg.supply.sector_of)
     need = np.asarray(state.planner_io, dtype=float)[sector] * target[:, None]
-    request = np.clip(np.asarray(action.input_request, dtype=float), 0.0, r_max * need)
+    # `input_request` is a multiple of need, rescaled here (WO-009 card note 9; AMBIGUITY-008).
+    request = np.clip(np.asarray(action.input_request, dtype=float), 0.0, r_max) * need
 
     return dataclasses.replace(
         state,

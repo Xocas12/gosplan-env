@@ -245,7 +245,9 @@ def test_report_histogram_has_no_spike() -> None:
     counts, _ = np.histogram(np.asarray(ratios), bins=edges)
     for k in range(1, len(counts) - 1):
         neighbours = 0.5 * (float(counts[k - 1]) + float(counts[k + 1]))
-        if neighbours == 0.0:
+        # LEAD edit (AMBIGUITY-008): only bins whose two neighbours are BOTH non-empty, as this
+        # test's docstring states; the code skipped only bins with both neighbours empty.
+        if counts[k - 1] == 0 or counts[k + 1] == 0:
             continue
         assert float(counts[k]) <= SPIKE_RATIO * neighbours, (k, counts[k], neighbours)
 

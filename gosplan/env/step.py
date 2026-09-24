@@ -81,15 +81,29 @@ runtime.
 
 from __future__ import annotations
 
+import functools
 from enum import Enum
 from typing import TYPE_CHECKING
 
 import numpy as np
 
+from gosplan.env.planner import (
+    allocate,
+    deliver,
+    make_planner_view,
+    select_audits,
+    update_targets,
+)
+from gosplan.env.production import produce_step
+from gosplan.env.reporting import audit_and_penalise, process_reports
+from gosplan.env.reward import enterprise_reward, val_measured, val_true, welfare_true
+from gosplan.env.state import StepInfo, advance_phase, reset_period_accumulators
+from gosplan.rng import draw
+
 if TYPE_CHECKING:  # type-only: see the cross-module bindings note in the module docstring
     from gosplan.config import EnvConfig
     from gosplan.env.planner import PlannerView
-    from gosplan.env.state import EnterpriseAction, Phase, State, StepInfo
+    from gosplan.env.state import EnterpriseAction, Phase, State
 
 Array = np.ndarray
 """Alias for every numeric array in this module (PLAN section 10). The Phase-2 JAX port (WO-029)
@@ -195,7 +209,17 @@ def stages_for_step(state: State, cfg: EnvConfig) -> tuple[PeriodStage, ...]:
     returned tuples equals `PERIOD_SCHEDULE` with PRODUCE repeated `M` times, in order. Owning WO:
     **WO-009**.
     """
-    raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+    m = cfg.incentive.steps_per_period
+    k = state.k_step
+    if state.phase == "report":
+        if k != m:
+            raise ValueError(f"stages_for_step: REPORT phase at k_step={k}, expected {m}")
+        return PERIOD_SCHEDULE[PeriodStage.REPORT.value :]
+    if k == 0:
+        return PERIOD_SCHEDULE[: PeriodStage.PRODUCE.value + 1]
+    if 0 < k < m:
+        return (PeriodStage.PRODUCE,)
+    raise ValueError(f"stages_for_step: PRODUCE phase at k_step={k}, outside 0..{m - 1}")
 
 
 def stage_deliver(state: State, cfg: EnvConfig) -> tuple[State, Array, Array, Array, Array]:
@@ -232,7 +256,12 @@ def stage_deliver(state: State, cfg: EnvConfig) -> tuple[State, Array, Array, Ar
     identity), T-B3 (`tests/behavioural/test_shortage_propagation.py`), T-B7 (golden parity).
     Owning WO: **WO-009**; the arithmetic is **WO-006**.
     """
-    raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+    view = make_planner_view(state, cfg)
+    alloc = allocate(view, cfg)
+    state, deliv, fill, consumer = deliver(state, alloc, cfg)
+    state.last_fill = np.asarray(fill, dtype=float)
+    state.consumer_delivery = np.asarray(consumer, dtype=float)
+    return state, np.asarray(alloc), np.asarray(deliv), state.last_fill, state.consumer_delivery
 
 
 def stage_trade(
@@ -263,7 +292,11 @@ def stage_trade(
     (`TruthfulMyopic` executes no trade under the Phase-1 configuration). Owning WO: **WO-009**; the
     matching rule is **WO-024**.
     """
-    raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+    if cfg.information.horizontal_visibility == 0.0:
+        return state, np.zeros(cfg.supply.n_enterprises)
+    from gosplan.env.trade import match_trades
+
+    return match_trades(state, action.trade_offer, cfg, t)
 
 
 def stage_produce(
@@ -290,7 +323,7 @@ def stage_produce(
     Binds: T-U1 (per-period conservation), T-U7 (the coverage aggregator), T-B7 (golden parity).
     Owning WO: **WO-009**; the arithmetic is **WO-005**.
     """
-    raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+    return produce_step(state, action, cfg)
 
 
 def stage_report(state: State, action: EnterpriseAction, cfg: EnvConfig) -> State:
@@ -318,7 +351,7 @@ def stage_report(state: State, action: EnterpriseAction, cfg: EnvConfig) -> Stat
     bounds are results, and this one is never silently moved). Owning WO: **WO-009**; the arithmetic
     is **WO-007**.
     """
-    raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+    return process_reports(state, action, cfg)
 
 
 def stage_audit(
@@ -349,7 +382,11 @@ def stage_audit(
     Binds: T-U8 (`positive_part` gives exactly 0 for any under-report; `audited = False` gives 0),
     T-B7 (golden parity). Owning WO: **WO-009**; the arithmetic is **WO-006** and **WO-007**.
     """
-    raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+    audited = np.asarray(select_audits(view, cfg, t), dtype=bool)
+    penalty = np.asarray(audit_and_penalise(state, audited, cfg, t), dtype=float)
+    state.last_audited = audited
+    state.last_penalty = penalty
+    return state, audited, penalty
 
 
 def stage_reward(
@@ -392,7 +429,7 @@ def stage_reward(
     exactly), T-U2 (`reward_scale(cfg) * bonus(1.1, cfg) == 1`), T-B7. Owning WO: **WO-009**; the
     arithmetic is **WO-007**.
     """
-    raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+    return np.asarray(enterprise_reward(state, cfg, phase, cost, penalty, trade_surplus))
 
 
 def stage_target(state: State, view: PlannerView, cfg: EnvConfig) -> State:
@@ -418,7 +455,8 @@ def stage_target(state: State, view: PlannerView, cfg: EnvConfig) -> State:
     deadband inert outside `|rho - 1| <= delta`) and T-B2 (`Padder` at `g = 0` keeps `T` constant;
     at `g > 0` it grows at exactly `(1 + g)`). Owning WO: **WO-009**; the arithmetic is **WO-006**.
     """
-    raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+    state.target = np.asarray(update_targets(view, cfg), dtype=float)
+    return state
 
 
 def stage_terminate(state: State, cfg: EnvConfig) -> tuple[State, bool]:
@@ -459,7 +497,23 @@ def stage_terminate(state: State, cfg: EnvConfig) -> tuple[State, bool]:
     equals `tenure` after `min_periods`, the cap at `max_periods` binds, and the regression
     coefficient of every observation field on periods remaining is about 0. Owning WO: **WO-009**.
     """
-    raise NotImplementedError("PLAN section 2.12 - implemented in WO-009")
+    completed = state.t_period + 1
+    if completed >= cfg.tech.max_periods:
+        done = True
+    elif cfg.tech.horizon_mode == "fixed" or completed < cfg.tech.min_periods:
+        done = False
+    else:
+        cont = draw(
+            state.seed_env,
+            "terminate",
+            state.t_period,
+            shape=(1,),
+            dist="bernoulli",
+            p=cfg.incentive.tenure,
+        )
+        done = not bool(cont[0])
+    state.alive = not done
+    return state, done
 
 
 def advance(
@@ -499,7 +553,104 @@ def advance(
     Binds: T-B7 (golden parity with `ref/ref_step.py` to 1e-9 on seeded trajectories), T-U1
     (conservation), `tests/unit/test_env_api.py`. Owning WO: **WO-009**.
     """
-    raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+    n, j = cfg.supply.n_enterprises, cfg.supply.n_sectors
+    stages = stages_for_step(state, cfg)
+    t, k, phase = state.t_period, state.k_step, state.phase
+    s_pre = np.array(state.inv_output, dtype=float)
+    x_pre = np.array(state.inv_inputs, dtype=float)
+    alloc = np.zeros((n, j))
+    deliv = np.zeros((n, j))
+    fill = np.zeros(n)
+    shipped = np.zeros(n)
+    output = np.zeros(n)
+    cost = np.zeros(n)
+    consumed = np.zeros((n, j))
+    audited = np.zeros(n, dtype=bool)
+    penalty = np.zeros(n)
+    surplus = np.zeros(n)
+    holding = np.zeros(n)
+    overflow = np.zeros(n)
+    reward = np.zeros(n)
+    done = False
+    view = None
+    metrics = (0.0, 0.0, 0.0)
+    judged_target = np.array(state.target, dtype=float)
+
+    for stage in stages:
+        if stage is PeriodStage.DELIVER:
+            state = reset_period_accumulators(state)
+            stock_before = np.array(state.inv_output, dtype=float)
+            state, alloc, deliv, fill, _consumer = stage_deliver(state, cfg)
+            shipped = stock_before - np.asarray(state.inv_output, dtype=float)
+            s_pre = np.array(state.inv_output, dtype=float)
+            x_pre = np.array(state.inv_inputs, dtype=float)
+        elif stage is PeriodStage.TRADE:
+            state, surplus = stage_trade(state, action, cfg, t)
+            x_pre = np.array(state.inv_inputs, dtype=float)
+        elif stage is PeriodStage.PRODUCE:
+            state, output, cost = stage_produce(state, action, cfg)
+            consumed = x_pre - np.asarray(state.inv_inputs, dtype=float)
+            reward = stage_reward(state, cfg, "produce", cost, None, None)
+        elif stage is PeriodStage.REPORT:
+            output = np.array(state.cum_output, dtype=float)
+            state = stage_report(state, action, cfg)
+            # Bookkeeping for the T-U1 terms: the holding loss on the stock carried in, and the
+            # cap overflow as the residual of the stock update (process_reports owns the rule).
+            holding = cfg.supply.holding_loss * s_pre
+            overflow = s_pre + output - holding - np.asarray(state.inv_output, dtype=float)
+            view = make_planner_view(state, cfg)
+        elif stage is PeriodStage.AUDIT:
+            state, audited, penalty = stage_audit(state, view, cfg, t)
+        elif stage is PeriodStage.REWARD:
+            reward = stage_reward(state, cfg, "report", None, penalty, surplus)
+            metrics = (
+                val_measured(state, cfg),
+                val_true(state, cfg),
+                welfare_true(state.consumer_delivery, cfg),
+            )
+        elif stage is PeriodStage.TARGET:
+            judged_target = np.array(state.target, dtype=float)
+            state = stage_target(state, view, cfg)
+        elif stage is PeriodStage.TERMINATE:
+            state, done = stage_terminate(state, cfg)
+
+    records = _step_records(
+        state,
+        action,
+        cfg,
+        t,
+        k,
+        phase,
+        s_pre,
+        output,
+        cost,
+        consumed,
+        reward,
+        audited,
+        penalty,
+        alloc,
+        deliv,
+        fill,
+        shipped,
+        holding,
+        overflow,
+        metrics,
+        judged_target,
+    )
+    info = StepInfo(
+        records=records,
+        t_period=t,
+        k_step=k,
+        phase=phase,
+        val_measured=metrics[0],
+        val_true=metrics[1],
+        welfare=metrics[2],
+        consumer=np.array(state.consumer_delivery, dtype=float),
+        flags=(),
+        terminated=done,
+    )
+    state = advance_phase(state, cfg)
+    return state, reward, done, info
 
 
 def run_period(
@@ -531,4 +682,117 @@ def run_period(
     Binds: `tests/unit/test_conservation.py` (T-U1), `tests/golden/*` (T-B7), and the Monte-Carlo
     sanity harness of WO-012. Owning WO: **WO-009**.
     """
-    raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+    m = cfg.incentive.steps_per_period
+    if len(actions) != m + 1:
+        raise ValueError(f"run_period: expected {m + 1} actions, got {len(actions)}")
+    if state.k_step != 0 or state.phase != "produce":
+        raise ValueError("run_period: state is not at the head of a period")
+    rewards, infos = [], []
+    done = False
+    for action in actions:
+        state, reward, done, info = advance(state, action, cfg)
+        rewards.append(reward)
+        infos.append(info)
+    return state, np.stack(rewards), done, tuple(infos)
+
+
+@functools.lru_cache(maxsize=64)
+def _run_hash(cfg: EnvConfig) -> str:
+    """`cfg.hash()`, memoised on the frozen configuration (a pure function of its argument)."""
+    return cfg.hash()
+
+
+def _step_records(
+    state,
+    action,
+    cfg,
+    t,
+    k,
+    phase,
+    s_pre,
+    output,
+    cost,
+    consumed,
+    reward,
+    audited,
+    penalty,
+    alloc,
+    deliv,
+    fill,
+    shipped,
+    holding,
+    overflow,
+    metrics,
+    judged_target,
+):
+    """One `StepRecord` per enterprise for the step just executed (ledger only, CONTRACT rule 6).
+
+    `target` is the target the step was judged against (before the REPORT step's ratchet).
+    DELIVER quantities (`alloc`, `deliv`, `fill`, `shipped`) sit on the row of the step at which
+    DELIVER ran and are zero elsewhere; `consumer` is the period's sink receipt on every row; the
+    period metrics are filled on the REPORT row. `coverage`, `audit_meas` and `penalty_arg` are
+    computed inside their owning modules and not returned by them, so they are recorded as NaN.
+    """
+    from gosplan.metrics.ledger import StepRecord
+
+    n = cfg.supply.n_enterprises
+    sector = np.asarray(cfg.supply.sector_of, dtype=int)
+    need = np.asarray(state.planner_io, dtype=float)[sector] * judged_target[:, None]
+    produce = phase == "produce"
+    rho_max = cfg.tech.report_max_ratio
+    run_hash = _run_hash(cfg)
+    consumer = tuple(float(v) for v in np.asarray(state.consumer_delivery, dtype=float))
+    nan = float("nan")
+    out = []
+    for i in range(n):
+        out.append(
+            StepRecord(
+                run_hash=run_hash,
+                episode=0,
+                t_period=int(t),
+                k_step=int(k),
+                phase=phase,
+                enterprise=i,
+                sector=int(sector[i]),
+                target=float(judged_target[i]),
+                capital=float(state.capital[i]),
+                inv_output_pre=float(s_pre[i]),
+                inv_output_post=float(state.inv_output[i]),
+                inv_inputs=tuple(float(v) for v in state.inv_inputs[i]),
+                cum_output=float(state.cum_output[i]),
+                cum_cost=float(state.cum_cost[i]),
+                quality_acc=float(state.quality_acc[i]),
+                last_report_ratio=float(state.last_report_ratio[i]),
+                last_penalty=float(state.last_penalty[i]),
+                last_fill=float(state.last_fill[i]),
+                request=tuple(float(v) for v in state.request[i]),
+                need=tuple(float(v) for v in need[i]),
+                effort=float(np.clip(action.effort[i], 0.0, 1.0)) if produce else 0.0,
+                quality=float(action.quality[i]) if produce else 0.0,
+                invest=float(action.invest[i]) if produce else 0.0,
+                output=float(output[i]),
+                cost=float(cost[i]),
+                coverage=nan,
+                reward=float(reward[i]),
+                report=0.0 if produce else float(state.last_report[i]),
+                report_ratio=0.0 if produce else float(state.last_report_ratio[i]),
+                at_bound=(not produce) and bool(state.last_report_ratio[i] >= rho_max),
+                audited=bool(audited[i]),
+                audit_meas=nan,
+                penalty_arg=nan,
+                penalty=float(penalty[i]),
+                fill=float(fill[i]),
+                shipped=float(shipped[i]),
+                alloc=tuple(float(v) for v in alloc[i]),
+                deliv=tuple(float(v) for v in deliv[i]),
+                input_consumed=tuple(float(v) for v in consumed[i]),
+                holding_loss=float(holding[i]),
+                cap_overflow=float(overflow[i]),
+                trade_volume=0.0,
+                consumer=consumer,
+                val_measured=float(metrics[0]),
+                val_true=float(metrics[1]),
+                welfare=float(metrics[2]),
+            )
+        )
+    return tuple(out)
