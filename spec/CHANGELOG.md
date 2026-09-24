@@ -86,6 +86,9 @@ lead edit of T-U3's threshold in `tests/unit/test_reward.py` under `.github/FROZ
 AMBIGUITY-007 (state counters advance eagerly; `ref_step` renders the digest at the next position)
 and AMBIGUITY-008 (golden truthful policy, post-REPORT truthful report, `input_request` as a
 multiple of need, rollout observation, and two lead test edits). Golden set regenerated after each.
+AMBIGUITY-009 (`DPGreedy` grid lookup) and AMBIGUITY-010 (WO-014 DP rulings; additive field
+`DPGrid.max_iterations: int = 5000` in `spec/spec.py`; lead edit of the `tests/unit/test_dp.py`
+helpers to the declared field names).
 
 New entries are added here, in the format above, and are promoted to a numbered section when the
 version is bumped in `spec/spec.py`.

@@ -58,15 +58,18 @@ def _single(cfg):
 
 
 def _grid():
-    """A coarse `DPGrid`, so a solver test runs in seconds rather than minutes."""
+    """A coarse `DPGrid`, so a solver test runs in seconds rather than minutes.
+
+    LEAD edit (AMBIGUITY-010): field names aligned with the declared `DPGrid` / `DPSolution`.
+    """
     from gosplan.agents.dp import DPGrid
 
     return DPGrid(
-        target_points=20,
-        stock_points=12,
+        n_target=20,
+        n_stock=12,
         effort_step=0.1,
-        report_step=0.05,
-        report_hi=3.0,
+        rho_step=0.05,
+        rho_hi=3.0,
         gh_nodes=9,
         value_tol=1e-6,
         max_iterations=5000,
@@ -79,11 +82,11 @@ def _solution(**over):
 
     base = dict(
         policy_effort=np.zeros((2, 2)),
-        policy_report=np.zeros((2, 2)),
+        policy_rho=np.zeros((2, 2)),
         value=np.zeros((2, 2)),
         stationary_rho=np.ones(1000),
         rho_edge_frac=0.0,
-        excess_mass=0.0,
+        b_hat_dp=0.0,
         fictitious_padding=0.0,
         hidden_reserves=0.0,
         mean_effort=0.0,
