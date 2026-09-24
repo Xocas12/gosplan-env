@@ -517,7 +517,7 @@ def stage_terminate(state: State, cfg: EnvConfig) -> tuple[State, bool]:
 
 
 def advance(
-    state: State, action: EnterpriseAction, cfg: EnvConfig
+    state: State, action: EnterpriseAction, cfg: EnvConfig, *, records: bool = True
 ) -> tuple[State, Array, bool, StepInfo]:
     """Execute one agent-step: the stages of `stages_for_step`, in order, and nothing else.
 
@@ -614,31 +614,38 @@ def advance(
         elif stage is PeriodStage.TERMINATE:
             state, done = stage_terminate(state, cfg)
 
-    records = _step_records(
-        state,
-        action,
-        cfg,
-        t,
-        k,
-        phase,
-        s_pre,
-        output,
-        cost,
-        consumed,
-        reward,
-        audited,
-        penalty,
-        alloc,
-        deliv,
-        fill,
-        shipped,
-        holding,
-        overflow,
-        metrics,
-        judged_target,
+    # `records=False` (training throughput, spec 1.1.1): the per-enterprise ledger rows are built
+    # only at the step that runs DELIVER, whose `deliv` the observation needs; elsewhere none.
+    build = records or PeriodStage.DELIVER in stages
+    step_rows = (
+        _step_records(
+            state,
+            action,
+            cfg,
+            t,
+            k,
+            phase,
+            s_pre,
+            output,
+            cost,
+            consumed,
+            reward,
+            audited,
+            penalty,
+            alloc,
+            deliv,
+            fill,
+            shipped,
+            holding,
+            overflow,
+            metrics,
+            judged_target,
+        )
+        if build
+        else ()
     )
     info = StepInfo(
-        records=records,
+        records=step_rows,
         t_period=t,
         k_step=k,
         phase=phase,

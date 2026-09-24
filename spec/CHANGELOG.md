@@ -435,3 +435,24 @@ written literally in `ref/gen_golden.py` and do not read these defaults.
 
 **Approver.** LEAD under the owner's written delegation of the G1 decision (Human role).
 
+## 1.1.1 - 2026-09-24
+
+**Reason.** PLAN section 14 budgets the Phase-1 gate at about 3k env steps per second; the
+environment ran at about 700 per second at `N = 20`, half of it building per-enterprise ledger
+rows that training never reads (G0 cost observation, `runs/G0_signoff.md`).
+
+**Change.** Additive, keyword-only, defaulted: `GosplanEnv.__init__(cfg, *, records: bool = True)`
+in `spec/spec.py` and `gosplan/env/env.py`; `gosplan.env.step.advance(..., *, records=True)`.
+With `records=False` and no ledger attached, `StepRecord`s are built only at the DELIVER step
+(the observation needs that step's deliveries); with the default, or whenever a ledger is
+attached, behaviour is unchanged. `GosplanEnv.step` also copies the state field-wise instead of
+`copy.deepcopy` (same semantics). Measured: 1.36 -> 0.74 ms per agent-step at `N = 20`.
+
+**Affected work orders.** WO-009 (env), WO-018 (training uses `records=False`).
+
+**Golden files.** Not regenerated: dynamics unchanged (T-B7 exact).
+
+**Suite.** Full frozen suite: 461 passed, 11 skipped, 0 failed; golden parity exact.
+
+**Approver.** LEAD.
+
