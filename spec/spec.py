@@ -1750,7 +1750,7 @@ def phenomenon_bunching(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
 
     Pre-registered estimator settings (PLAN section 4.5, hard-coded as defaults and recorded in the
     manifest): bins of width 0.005 over `rho` in [0.6, 1.4]; excluded window [0.95, 1.02];
-    polynomial of degree 7 fitted outside the window; excess mass `b_hat = (observed -
+    polynomial of degree 9 fitted outside the window; excess mass `b_hat = (observed -
     counterfactual mass in [1.00, 1.02]) / mean counterfactual density in the window`; hole mass
     computed identically on [0.95, 1.00); standard error by bootstrap over seeds. Only periods `t
     >= 2` enter, per the measurement window of PLAN section 4.4, and reports at `rho_max` are

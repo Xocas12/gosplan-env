@@ -802,7 +802,7 @@ def dp_excess_mass(stationary_rho: Array) -> float:
     compares a measured `b_hat` against `0.5 * b_hat_dp`:
 
         bins of width 0.005 over rho in [0.6, 1.4]
-        excluded window [0.95, 1.02]; polynomial of degree 7 fitted outside it
+        excluded window [0.95, 1.02]; polynomial of degree 9 fitted outside it
         b_hat = (observed - counterfactual mass in [1.00, 1.02])
                 / mean counterfactual density in the window
         hole mass computed identically on [0.95, 1.00) and reported alongside

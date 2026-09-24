@@ -385,3 +385,30 @@ one showed `spec_version` as the only differing key (dynamics unchanged).
 **Approver.** LEAD. Crosses gate G1: the human's G1 decision (`runs/G1_decision.md`) follows this
 freeze and does not alter it; the daggered PLAN section 3 values stay at their provisional
 placeholders until then.
+
+## 1.0.1 - 2026-09-24
+
+**Reason.** PLAN section 4.5 pre-registration, amended BEFORE ANY LEARNING RUN under the owner's
+delegation (AMBIGUITY-011 resolution): the degree-7 counterfactual is biased on smooth report
+distributions peaked near 1 (e.g. +0.058 on N(1, 0.15), +0.43 on N(1, 0.10)), enough to fail the
+frozen smooth-null test and to decide G2's smooth arm by estimator bias rather than behaviour.
+
+**Change.** Patch (docstring only in `spec/spec.py`): `phenomenon_bunching`'s docstring now reads
+"polynomial of degree 9". `gosplan/metrics/phenomena.py`: `BUNCHING_POLY_DEGREE` 7 -> 9.
+`gosplan/metrics/_fallback.py`: seed-level percentile bootstrap (1,000 replicates, 95%, seed 0).
+`gosplan/metrics/__init__.py`: `resolve_estimators` implemented; `EstimatorBackend` gains
+read-only mapping access (`__getitem__`, `__contains__`), which the frozen WO-016 tests use
+(AMBIGUITY-015). G2 criterion 2's notched-arm threshold amended for non-finite `b_hat_DP`
+(AMBIGUITY-011 point 3). No signature moved.
+
+**Affected work orders.** WO-014 (`dp_excess_mass` now uses degree 9), WO-016 (estimator), WO-020
+(criterion 2 threshold). Lead edit of `tests/unit/test_phenomena_p1.py` (degree assertion and
+docstrings), recorded in `.github/FROZEN_TEST_EXEMPTION`.
+
+**Golden files.** Not regenerated: the estimator is not part of the golden dynamics.
+
+**Suite.** Full frozen suite after the change: 461 passed, 11 skipped (later cards), 0 failed.
+
+**Approver.** LEAD, under the owner's explicit delegation of the AMBIGUITY-011 decisions; crosses a
+pre-registered quantity of PLAN section 4, amended before any learning run.
+

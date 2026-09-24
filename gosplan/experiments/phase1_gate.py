@@ -25,7 +25,7 @@ Inputs
     here.
     `gosplan.metrics.phenomena.phenomenon_bunching` and `phenomenon_padding` (WO-016), whose
     defaults are the pre-registered estimator settings of PLAN section 4.5 - bins of width 0.005 on
-    `rho` in [0.6, 1.4], excluded window [0.95, 1.02], polynomial degree 7, excess mass on
+    `rho` in [0.6, 1.4], excluded window [0.95, 1.02], polynomial degree 9, excess mass on
     [1.00, 1.02], hole mass on [0.95, 1.00), bootstrap SE over seeds. This module must NOT restate
     those numbers: they have exactly one home (WO-016) and are recorded in the manifest from there.
     `gosplan.agents.ppo.train` (WO-018) with the pinned reference PPO of WO-017.

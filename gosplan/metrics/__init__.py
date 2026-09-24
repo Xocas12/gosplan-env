@@ -26,7 +26,7 @@ of observations, rewards and agent inputs.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 
 from gosplan.metrics._fallback import (
     FALLBACK_ESTIMATOR_VERSION,
@@ -98,6 +98,17 @@ class EstimatorBackend:
     """`forensics_core.dispersion.cross_section` or `gosplan.metrics._fallback.cross_section`.
     Called as `cross_section(values, groups)`; returns a `DispersionResult`-shaped object."""
 
+    def __getitem__(self, key: str) -> object:
+        """Read-only mapping access to the fields (`backend["bunching_estimate"]`), which the frozen
+        WO-016 tests use; the record stays immutable (AMBIGUITY-015)."""
+        if key not in self:
+            raise KeyError(key)
+        return getattr(self, key)
+
+    def __contains__(self, key: object) -> bool:
+        """`name in backend` for each field name."""
+        return isinstance(key, str) and key in {f.name for f in fields(self)}
+
 
 def resolve_estimators() -> EstimatorBackend:
     """Resolve the estimator surface of PLAN section 7.3, preferring `forensics_core`.
@@ -141,7 +152,27 @@ def resolve_estimators() -> EstimatorBackend:
     agree, and the resolver returns the fallback with `FALLBACK_ESTIMATOR_VERSION` when
     `forensics_core` is absent. Owning WO: **WO-016**.
     """
-    raise NotImplementedError("PLAN section 7.3 - implemented in WO-016")
+    try:
+        import forensics_core
+
+        backend = EstimatorBackend(
+            name=FORENSICS_CORE_BACKEND,
+            version=forensics_core.__version__,
+            bunching_estimate=forensics_core.bunching.estimate,
+            reconciliation_ledger_test=forensics_core.reconciliation.ledger_test,
+            dispersion_cross_section=forensics_core.dispersion.cross_section,
+        )
+    except ImportError:
+        from gosplan.metrics import _fallback
+
+        backend = EstimatorBackend(
+            name=FALLBACK_BACKEND,
+            version=FALLBACK_ESTIMATOR_VERSION,
+            bunching_estimate=_fallback.estimate,
+            reconciliation_ledger_test=_fallback.ledger_test,
+            dispersion_cross_section=_fallback.cross_section,
+        )
+    return backend
 
 
 __all__ = [
