@@ -6,3 +6,4 @@ tests/behavioural/test_no_hardcoded_pathology.py
 tests/behavioural/test_shortage_propagation.py
 tests/unit/test_dp.py
 tests/unit/test_regime_map_runs.py
+tests/unit/test_phenomena_p1.py
