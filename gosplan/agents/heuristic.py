@@ -54,14 +54,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+import numpy as np
+
 from gosplan.agents.base import Array, Phase
+from gosplan.env.env import action_spec, active_action_dims
+from gosplan.env.state import EnterpriseAction
 
 if TYPE_CHECKING:  # runtime homes: WO-003 (config) and WO-009 (state), PLAN section 8
-    import numpy as np
-
     from gosplan.agents.dp import DPSolution
     from gosplan.config import EnvConfig
-    from gosplan.env.state import EnterpriseAction
 
 REQUEST_MULTIPLE_NEED = 1.0
 """The `input_request` value that means "request exactly `need_ij`" (PLAN sections 2.3, 6.1). The
@@ -78,6 +79,26 @@ PADDER_REPORT_RATIO = 1.0
 """The constant report ratio of `Padder` (PLAN section 6.1: "rho = 1 always"), i.e. it claims
 exactly its target every period whatever its stock. This is what makes it the fixed point probe of
 test T-B2 and the shortage-channel probe of test T-B3."""
+
+_PHASE_DIMS: dict[str, tuple[str, ...]] = {
+    "produce": ("effort", "quality", "invest"),
+    "report": ("report_ratio", "input_request"),
+}
+# Dimensions the environment reads at each phase (`EnterpriseAction`, gosplan/env/state.py).
+
+
+def _zero_action(cfg: EnvConfig) -> EnterpriseAction:
+    """An all-zero joint action with the shapes of PLAN section 2.3."""
+    n = cfg.supply.n_enterprises
+    j = cfg.supply.n_sectors
+    return EnterpriseAction(
+        effort=np.zeros(n),
+        quality=np.zeros(n),
+        invest=np.zeros(n),
+        report_ratio=np.zeros(n),
+        input_request=np.zeros((n, j)),
+        trade_offer=np.zeros((n, j)),
+    )
 
 
 @dataclass
@@ -115,14 +136,23 @@ class Random:
         `gosplan.rng.draw`, which belongs to the environment's `seed_env` stream. Owning WO:
         **WO-010**.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-010")
+        spec = action_spec(self.cfg)
+        drawn = {}
+        for name in active_action_dims(self.cfg):  # one draw per dimension, PLAN sec. 2.3 order
+            shape, lo, hi = spec[name]
+            drawn[name] = rng.uniform(lo, hi, size=shape)
+        action = _zero_action(self.cfg)
+        for name in _PHASE_DIMS[phase]:
+            if name in drawn:
+                setattr(action, name, drawn[name])
+        return action
 
     def reset(self) -> None:
         """No-op: the policy is stateless.
 
         Takes: nothing. Returns: `None`. Owning WO: **WO-010**.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-010")
+        return None
 
 
 @dataclass
@@ -180,14 +210,23 @@ class TruthfulMyopic:
         comparisons of PLAN section 4.1 rows 2 and 5 subtract this agent's trajectory from a
         learned one under the same `seed_env`. Owning WO: **WO-010**.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-010")
+        obs = np.asarray(obs, dtype=float)
+        action = _zero_action(self.cfg)
+        if phase == "produce":
+            action.effort = np.clip(self.cfg.tech.initial_target_frac * np.exp(obs[:, 2]), 0.0, 1.0)
+        else:
+            action.report_ratio = np.clip(
+                _post_report_stock_ratio(obs, self.cfg), 0.0, self.cfg.tech.report_max_ratio
+            )
+            action.input_request[:] = REQUEST_MULTIPLE_NEED
+        return action
 
     def reset(self) -> None:
         """No-op: the policy is stateless.
 
         Takes: nothing. Returns: `None`. Owning WO: **WO-010**.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-010")
+        return None
 
 
 @dataclass
@@ -247,14 +286,20 @@ class Padder:
 
         Owning WO: **WO-010**.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-010")
+        action = _zero_action(self.cfg)
+        if phase == "produce":
+            action.effort[:] = PADDER_EFFORT
+        else:
+            action.report_ratio[:] = PADDER_REPORT_RATIO
+            action.input_request[:] = REQUEST_MULTIPLE_NEED
+        return action
 
     def reset(self) -> None:
         """No-op: the policy is stateless.
 
         Takes: nothing. Returns: `None`. Owning WO: **WO-010**.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-010")
+        return None
 
 
 @dataclass
@@ -311,6 +356,14 @@ class DPGreedy:
     `DPSolution`" of the WO-010 card. Only `policy_effort`, `policy_rho`, `grid` and `config_hash`
     are read; the stationary diagnostics on the solution are for experiments, not for acting."""
 
+    def __post_init__(self) -> None:
+        # WO-010 note 5: check the solution was solved for this configuration before any `act`.
+        if self.solution.config_hash != self.cfg.hash():
+            raise ValueError(
+                "DPGreedy: solution.config_hash "
+                f"{self.solution.config_hash!r} != cfg.hash() {self.cfg.hash()!r}"
+            )
+
     def act(self, obs: Array, phase: Phase, rng: np.random.Generator) -> EnterpriseAction:
         """Look the DP policy up at each enterprise's own `(T_i, S_i)` and return it.
 
@@ -331,7 +384,7 @@ class DPGreedy:
         Takes: nothing. Returns: `None`. The `DPSolution` is run-scoped and is deliberately not
         cleared here. Owning WO: **WO-010**.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-010")
+        return None
 
 
 @dataclass
@@ -488,3 +541,19 @@ __all__ = [
     "TruthfulMyopic",
     "Weitzman",
 ]
+
+
+def _post_report_stock_ratio(obs: np.ndarray, cfg: EnvConfig) -> np.ndarray:
+    """`S_i / T_i` as the REPORT step leaves it, from what the agent observes exactly.
+
+    AMBIGUITY-008: at the REPORT decision the observation carries the stock carried in (field 5)
+    and this period's output (field 4), both over `T_i`; the REPORT step then sets
+    `S <- min((1 - h) * S + y, S_max)` with `S_max = inventory_cap_mult * Kap` (PLAN sections 2.8,
+    2.11). A report truthful of stock on hand is that post-update ratio. `Kap = obs[:, 6] * Kap_0`
+    with `Kap_0 = 1`, and `T_i = T_0 * exp(obs[:, 2])` with `T_0 = initial_target_frac * A * Kap_0`.
+    """
+    sector = np.asarray(cfg.supply.sector_of, dtype=int)
+    t0 = cfg.tech.initial_target_frac * np.asarray(cfg.supply.productivity, dtype=float)[sector]
+    target = t0 * np.exp(obs[:, 2])
+    s_max_ratio = cfg.tech.inventory_cap_mult * obs[:, 6] / target
+    return np.minimum((1.0 - cfg.supply.holding_loss) * obs[:, 5] + obs[:, 4], s_max_ratio)
