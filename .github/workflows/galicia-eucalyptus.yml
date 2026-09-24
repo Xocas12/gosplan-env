@@ -1,0 +1,32 @@
+# CI for the self-contained galicia-eucalyptus subproject. Independent of the gosplan CI
+# (ci.yml) and only triggered by changes under galicia-eucalyptus/.
+name: galicia-eucalyptus
+
+on:
+  pull_request:
+    paths: ["galicia-eucalyptus/**", ".github/workflows/galicia-eucalyptus.yml"]
+  push:
+    branches: [main]
+    paths: ["galicia-eucalyptus/**", ".github/workflows/galicia-eucalyptus.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: galicia-eucalyptus
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: galicia-eucalyptus
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - run: uv venv && uv pip install -e '.[dev]'
+      - run: .venv/bin/ruff check . && .venv/bin/ruff format --check .
+      - run: .venv/bin/pytest
+      - run: .venv/bin/euc run --config configs/fast.yaml
