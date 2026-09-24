@@ -412,3 +412,26 @@ docstrings), recorded in `.github/FROZEN_TEST_EXEMPTION`.
 **Approver.** LEAD, under the owner's explicit delegation of the AMBIGUITY-011 decisions; crosses a
 pre-registered quantity of PLAN section 4, amended before any learning run.
 
+## 1.1.0 - 2026-09-24
+
+**Reason.** Gate G1 (PLAN section 13): the six daggered PLAN section 3 values, declared provisional
+placeholders "replaced at G1", are replaced by the G1 decision (`runs/G1_decision.md`; the owner
+delegated the choice to the LEAD). Folding them into the defaults is the lead decision WO-013
+note 6 reserves for G1.
+
+**Change.** Defaults of `IncentiveConfig` / `InformationConfig` in `spec/spec.py`, mirrored in
+`gosplan/config.py` and `gosplan/params.py` (`provisional` -> False): `ratchet_lambda` 0.5 -> 0.53,
+`growth_directive` 0.02 -> 0.021, `overfulfilment_slope` 0.5 -> 0.331, `effort_cost` 0.15 ->
+0.193, `penalty_scale` 60.0 -> 200.0, `audit_rate` 0.10 (unchanged, now final). No field, type or
+signature moved; minor because replacing these placeholders at G1 is their documented semantics.
+
+**Affected work orders.** WO-016 onward (every Phase-1 experiment runs at `p1_default_config()`),
+WO-019 (the three `a*pen` levels 0.8 / 4 / 20), WO-020 (criterion-2 threshold 0.440).
+
+**Golden files.** Regenerated for the embedded `spec_version` only; the golden configurations are
+written literally in `ref/gen_golden.py` and do not read these defaults.
+
+**Suite.** Full frozen suite at the new defaults: 461 passed, 11 skipped (later cards), 0 failed.
+
+**Approver.** LEAD under the owner's written delegation of the G1 decision (Human role).
+

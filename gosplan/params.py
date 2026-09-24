@@ -231,7 +231,7 @@ REGISTRY: tuple[ParamSpec, ...] = (
         default=0.10,
         sweep=Range(0.01, 0.30),
         source="unsourced",
-        provisional=True,
+        provisional=False,
         notes=(
             "`a`, per-enterprise per-period audit probability, purpose `audit`. DUAL-CLASSIFIED "
             "in PLAN section 3: INFO by architecture, and it also enters the reward through the "
@@ -385,10 +385,10 @@ REGISTRY: tuple[ParamSpec, ...] = (
         name="ratchet_lambda",
         arm="inc",
         phase="P1",
-        default=0.5,
+        default=0.53,
         sweep=Range(0.0, 1.0),
         source="unsourced",
-        provisional=True,
+        provisional=False,
         notes=(
             "`lambda`, ratchet coefficient in the target rule "
             "`T <- max(T_min, (1 + g) * T * (1 + lambda * step))`. PLAN section 3 source cell: "
@@ -401,10 +401,10 @@ REGISTRY: tuple[ParamSpec, ...] = (
         name="growth_directive",
         arm="inc",
         phase="P1",
-        default=0.02,
+        default=0.021,
         sweep=Range(0.0, 0.07),
         source="unsourced",
-        provisional=True,
+        provisional=False,
         notes=(
             "`g`, the exogenous growth directive multiplying the target every period; the forcing "
             "term added for finding F1. It must be a treatment variable: at `g = 0` with reports "
@@ -498,10 +498,10 @@ REGISTRY: tuple[ParamSpec, ...] = (
         name="overfulfilment_slope",
         arm="inc",
         phase="P1",
-        default=0.5,
+        default=0.331,
         sweep=Range(0.0, 2.0),
         source="unsourced",
-        provisional=True,
+        provisional=False,
         notes=(
             "`s`, linear bonus slope above target: `s * clip(rho - 1, 0, rho_cap - 1)`. PLAN "
             "section 3 source cell: historical - per-percentage-point bonus increments (lead to "
@@ -563,10 +563,10 @@ REGISTRY: tuple[ParamSpec, ...] = (
         name="penalty_scale",
         arm="inc",
         phase="P1",
-        default=60.0,
+        default=200.0,
         sweep=Range(5.0, 200.0),
         source="unsourced",
-        provisional=True,
+        provisional=False,
         notes=(
             "`pen`, penalty scale in ratio units (finding F9). PLAN section 3 source cell: "
             "unsourced; regime map. `audit_rate * penalty_scale` is the compound quantity the G2 "
@@ -579,10 +579,10 @@ REGISTRY: tuple[ParamSpec, ...] = (
         name="effort_cost",
         arm="inc",
         phase="P1",
-        default=0.15,
+        default=0.193,
         sweep=Range(0.05, 0.5),
         source="unsourced",
-        provisional=True,
+        provisional=False,
         notes=(
             "`kappa` in the step cost "
             "`c_ik = kappa * e_ik**2 + F * 1[e_ik > 0] + kappa_q * q_ik * e_ik`. A real cost paid "
