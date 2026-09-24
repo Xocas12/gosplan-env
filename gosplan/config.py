@@ -38,7 +38,7 @@ import tomllib
 from dataclasses import dataclass, field
 from typing import Literal
 
-SPEC_VERSION = "1.0.0"
+SPEC_VERSION = "1.1.0"
 """Mirror of `spec.spec.SPEC_VERSION` - the provisional (v0) interface version.
 
 WO-013 bumps it to `"1.0.0"` at gate G1 and every later change needs a `spec/CHANGELOG.md` entry
@@ -235,11 +235,11 @@ class IncentiveConfig:
     """INC. Which fulfilment measure the bonus and the ratchet key on (PLAN section 2.9.2). Phase
     1: `val`. Historical motivation: `val` is the measure the NNO reforms attacked."""
 
-    ratchet_lambda: float = 0.5  # provisional: replaced at G1
+    ratchet_lambda: float = 0.53  # G1 value, runs/G1_decision.md
     """INC. `lambda`, ratchet coefficient in the target rule of PLAN section 2.7.1. Range [0, 1];
     Weitzman-type models motivate the form, the empirical value is unsourced."""
 
-    growth_directive: float = 0.02  # provisional: replaced at G1
+    growth_directive: float = 0.021  # G1 value, runs/G1_decision.md
     """INC. `g`, the exogenous growth directive multiplying the target every period (PLAN section
     2.7.1). The forcing term added for finding F1; it must be a treatment variable because at
     `g = 0` with reports at target the target rule has a fixed point (test T-B2). Range
@@ -269,7 +269,7 @@ class IncentiveConfig:
     estimator-bias study (PLAN section 7.2). Grid {0, 0.02, 0.05, 0.10, 0.25}; `validate` rejects
     `w < 0`."""
 
-    overfulfilment_slope: float = 0.5  # provisional: replaced at G1
+    overfulfilment_slope: float = 0.331  # G1 value, runs/G1_decision.md
     """INC. `s`, linear bonus slope above target: `s * clip(rho - 1, 0, rho_cap - 1)` (PLAN section
     2.8). Range [0, 2]; the historical anchor is the per-percentage-point bonus increment (lead to
     source, PLAN section 15)."""
@@ -289,12 +289,12 @@ class IncentiveConfig:
     (`absolute`) (PLAN section 2.8). Under `positive_part` any under-report incurs no penalty -
     test T-U8."""
 
-    penalty_scale: float = 60.0  # provisional: replaced at G1
+    penalty_scale: float = 200.0  # G1 value, runs/G1_decision.md
     """INC. `pen`, penalty scale in ratio units (PLAN sections 2.8, 2.9.1; finding F9). Range
     [5, 200]; unsourced, chosen from the regime map. `audit_rate * penalty_scale` is the compound
     quantity the G2 padding-elasticity criterion sweeps (PLAN section 4.5)."""
 
-    effort_cost: float = 0.15  # provisional: replaced at G1
+    effort_cost: float = 0.193  # G1 value, runs/G1_decision.md
     """INC. `kappa` in `c_ik = kappa * e_ik**2 + ...` (PLAN section 2.6). A real cost paid when
     incurred, not shaping (CONTRACT rule 4). Range [0.05, 0.5]; unsourced, from the regime map."""
 
@@ -346,7 +346,7 @@ class InformationConfig:
     """INFO. Level at which the planner observes claims (PLAN section 2.7.5). At `sector` it sees
     only `sum_{i in j} claimed_i` and allocates by planned need alone. Phase 1: `enterprise`."""
 
-    audit_rate: float = 0.10  # provisional: replaced at G1
+    audit_rate: float = 0.10  # G1 value, runs/G1_decision.md
     """INFO (dual: it also enters the reward through the penalty, so it is reported separately -
     PLAN section 4.3). `a`, per-enterprise per-period audit probability (PLAN section 2.7.4). Range
     [0.01, 0.30]; unsourced. `validate` requires it in [0, 1]."""
