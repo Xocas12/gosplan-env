@@ -81,6 +81,7 @@ runtime.
 
 from __future__ import annotations
 
+import dataclasses
 import functools
 from enum import Enum
 from typing import TYPE_CHECKING
@@ -382,6 +383,12 @@ def stage_audit(
     Binds: T-U8 (`positive_part` gives exactly 0 for any under-report; `audited = False` gives 0),
     T-B7 (golden parity). Owning WO: **WO-009**; the arithmetic is **WO-006** and **WO-007**.
     """
+    # AMBIGUITY-019 B: the selection is keyed by the EPISODE's seed (`state.seed_env`), as every
+    # other draw is; `select_audits(view, cfg, t)` reads `cfg.tech.seed_env`, so it is handed the
+    # configuration re-seeded to the episode. Keying on the root seed gave every episode the same
+    # audit schedule, which a learner can exploit.
+    if int(cfg.tech.seed_env) != int(state.seed_env):
+        cfg = dataclasses.replace(cfg, tech=dataclasses.replace(cfg.tech, seed_env=state.seed_env))
     audited = np.asarray(select_audits(view, cfg, t), dtype=bool)
     penalty = np.asarray(audit_and_penalise(state, audited, cfg, t), dtype=float)
     state.last_audited = audited

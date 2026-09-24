@@ -1814,7 +1814,9 @@ def ref_audit(
     Binds: T-U8, `tests/unit/test_planner.py` (audit frequency) and rows 4.1-4.6 of
     `docs/ref_worked_example.md`.
     """
-    audited = ref_select_audits(view, cfg, state.t_period)
+    # AMBIGUITY-019 B: key the selection by the episode's seed, as every other draw is.
+    audit_cfg = {**cfg, "tech": {**cfg["tech"], "seed_env": int(state.seed_env)}}
+    audited = ref_select_audits(view, audit_cfg, state.t_period)
     penalty, audit_meas = ref_audit_penalty(state, audited, cfg, state.t_period)
     view = replace(view, audited=audited, audit_meas=audit_meas)
     state.last_audited = audited
