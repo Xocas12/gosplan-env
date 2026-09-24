@@ -74,6 +74,10 @@ EVAL_POLICY: str = "deterministic: squashed Gaussian mean, a = squash(mean)"
 FINAL_LEDGER_FILE: str = "final_eval_ledger.parquet"
 """File name, under the run directory, of the final evaluation's ledger (AMBIGUITY-016 point 4)."""
 
+HYGIENE_TARGET_MULTIPLE: float = 3.0
+"""G2 criterion 4 (PLAN section 12.4): a training episode fails hygiene if any target exceeds this
+multiple of `T_0`; the per-update fraction is logged (AMBIGUITY-018 item 8)."""
+
 TARGET_BLOWUP_MULTIPLE: float = 3.0
 """Hygiene criterion 4 of PLAN section 4.5: `T > 3 T_0`."""
 
@@ -454,6 +458,10 @@ def train(train_cfg: TrainConfig) -> Path:
         ]
     ).astype(np.float32)
     running_return = np.zeros((n_envs, n))
+    # G2 criterion 4 is stated over TRAINING episodes (AMBIGUITY-018 item 8): per episode, whether
+    # any enterprise's target exceeded HYGIENE_TARGET_MULTIPLE x T_0, read from the env state.
+    hygiene_bound = HYGIENE_TARGET_MULTIPLE * np.asarray(initial_targets(cfg), dtype=float)
+    episode_blowup = np.zeros(n_envs, dtype=bool)
     run_flags: set[str] = set()
     masks = {phase: agent.element_mask(phase) for phase in ("produce", "report")}
     d, a_dim = agent.obs_dim, agent.action_dim
@@ -473,6 +481,7 @@ def train(train_cfg: TrainConfig) -> Path:
         t_update = time.perf_counter()
         ent_coef = entropy_coefficient(update, n_updates, ppo_cfg)
         finished_returns: list[float] = []
+        finished_blowups: list[bool] = []
         for t in range(horizon):
             mask = np.repeat(np.stack([masks[env.phase()] for env in envs]), n, axis=0)
             eps = rng.standard_normal((rows, a_dim)).astype(np.float32)
@@ -486,10 +495,13 @@ def train(train_cfg: TrainConfig) -> Path:
                 run_flags.update(info.flags)  # StepInfo: run flags only (CONTRACT rule 6)
                 buf_reward[t, b * n : (b + 1) * n] = reward
                 running_return[b] += reward
+                episode_blowup[b] |= bool(np.any(env.state.target > hygiene_bound))
                 if done:
                     buf_done[t, b * n : (b + 1) * n] = 1.0
                     finished_returns.append(float(running_return[b].mean()))
                     running_return[b] = 0.0
+                    finished_blowups.append(bool(episode_blowup[b]))
+                    episode_blowup[b] = False
                     episode_index[b] += 1
                     seed = _train_episode_seed(root, b, episode_index[b], n_envs)
                     o, _opening = env.reset(seed, cfg.tech.seed_policy)
@@ -531,6 +543,9 @@ def train(train_cfg: TrainConfig) -> Path:
             "train_episodes_finished": len(finished_returns),
             "train_episode_return_mean": (
                 float(np.mean(finished_returns)) if finished_returns else float("nan")
+            ),
+            "train_episode_target_blowup_frac": (
+                float(np.mean(finished_blowups)) if finished_blowups else float("nan")
             ),
             **diagnostics,
         }
