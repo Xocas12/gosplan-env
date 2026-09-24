@@ -86,9 +86,8 @@ lead edit of T-U3's threshold in `tests/unit/test_reward.py` under `.github/FROZ
 AMBIGUITY-007 (state counters advance eagerly; `ref_step` renders the digest at the next position)
 and AMBIGUITY-008 (golden truthful policy, post-REPORT truthful report, `input_request` as a
 multiple of need, rollout observation, and two lead test edits). Golden set regenerated after each.
-AMBIGUITY-009 (`DPGreedy` grid lookup) and AMBIGUITY-010 (WO-014 DP rulings; additive field
-`DPGrid.max_iterations: int = 5000` in `spec/spec.py`; lead edit of the `tests/unit/test_dp.py`
-helpers to the declared field names).
+AMBIGUITY-009 (`DPGreedy` grid lookup) and AMBIGUITY-010 (WO-014 DP rulings; the one `spec/spec.py`
+change is entry 0.1.6 below).
 
 New entries are added here, in the format above, and are promoted to a numbered section when the
 version is bumped in `spec/spec.py`.
@@ -319,5 +318,26 @@ penalty path is exercised in every cell. Every I-O row satisfies `sum_k a_jk < 1
 **Affected work orders.** WO-002 (complete), WO-003 (`load_config` activates 120 parity assertions),
 WO-009 (`GosplanEnv` is what the parity test replays against), WO-013 (regenerates the matrix at the
 spec v1 freeze).
+
+**Approver.** LEAD.
+
+## 0.1.6 - 2026-09-24
+
+**Reason.** PLAN section 5 / WO-014, AMBIGUITY-010 item A. The frozen `tests/unit/test_dp.py`
+checks `sol.n_iterations <= grid.max_iterations`, and "non-convergence is a result" (WO-014 card)
+needs a declared iteration cap at which the solver stops and returns `converged = False`; the v0
+`DPGrid` declared none.
+
+**Change.** `DPGrid`: added `max_iterations: int = 5000` after `value_tol` (additive, defaulted;
+no existing field, signature or default moved). Mirrored field for field in
+`gosplan/agents/dp.py`. `SPEC_VERSION` stays "0.1.0" until the WO-013 freeze, as for 0.1.1-0.1.5.
+
+**Affected work orders.** WO-014 (implements the cap), WO-015 (uses `DPGrid()` defaults), WO-019
+(DP-vs-PPO reads `DPSolution.converged`). The `tests/unit/test_dp.py` helpers were aligned with the
+declared names by a lead edit (AMBIGUITY-010 A).
+
+**Golden files.** Not regenerated: the DP is not part of the golden dynamics.
+
+**Suite.** Full frozen suite 455 passed, 16 skipped, 0 failed.
 
 **Approver.** LEAD.
