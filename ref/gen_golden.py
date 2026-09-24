@@ -203,7 +203,7 @@ def _base(n_enterprises: int, n_sectors: int, io_matrix, **over) -> Config:
             "setup_cost": 0.0,
             "irs_alpha": 0.0,
             "capital_dep": 0.0,
-            "invest_lag": 0,
+            "invest_lag": 1,
             "delivery_timing": "uniform",
             "arrival_probs": [1.0, 0.0, 0.0, 0.0],
             "holding_loss": 0.02,

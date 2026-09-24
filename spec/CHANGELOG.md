@@ -56,7 +56,24 @@ tests are touched, including cards already completed that must be reissued.
 
 ## Unreleased
 
-No unreleased changes.
+**Reason.** Defect in the reference golden generator found while checking WO-003:
+`ref/gen_golden.py::_base` wrote `"invest_lag": 0`, contradicting its own docstring ("every
+unstated default is the one declared on `SupplyConfig`", which is 1) and the `invest_lag >= 1`
+rule of `EnvConfig.validate` (spec/spec.py, WO-003). With golden files present, every golden
+parity test failed in `validate()` before comparing anything.
+
+**Change.** `ref/gen_golden.py`: `invest_lag` 0 -> 1 in the base golden configuration. No change
+to `spec/spec.py`; `SPEC_VERSION` unchanged. The only dynamics effect is the width of
+`pending_invest`, which is inert in Phase 1 (`v == 0`).
+
+**Affected work orders.** WO-002 (ref), WO-009 (golden parity must-pass).
+
+**Golden files.** Regenerated locally (git-ignored; not committed).
+
+**Suite.** `tests/golden`: 31 passed (config hash and obs layout parity), 120 skipped awaiting
+WO-009/WO-010.
+
+**Approver.** LEAD.
 
 New entries are added here, in the format above, and are promoted to a numbered section when the
 version is bumped in `spec/spec.py`.
