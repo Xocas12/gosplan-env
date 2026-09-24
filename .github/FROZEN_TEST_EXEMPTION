@@ -7,3 +7,4 @@ tests/behavioural/test_shortage_propagation.py
 tests/unit/test_dp.py
 tests/unit/test_regime_map_runs.py
 tests/unit/test_phenomena_p1.py
+tests/unit/test_train_smoke.py
