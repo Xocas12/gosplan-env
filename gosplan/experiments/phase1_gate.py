@@ -132,13 +132,13 @@ reports (PLAN section 4.5)."""
 GATE_SIZING = RunSizing(
     n_envs=8,
     rollout_steps=125,
-    total_agent_steps=250_000,
-    eval_every_updates=50,
+    total_agent_steps=1_000_000,
+    eval_every_updates=250,
     eval_episodes=10,
     measure_episodes=100,
 )
 """Batch shape and budget of every `N = 20` gate run, fixed by the lead before any G2 run
-(AMBIGUITY-019)."""
+(AMBIGUITY-019 C): 1,000 updates of 8 environments x 125 agent-steps, 20M enterprise decisions."""
 
 ELASTICITY_SEEDS = 10
 """Seeds per additional `a * pen` level of criterion 3 (the two levels below the Phase-1 one; the
