@@ -63,10 +63,14 @@ comparing field names, order and annotations. The cross-module types are importe
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NoReturn
 
 import numpy as np
+
+from gosplan.env.state import INITIAL_CAPACITY
+from gosplan.rng import draw
 
 if TYPE_CHECKING:  # pragma: no cover - types only; see the binding note in the module docstring
     from gosplan.config import AggLevel, EnvConfig
@@ -169,7 +173,58 @@ def make_planner_view(state: State, cfg: EnvConfig) -> PlannerView:
     state reach no field of the view; the static signature check over this module) and the identity
     cases in `tests/unit/test_planner.py`. Owning WO: **WO-006**.
     """
-    raise NotImplementedError("PLAN section 2.4/2.7 - implemented in WO-006")
+    info = cfg.information
+    n = cfg.supply.n_enterprises
+    claims = np.array(state.last_report, dtype=float)
+    requests = np.array(state.request, dtype=float)
+
+    # Filter 1 - aggregation (PLAN section 2.7.5).
+    # At "sector" each enterprise carries its sector's mean claim (LEAD ruling on AMB-WO006-A,
+    # following ref_make_planner_view): the per-sector total survives, per-enterprise identity
+    # does not. Requests and targets are not aggregated.
+    if info.aggregation_level == "sector":
+        sector = np.asarray(cfg.supply.sector_of)
+        j = cfg.supply.n_sectors
+        totals = np.bincount(sector, weights=claims, minlength=j)
+        counts = np.bincount(sector, minlength=j)
+        claims = totals[sector] / counts[sector]
+    # Filter 2 - lag (PLAN section 2.7.5).
+    if info.report_lag > 0:
+        _blocked("AMB-WO006-B: State carries no claim history for report_lag > 0")
+    # Filter 3 - channel noise (PLAN section 2.7.5): claimed_i <- claimed_i * exp(xi_i).
+    xi = draw(
+        state.seed_env,
+        "channel",
+        state.t_period,
+        shape=(n,),
+        dist="normal",
+        mean=0.0,
+        sigma=info.channel_noise,
+    )
+    claims = claims * np.exp(xi)
+
+    audited = np.array(state.last_audited, dtype=bool)
+    audit_meas = np.zeros(n)  # LEAD ruling on AMB-WO006-C: zeros, as ref_make_planner_view
+
+    qbar = _qbar(cfg)
+    measured_quality = 1.0 + info.quality_measurability * (qbar - 1.0)
+
+    if info.shortfall_visibility > 0:
+        _blocked("AMB-WO006-D: source and noise of downstream_shortfall")
+    downstream_shortfall = np.zeros(n)
+
+    return PlannerView(
+        claims=claims,
+        requests=requests,
+        audited=audited,
+        audit_meas=audit_meas,
+        measured_quality=measured_quality,
+        targets=np.array(state.target, dtype=float),
+        planner_io=np.array(state.planner_io, dtype=float),
+        downstream_shortfall=downstream_shortfall,
+        aggregation_level=info.aggregation_level,
+        plan_prices=np.array(state.plan_prices, dtype=float),
+    )
 
 
 def update_targets(view: PlannerView, cfg: EnvConfig) -> Array:
@@ -209,7 +264,21 @@ def update_targets(view: PlannerView, cfg: EnvConfig) -> Array:
     `g = 0` keeps `T` constant, and at `g > 0` `T` grows at exactly `(1 + g)`. Owning WO:
     **WO-006**.
     """
-    raise NotImplementedError("PLAN section 2.7.1 - implemented in WO-006")
+    inc = cfg.incentive
+    targets = np.asarray(view.targets, dtype=float)
+    m = np.asarray(fulfilment_measure(view, cfg), dtype=float)
+    rho = m / targets
+    step = np.clip(rho - 1.0, -inc.ratchet_cap_dn, inc.ratchet_cap_up)
+    # Deadband on the RAW ratio: |rho - 1| <= delta, written as 1 - delta <= rho <= 1 + delta.
+    delta = inc.ratchet_deadband
+    in_band = (rho >= 1.0 - delta) & (rho <= 1.0 + delta)
+    step = np.where(in_band, 0.0, step)
+    sector = np.asarray(cfg.supply.sector_of)
+    prod = np.asarray(cfg.supply.productivity, dtype=float)[sector]
+    t_0 = cfg.tech.initial_target_frac * prod * INITIAL_CAPACITY
+    t_min = cfg.tech.target_floor_frac * t_0
+    grown = (1.0 + inc.growth_directive) * targets * (1.0 + inc.ratchet_lambda * step)
+    return np.maximum(t_min, grown)
 
 
 def fulfilment_measure(view: PlannerView, cfg: EnvConfig) -> Array:
@@ -239,7 +308,18 @@ def fulfilment_measure(view: PlannerView, cfg: EnvConfig) -> Array:
     identity on `view.claims`; `net_output` falls as allocated inputs rise; `quality_weighted`
     reduces to `val` at `mu = 0`. Owning WO: **WO-006**.
     """
-    raise NotImplementedError("PLAN section 2.9.2 - implemented in WO-006")
+    metric = cfg.incentive.objective_metric
+    claims = np.asarray(view.claims, dtype=float)
+    if metric == "val":
+        return claims.copy()
+    if metric == "net_output":
+        alloc = np.asarray(allocate(view, cfg), dtype=float)
+        prices = np.asarray(view.plan_prices, dtype=float)
+        own_price = prices[np.asarray(cfg.supply.sector_of)]
+        return claims - (alloc * prices[None, :]).sum(axis=1) / own_price
+    if metric == "quality_weighted":
+        return claims * np.asarray(view.measured_quality, dtype=float)
+    raise ValueError(f"fulfilment_measure: unknown objective_metric {metric!r}")
 
 
 def allocate(view: PlannerView, cfg: EnvConfig) -> Array:
@@ -278,7 +358,23 @@ def allocate(view: PlannerView, cfg: EnvConfig) -> Array:
     makes the result exactly invariant to `view.requests`; the `1e-6` regularisers keep the weights
     finite when a need or a request is zero. Owning WO: **WO-006**.
     """
-    raise NotImplementedError("PLAN section 2.7.2 - implemented in WO-006")
+    inc = cfg.incentive
+    j = cfg.supply.n_sectors
+    sector = np.asarray(cfg.supply.sector_of)
+    phi = np.asarray(cfg.supply.final_demand_share, dtype=float)
+    claims = np.asarray(view.claims, dtype=float)
+    # avail_j = sum_{i: s(i)=j} (1 - phi_j) * claimed_i
+    avail = (1.0 - phi) * np.bincount(sector, weights=claims, minlength=j)
+    # need_bj = planner_io[s(b), j] * T_b
+    need = np.asarray(view.planner_io, dtype=float)[sector] * np.asarray(view.targets)[:, None]
+    w = (need + 1e-6) ** inc.alloc_eta_need
+    if view.aggregation_level != "sector":
+        # At "sector" the weight collapses to the need term alone (docstring, PLAN 2.7.5).
+        requests = np.asarray(view.requests, dtype=float)
+        w = (requests + 1e-6) ** inc.alloc_eta_request * w
+    w_sum = w.sum(axis=0)
+    share = np.divide(w, w_sum[None, :], out=np.zeros_like(w), where=w_sum[None, :] > 0)
+    return avail[None, :] * share
 
 
 def deliver(state: State, alloc: Array, cfg: EnvConfig) -> tuple[State, Array, Array, Array]:
@@ -325,7 +421,28 @@ def deliver(state: State, alloc: Array, cfg: EnvConfig) -> tuple[State, Array, A
     `tests/behavioural/test_shortage_propagation.py` (a `Padder` with `S = 0` produces `fill < 1`
     for every downstream buyer; `TruthfulMyopic` produces `fill = 1`). Owning WO: **WO-006**.
     """
-    raise NotImplementedError("PLAN section 2.7.3 - implemented in WO-006")
+    j = cfg.supply.n_sectors
+    sector = np.asarray(cfg.supply.sector_of)
+    phi = np.asarray(cfg.supply.final_demand_share, dtype=float)
+    alloc = np.asarray(alloc, dtype=float)
+    claimed = np.asarray(state.last_report, dtype=float)
+    stock = np.asarray(state.inv_output, dtype=float)
+    qbar = _qbar(cfg)
+
+    # fill_i = min(1, S_i / claimed_i), fill_i = 1 when claimed_i = 0
+    ratio = np.divide(stock, claimed, out=np.ones_like(claimed), where=claimed > 0)
+    fill = np.where(claimed > 0, np.minimum(1.0, ratio), 1.0)
+    shipped = np.minimum(stock, claimed)
+    # poolfill_j; empty pool (sum_{i in j} claimed_i = 0) gives 1 (card decision, PLAN 2.7.3)
+    pool_num = np.bincount(sector, weights=fill * claimed, minlength=j)
+    pool_den = np.bincount(sector, weights=claimed, minlength=j)
+    poolfill = np.divide(pool_num, pool_den, out=np.ones(j), where=pool_den > 0)
+    deliv = alloc * poolfill[None, :]
+    qbar_good = np.ones(j)  # Phase 1 qbar = 1; _qbar has already stopped any other case
+    inv_inputs = np.asarray(state.inv_inputs, dtype=float) + deliv * qbar_good[None, :]
+    consumer = phi * np.bincount(sector, weights=shipped * qbar, minlength=j)
+    new_state = dataclasses.replace(state, inv_output=stock - shipped, inv_inputs=inv_inputs)
+    return new_state, deliv, fill, consumer
 
 
 def select_audits(view: PlannerView, cfg: EnvConfig, t: int) -> Array:
@@ -359,4 +476,37 @@ def select_audits(view: PlannerView, cfg: EnvConfig, t: int) -> Array:
     Binds: `tests/unit/test_planner.py` - the empirical audit frequency matches `audit_rate` over
     many periods, and the selection is deterministic in `(seed_env, t)`. Owning WO: **WO-006**.
     """
-    raise NotImplementedError("PLAN section 2.7.4 - implemented in WO-006")
+    info = cfg.information
+    n = cfg.supply.n_enterprises
+    if info.audit_mode == "random":
+        p = info.audit_rate
+    elif info.audit_mode == "targeted":
+        if info.shortfall_visibility > 0:
+            _blocked("AMB-WO006-E: kappa_t of the targeted audit mode (fixed by WO-023)")
+        p = info.audit_rate  # targeted is active only when shortfall_visibility > 0
+    else:
+        raise ValueError(f"select_audits: unknown audit_mode {info.audit_mode!r}")
+    return np.asarray(
+        draw(cfg.tech.seed_env, "audit", t, shape=(n,), dist="bernoulli", p=p), dtype=bool
+    )
+
+
+def _qbar(cfg: EnvConfig) -> Array:
+    """Period-average quality `qbar_i` (PLAN sections 2.1, 2.7.3): ones while quality is inactive.
+
+    PLAN section 2.1: "q_i period-average quality in [0,1] (P1: inactive, q=1)". How `qbar` is
+    formed from `State.quality_acc` once `supply.quality_matters` is on is not written down, so
+    that case stops here (AMBIGUITY AMB-WO006-F) instead of guessing a normaliser.
+    """
+    if cfg.supply.quality_matters:
+        _blocked("AMB-WO006-F: qbar from quality_acc when quality_matters is True")
+    return np.ones(cfg.supply.n_enterprises)
+
+
+def _blocked(question: str) -> NoReturn:
+    """Stop on a branch the written material does not determine (CONTRACT rule 3).
+
+    Each call names the ambiguity report filed for WO-006; the branch is reachable only in a
+    configuration Phase 1 does not use, and it fails loudly rather than returning a guess.
+    """
+    raise NotImplementedError(f"WO-006 blocked pending AMBIGUITY REPORT - {question}")
