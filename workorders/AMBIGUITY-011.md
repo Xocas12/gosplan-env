@@ -38,3 +38,16 @@ hole mass = counterfactual - observed ("missing mass"), bins assigned by centre,
 keep skipping and nothing downstream mistakes the slice for the finished estimator. The bootstrap
 and the bias question are OPEN FOR THE HUMAN and must be decided before gate G2 (WO-016/WO-020);
 they do not affect G1, which uses `b_hat_DP` as a point estimate only.
+
+ADDENDUM K (2026-09-24, from WO-014; also NEEDS HUMAN):
+The DP's stationary report distribution lives on the report grid, i.e. a few point masses (at
+`p1_default_config`: 87.9% at exactly 1.00, 12.1% at 0.00). The degree-7 counterfactual is then
+fitted to all-zero bins outside [0.95, 1.02], its mean density in the excess window is 0, and
+`b_hat_DP = (observed - counterfactual) / mean density` is +inf (NaN when there is no mass at 1).
+Options: (A) report inf/NaN as the result - "bunching with no counterfactual support"; (B)
+redefine `b_hat_DP` for a degenerate counterfactual (e.g. raw mass in [1.00, 1.02] relative to
+some reference density) - a change to a pre-registered quantity; (C) derive the DP's counterfactual
+from the DP solved without the notch (w > 0 / beta = 0), which is the "exact no-manipulation
+counterfactual" PLAN section 5 lists among the DP's uses. Not patched: `dp_excess_mass` returns the
+estimator's value as is. G2 criterion 2's threshold `0.5 * b_hat_DP` is undefined until decided;
+G1 itself can proceed on the regime labels, with `b_hat_DP` shown as non-finite where it is.
