@@ -364,7 +364,11 @@ def allocate(view: PlannerView, cfg: EnvConfig) -> Array:
     phi = np.asarray(cfg.supply.final_demand_share, dtype=float)
     claims = np.asarray(view.claims, dtype=float)
     # avail_j = sum_{i: s(i)=j} (1 - phi_j) * claimed_i
-    avail = (1.0 - phi) * np.bincount(sector, weights=claims, minlength=j)
+    # Accumulated per enterprise, (1 - phi) * claim, in index order: the same float operations as
+    # ref_allocate, so the golden digests agree bit for bit.
+    avail = np.zeros(j)
+    for i, s_i in enumerate(sector):
+        avail[s_i] += (1.0 - phi[s_i]) * claims[i]
     # need_bj = planner_io[s(b), j] * T_b
     need = np.asarray(view.planner_io, dtype=float)[sector] * np.asarray(view.targets)[:, None]
     w = (need + 1e-6) ** inc.alloc_eta_need
@@ -372,9 +376,12 @@ def allocate(view: PlannerView, cfg: EnvConfig) -> Array:
         # At "sector" the weight collapses to the need term alone (docstring, PLAN 2.7.5).
         requests = np.asarray(view.requests, dtype=float)
         w = (requests + 1e-6) ** inc.alloc_eta_request * w
-    w_sum = w.sum(axis=0)
-    share = np.divide(w, w_sum[None, :], out=np.zeros_like(w), where=w_sum[None, :] > 0)
-    return avail[None, :] * share
+    alloc = np.zeros_like(w)
+    for g in range(j):
+        total = sum(float(v) for v in w[:, g])
+        if total > 0.0:
+            alloc[:, g] = avail[g] * w[:, g] / total
+    return alloc
 
 
 def deliver(state: State, alloc: Array, cfg: EnvConfig) -> tuple[State, Array, Array, Array]:

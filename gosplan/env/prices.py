@@ -84,9 +84,21 @@ def _solve_cost_plus(io: Array, markup: float) -> Array:
             "cost-plus fixed point does not converge: (1 + m) * sum_k a_jk >= 1 in row(s) "
             f"{bad} (m = {markup})"
         )
+    # Plain iteration from p = kappa_labour * (1 + m) until the largest coordinate change is below
+    # 1e-12, summed left to right exactly as ref_initial_prices does, so the prices agree bit for
+    # bit with the reference (the golden state digests compare them exactly).
     n = a.shape[0]
-    rhs = factor * LABOUR_COST * np.ones(n)
-    return np.linalg.solve(np.eye(n) - factor * a, rhs)
+    rows = [[float(v) for v in a[j]] for j in range(n)]
+    prices = [LABOUR_COST * factor for _ in range(n)]
+    for _ in range(100000):
+        nxt = [
+            factor * (LABOUR_COST + sum(rows[j][k] * prices[k] for k in range(n))) for j in range(n)
+        ]
+        delta = max(abs(nxt[j] - prices[j]) for j in range(n))
+        prices = nxt
+        if delta < 1e-12:
+            break
+    return np.array(prices, dtype=float)
 
 
 def initial_prices(cfg: EnvConfig) -> Array:

@@ -59,15 +59,21 @@ because `step` calls it.
 
 from __future__ import annotations
 
+import copy
+import dataclasses
 from typing import TYPE_CHECKING
 
 import numpy as np
 
+from gosplan.env.obs import build_observation, obs_spec
+from gosplan.env.prices import initial_prices
+from gosplan.env.reward import reward_scale
+from gosplan.env.state import StepInfo, initial_state, initial_targets
 from gosplan.env.step import advance
 
 if TYPE_CHECKING:  # type-only: see the cross-module bindings note in the module docstring
     from gosplan.config import EnvConfig
-    from gosplan.env.state import EnterpriseAction, Phase, State, StepInfo
+    from gosplan.env.state import EnterpriseAction, Phase, State
     from gosplan.metrics.ledger import Ledger
 
 Array = np.ndarray
@@ -106,7 +112,15 @@ def action_spec(cfg: EnvConfig) -> dict[str, tuple[tuple[int, ...], float, float
     track `cfg`) and `tests/unit/test_ppo_adapter.py` (WO-017 builds heads inside these bounds).
     Owning WO: **WO-009**.
     """
-    raise NotImplementedError("PLAN section 2.3 - implemented in WO-009")
+    n, j = cfg.supply.n_enterprises, cfg.supply.n_sectors
+    return {
+        "effort": ((n,), 0.0, 1.0),
+        "quality": ((n,), 0.0, 1.0),
+        "invest": ((n,), 0.0, 1.0),
+        "report_ratio": ((n,), 0.0, float(cfg.tech.report_max_ratio)),
+        "input_request": ((n, j), 0.0, float(cfg.tech.request_max_multiple)),
+        "trade_offer": ((n, j), -1.0, 1.0),
+    }
 
 
 def active_action_dims(cfg: EnvConfig) -> list[str]:
@@ -125,7 +139,15 @@ def active_action_dims(cfg: EnvConfig) -> list[str]:
     Binds: `tests/unit/test_env_api.py` (the Phase-1 list above; each Phase-2 toggle adds exactly
     its own dimension) and `tests/unit/test_ppo_adapter.py`. Owning WO: **WO-009**.
     """
-    raise NotImplementedError("PLAN section 2.3 - implemented in WO-009")
+    dims = ["effort"]
+    if cfg.supply.quality_matters:
+        dims.append("quality")
+    if cfg.supply.capital_dep > 0.0:
+        dims.append("invest")
+    dims += ["report_ratio", "input_request"]
+    if cfg.information.horizontal_visibility > 0.0:
+        dims.append("trade_offer")
+    return dims
 
 
 class GosplanEnv:
@@ -190,7 +212,14 @@ class GosplanEnv:
 
         Realises: PLAN sections 2.5, 2.10. Owning WO: **WO-009**.
         """
-        raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+        self.cfg = cfg
+        self.ledger = None
+        self._plan_prices = np.array(initial_prices(cfg), dtype=float)
+        self._scale = reward_scale(cfg)
+        self._t0 = initial_targets(cfg)
+        self._seeds = (int(cfg.tech.seed_env), int(cfg.tech.seed_policy))
+        self._episode = -1
+        self._deliv = np.zeros((cfg.supply.n_enterprises, cfg.supply.n_sectors))
 
     def reset(self, seed_env: int, seed_policy: int) -> tuple[Array, StepInfo]:
         """Start a new episode.
@@ -212,7 +241,27 @@ class GosplanEnv:
 
         Owning WO: **WO-009**.
         """
-        raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+        self._seeds = (int(seed_env), int(seed_policy))
+        self._episode += 1
+        self.state = self._fresh_state(t_period=0)
+        self._deliv = np.zeros((self.cfg.supply.n_enterprises, self.cfg.supply.n_sectors))
+        self._period_delivery = self._no_delivery()
+        obs = self._observe(self.state)
+        n, j = self.cfg.supply.n_enterprises, self.cfg.supply.n_sectors
+        info = StepInfo(
+            records=(),
+            t_period=0,
+            k_step=0,
+            phase="produce",
+            val_measured=0.0,
+            val_true=0.0,
+            welfare=0.0,
+            consumer=np.zeros(j),
+            flags=(),
+            terminated=False,
+        )
+        del n
+        return obs, info
 
     def step(self, action: EnterpriseAction) -> tuple[Array, Array, bool, StepInfo]:
         """Advance one agent-step through the schedule above.
@@ -249,7 +298,38 @@ class GosplanEnv:
         equals `tenure`; no observation field correlates with periods remaining). Owning WO:
         **WO-009** (LEAD).
         """
-        raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+        if not self.state.alive:
+            # AMBIGUITY-004: continue into a fresh episode exactly as ref_rollout does, with the
+            # period index carried on; harnesses still treat `done` as the boundary and reset.
+            self._episode += 1
+            self.state = self._fresh_state(t_period=self.state.t_period)
+            self._deliv = np.zeros_like(self._deliv)
+            self._period_delivery = self._no_delivery()
+        # A fresh State per step: a State handed out earlier (e.g. to a harness keeping a
+        # trajectory) is never mutated afterwards.
+        state = copy.deepcopy(self.state)
+        state, reward, done, info = advance(state, action, self.cfg)
+        self.state = state
+        if info.k_step == 0 and info.phase == "produce":
+            self._deliv = np.array([rec.deliv for rec in info.records], dtype=float)
+            self._period_delivery = [
+                {"alloc": r.alloc, "deliv": r.deliv, "fill": r.fill, "shipped": r.shipped}
+                for r in info.records
+            ]
+        # The period's DELIVER quantities are period-level: carried on every row of the period so
+        # each row (in particular the REPORT row) is self-contained for the ledger.
+        records = tuple(
+            dataclasses.replace(r, episode=self._episode, **self._period_delivery[r.enterprise])
+            for r in info.records
+        )
+        info = dataclasses.replace(info, records=records)
+        # The observation describes the step just executed (golden files, PLAN section 2.4).
+        executed = dataclasses.replace(
+            state, t_period=info.t_period, k_step=info.k_step, phase=info.phase
+        )
+        obs = self._observe(executed)
+        self.record_step(info)
+        return obs, np.asarray(reward, dtype=float), bool(done), info
 
     def phase(self) -> Phase:
         """Return the phase the next call to `step` will execute.
@@ -261,7 +341,7 @@ class GosplanEnv:
 
         Owning WO: **WO-009**.
         """
-        raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+        return self.state.phase
 
     def obs_spec(self) -> list[str]:
         """Return the ordered names of this environment's observation components (PLAN section 2.4).
@@ -279,7 +359,7 @@ class GosplanEnv:
         Binds: `tests/unit/test_env_api.py` - `len(env.obs_spec()) == env.reset(...)[0].shape[1]`.
         Owning WO: **WO-009**.
         """
-        raise NotImplementedError("PLAN section 2.4 - implemented in WO-009")
+        return obs_spec(self.cfg)
 
     def action_spec(self) -> dict[str, tuple[tuple[int, ...], float, float]]:
         """Return this environment's action shapes and box bounds (PLAN section 2.3).
@@ -291,7 +371,7 @@ class GosplanEnv:
         the environment they are attached to rather than re-deriving them from a configuration they
         might not share. Owning WO: **WO-009**.
         """
-        raise NotImplementedError("PLAN section 2.3 - implemented in WO-009")
+        return action_spec(self.cfg)
 
     def active_action_dims(self) -> list[str]:
         """Return the action dimensions this environment actually reads (PLAN section 2.3).
@@ -303,7 +383,7 @@ class GosplanEnv:
         run, which is what lets WO-017 build its policy heads once at construction. Owning WO:
         **WO-009**.
         """
-        raise NotImplementedError("PLAN section 2.3 - implemented in WO-009")
+        return active_action_dims(self.cfg)
 
     def attach_ledger(self, ledger: Ledger) -> None:
         """Attach a ledger so every subsequent step is recorded.
@@ -320,7 +400,7 @@ class GosplanEnv:
 
         Owning WO: **WO-009**; the ledger itself is **WO-011**.
         """
-        raise NotImplementedError("PLAN section 4 - implemented in WO-009")
+        self.ledger = ledger
 
     def record_step(self, info: StepInfo) -> None:
         """Append one agent-step's `StepInfo` to the attached ledger, if any.
@@ -341,4 +421,28 @@ class GosplanEnv:
         Binds: `tests/unit/test_ledger.py` (one record per enterprise per agent-step; every rule-10
         field present) and T-B8. Owning WO: **WO-009**; the ledger itself is **WO-011**.
         """
-        raise NotImplementedError("PLAN section 4 - implemented in WO-009")
+        if self.ledger is None:
+            return
+        for rec in info.records:
+            self.ledger.append(rec)
+
+    def _fresh_state(self, t_period: int) -> State:
+        """`initial_state(cfg)` under this episode's seeds, at period index `t_period`."""
+        state = initial_state(self.cfg)
+        state.seed_env, state.seed_policy = self._seeds
+        state.t_period = t_period
+        return state
+
+    def _observe(self, state: State) -> Array:
+        """Build the observation of `state` through `gosplan/env/obs.py` (the only obs builder)."""
+        sector = np.asarray(self.cfg.supply.sector_of, dtype=int)
+        need = np.asarray(state.planner_io, dtype=float)[sector] * np.asarray(state.target)[:, None]
+        return build_observation(state, self.cfg, self._deliv, need)
+
+    def _no_delivery(self) -> list[dict]:
+        """Per-enterprise DELIVER fields before any DELIVER has run (all zero)."""
+        zeros = tuple(0.0 for _ in range(self.cfg.supply.n_sectors))
+        return [
+            {"alloc": zeros, "deliv": zeros, "fill": 0.0, "shipped": 0.0}
+            for _ in range(self.cfg.supply.n_enterprises)
+        ]

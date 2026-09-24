@@ -82,7 +82,10 @@ AMBIGUITY-004 (`GosplanEnv.step` after `done` continues as `ref_rollout` does), 
 under `.github/FROZEN_TEST_EXEMPTION`), and the WO-003 follow-up (`EnvConfig.hash` covers the
 four-section object only, per ambiguity #51). AMBIGUITY-006 (smooth-arm slope term smoothed by a softplus
 at the notch width in both `gosplan/env/reward.py` and `ref/ref_step.py`; golden set regenerated;
-lead edit of T-U3's threshold in `tests/unit/test_reward.py` under `.github/FROZEN_TEST_EXEMPTION`).
+lead edit of T-U3's threshold in `tests/unit/test_reward.py` under `.github/FROZEN_TEST_EXEMPTION`),
+AMBIGUITY-007 (state counters advance eagerly; `ref_step` renders the digest at the next position)
+and AMBIGUITY-008 (golden truthful policy, post-REPORT truthful report, `input_request` as a
+multiple of need, rollout observation, and two lead test edits). Golden set regenerated after each.
 
 New entries are added here, in the format above, and are promoted to a numbered section when the
 version is bumped in `spec/spec.py`.

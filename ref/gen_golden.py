@@ -71,6 +71,7 @@ WO-002). The `make golden` target invokes exactly `python -m ref.gen_golden` wit
 from __future__ import annotations
 
 import argparse
+import functools
 import hashlib
 import json
 import re
@@ -498,7 +499,15 @@ def ref_random_policy(obs: Mat, phase: Phase, rng: np.random.Generator) -> RefAc
     )
 
 
-def ref_truthful_myopic_policy(obs: Mat, phase: Phase, rng: np.random.Generator) -> RefAction:
+def ref_truthful_myopic_policy(
+    obs: Mat,
+    phase: Phase,
+    rng: np.random.Generator,
+    initial_target_frac: float = 0.6,
+    holding_loss: float = 0.02,
+    inventory_cap_mult: float = 3.0,
+    productivity_of: tuple[float, ...] = (),
+) -> RefAction:
     """`TruthfulMyopic` - aim at the target, report the stock, request the need (PLAN section 6.1).
 
     Takes: `obs` `(N, d)`; `phase`; `rng` (unused - the policy is deterministic, and the argument
@@ -531,9 +540,22 @@ def ref_truthful_myopic_policy(obs: Mat, phase: Phase, rng: np.random.Generator)
     n = len(obs)
     n_goods = (len(obs[0]) - 12) // 3 if obs and obs[0] else 0
     # observation field 5 is S_i / T_i (PLAN section 2.4): the truthful report of stock
-    stock_ratio = [float(obs[i][5]) for i in range(n)]
+    # AMBIGUITY-008: truthful of the stock the REPORT step leaves, min((1-h) S + y, S_max) / T,
+    # rebuilt from fields 5 (S/T), 4 (y/T), 6 (Kap/Kap_0) and 2 (log T/T_0).
+    # exp over the whole column at once, exactly as the production agent computes it (AMBIGUITY-008)
+    exp_log_t = [float(v) for v in np.exp(np.array([float(obs[i][2]) for i in range(n)]))]
+    stock_ratio = []
+    for i in range(n):
+        a_i = productivity_of[i] if productivity_of else 1.0
+        t_i = initial_target_frac * a_i * exp_log_t[i]
+        s_max_ratio = inventory_cap_mult * float(obs[i][6]) / t_i
+        post = (1.0 - holding_loss) * float(obs[i][5]) + float(obs[i][4])
+        stock_ratio.append(min(post, s_max_ratio))
+    # T_i / (A * cap) = (T_0 / (A * cap)) * exp(log(T_i / T_0)) = initial_target_frac * exp(obs[2]);
+    # the configuration constant is bound by `make_policy` (AMBIGUITY-008: was a constant 1.0).
+    effort = [min(max(initial_target_frac * exp_log_t[i], 0.0), 1.0) for i in range(n)]
     return RefAction(
-        effort=[1.0] * n,
+        effort=effort,
         quality=[0.0] * n,
         invest=[0.0] * n,
         report_ratio=stock_ratio,
@@ -559,7 +581,18 @@ def make_policy(name: str, config: Config) -> Policy:
     if name == "Random":
         return ref_random_policy
     if name == "TruthfulMyopic":
-        return ref_truthful_myopic_policy
+        sup, tech = config["supply"], config["tech"]  # type: ignore[index]
+        prod = tuple(
+            float(sup["productivity"][s])  # type: ignore[index]
+            for s in sup["sector_of"]  # type: ignore[union-attr]
+        )
+        return functools.partial(
+            ref_truthful_myopic_policy,
+            initial_target_frac=float(tech["initial_target_frac"]),  # type: ignore[arg-type]
+            holding_loss=float(sup["holding_loss"]),  # type: ignore[arg-type]
+            inventory_cap_mult=float(tech["inventory_cap_mult"]),  # type: ignore[arg-type]
+            productivity_of=prod,
+        )
     raise ValueError(f"unknown golden agent {name!r}; expected one of {GOLDEN_AGENTS}")
 
 
