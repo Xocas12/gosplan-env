@@ -247,6 +247,7 @@ def run(
             "effort": float(dp[ap].mean_effort),
             "share_window": _share(np.asarray(dp[ap].stationary_rho).ravel()),
             "converged": bool(dp[ap].converged),
+            "return_in_env": _dp_policy_return(level_cfgs[ap], dp[ap], seed_env),
         }
         for ap in levels
     }
@@ -300,6 +301,31 @@ def main() -> int:
     return 0 if Path(dict(out["artefacts"])["report"]).exists() else 1
 
 
+def _dp_policy_return(cfg: EnvConfig, sol: object, seed_env: int | None) -> float:
+    """Mean episode return of `DPGreedy` (the DP policy replayed in the environment) over
+    `RECOVERY_SIZING.measure_episodes` episodes of the gate measurement seed block - the same
+    episodes each PPO seed 0 is measured on. Context for the report (is PPO below the optimum, or
+    at a different policy of equal value?); it enters no criterion (AMBIGUITY-020)."""
+    from gosplan.agents.heuristic import DPGreedy
+    from gosplan.env.env import GosplanEnv
+    from gosplan.experiments import _g2
+
+    root = int(cfg.tech.seed_env) if seed_env is None else int(seed_env)
+    agent = DPGreedy(cfg, sol)
+    env = GosplanEnv(cfg, records=False)
+    rng = np.random.default_rng(0)
+    returns = []
+    for e in range(RECOVERY_SIZING.measure_episodes):
+        obs, _ = env.reset(root + _g2.MEASURE_SEED_OFFSET + e, cfg.tech.seed_policy)
+        agent.reset()
+        total, done = 0.0, False
+        while not done:
+            obs, reward, done, _info = env.step(agent.act(obs, env.phase(), rng))
+            total += float(np.mean(reward))
+        returns.append(total)
+    return float(np.mean(returns))
+
+
 def _share(rho: np.ndarray) -> float:
     """Share of `rho` in the excess window [1.00, 1.02] (the AMBIGUITY-011 criterion-2 quantity)."""
     from gosplan.metrics.phenomena import BUNCHING_EXCESS_HI, BUNCHING_EXCESS_LO
@@ -331,14 +357,16 @@ def _report(
         "",
         "## DP reference",
         "",
-        "| `a*pen` | regime | padding | effort | share in [1.00, 1.02] | converged | config hash |",
-        "|---|---|---|---|---|---|---|",
+        "| `a*pen` | regime | padding | effort | share in [1.00, 1.02] | DP policy return in env "
+        "(context) | converged | config hash |",
+        "|---|---|---|---|---|---|---|---|",
     ]
     for ap in levels:
         d = dp_rows[ap]
         lines.append(
             f"| {ap:g} | {d['regime']} | {d['padding']:.4f} | {d['effort']:.3f} | "
-            f"{d['share_window']:.4f} | {d['converged']} | `{str(d['config_hash'])[:12]}` |"
+            f"{d['share_window']:.4f} | {d['return_in_env']:.3f} | {d['converged']} | "
+            f"`{str(d['config_hash'])[:12]}` |"
         )
     lines += [
         "",
