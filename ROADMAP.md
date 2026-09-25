@@ -63,8 +63,9 @@ From PLAN section 1.1, unchanged:
 - **Transfer of any absolute number to archival data.** No quantity produced here is an estimate of
   anything that happened.
 
-The coupling to `forensic-stats` / `forensics_core` is scoped to **estimator robustness**
-(PLAN section 7.3) and to nothing else.
+The coupling to `forensics_core` ([`Xocas12/forensics-core`](https://github.com/Xocas12/forensics-core), which now holds the method library and the
+former `forensic-stats` projects) is scoped to **estimator robustness** (PLAN section 7.3) and to
+nothing else. The data contract is [`projects/gosplan/docs/GOSPLAN_ENV_COUPLING.md`](https://github.com/Xocas12/forensics-core/blob/main/projects/gosplan/docs/GOSPLAN_ENV_COUPLING.md).
 
 ### 1.4 Standing warning: nothing has been run
 
@@ -310,7 +311,7 @@ in this block also carries `blocked`: gate G3 is unsigned.
 |---|---|---|---|---|---|
 | WO-032 | Contrasts harness with `rliable` | MID-strong | set at issue | G3; WO-018, WO-028, WO-027, WO-011, WO-016, WO-030, WO-029 | WO-033, WO-036, WO-037, gate **G4** |
 | WO-033 | Saltelli/Sobol design and total-order indices (optional) | MID-strong | set at issue | G3; WO-029 (JAX only), WO-032, WO-018, WO-011 | WO-036, WO-037, gate **G4** as an optional table |
-| WO-034 | Estimator-bias study | MID-strong | set at issue | G3; WO-014, WO-016, WO-018, WO-011, WO-029 | WO-036, WO-037, gate **G4**; the `forensic-stats` coupling |
+| WO-034 | Estimator-bias study | MID-strong | set at issue | G3; WO-014, WO-016, WO-018, WO-011, WO-029 | WO-036, WO-037, gate **G4**; the `forensics-core` coupling |
 | WO-035 | LLM ministry study | MID-strong; **LEAD** writes both framing prompts and the manipulation-check prompt | set at issue | G3; WO-025, WO-026, WO-011, WO-000 item 8 | WO-036, WO-037, gate **G4** |
 | WO-036 | Price-vector sensitivity on every headline table | MID-fast | set at issue | G3; WO-032, WO-033 (if run), WO-034, WO-035, WO-007, WO-027, WO-011 | WO-037, gate **G4** |
 | WO-037 | Report generation: figures, tables, manifest roll-up | MID-fast | set at issue | G3; WO-032 - WO-036, WO-011, WO-028 | gate **G4**. Last card in the plan |
