@@ -2,9 +2,12 @@ AMBIGUITY REPORT   WO-019 (gate G2 criterion 1)   LEAD diagnosis after attempt 2
 
 ## Status
 
-Attempt 2 of criterion 1 (per-period discount, AMBIGUITY-020) is running; the per-seed results in
-hand at the time of writing already fail every seed at `a*pen` = 0.8 (padding) and at `a*pen` = 4
-(effort). The final report is `runs/dp_vs_ppo/report.md`. This record is the diagnosis the failure
+Attempt 2 of criterion 1 (per-period discount, AMBIGUITY-020), `runs/dp_vs_ppo/report.md`:
+**0 of 30 seeds pass** again. Seed means at `a*pen` = 0.8 / 4 / 20: padding 0.318 / 0.009 / 0.004
+(DP 0.0055 / 0.0016 / 0.0006), effort 0.573 / 0.811 / 0.834 (DP 0.495 / 0.498 / 0.513), W1
+0.176 / 0.141 / 0.145 (tolerance 0.03), return 5.38 / 5.23 / 3.76 (DP policy in the environment
+7.13 / 6.43 / 5.26). Returns improved on attempt 1 (4.84 / 5.37 / 3.23) at two of three levels;
+the behavioural gap did not close. This record is the diagnosis the failure
 calls for (PLAN section 4.5), and it ends in a decision that is not the lead's to take alone.
 
 ## Diagnosis: PPO never discovers the DP's target walk-down
