@@ -71,3 +71,14 @@ attempt 3 re-runs criterion 1 in full and is reported whatever it shows.
 - If attempt 3 fails: record criterion 1 as failed with its diagnosis and run criteria 2-4 as a
   SEPARATELY LABELLED STUDY ("criterion 1 not met"), not as a G2 pass. The WO-020 report carries
   the criterion-1 status read from `runs/dp_vs_ppo/report.md` in its header.
+
+## Attempt 3 result (wide report-head initialisation): FAIL, 0 of 30
+
+`runs/dp_vs_ppo/report.md`. Seed means at `a*pen` = 0.8 / 4 / 20: padding 0.009 / 0.005 / 0.000
+(within tolerance in 28 of 30 seeds), effort 0.287 / 0.215 / 0.238 (DP ~0.50; 0 of 30 within
+tolerance), W1 0.592 / 0.696 / 0.735 (worse than attempt 2's ~0.14-0.18), return 3.17 / 2.69 /
+2.46 (DP policy 7.13 / 6.43 / 5.26; attempt 2 5.38 / 5.23 / 3.76). The learner now under-reports
+far more often than the DP (27-49% of reports below rho = 0.1 against about 12%), several seeds
+collapse to zero effort, and returns fall. Wider exploration moved the policy past the DP's mixed
+strategy instead of to it: criterion 1 is not met under either initialisation. Per the owner's
+decision, criteria 2-4 now run as a separately labelled study.
