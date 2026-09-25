@@ -301,18 +301,43 @@ def run(
     at_base = [r for r in rows if np.isclose(r["ap_level"], base_ap)]
     notched = [r for r in at_base if r["arm"] == "notched"]
     smooth = [r for r in at_base if r["arm"] == "smooth"]
+    # AMBIGUITY-022: a CI that is not finite (all measured mass inside the excluded window, so the
+    # counterfactual has no support) makes the CI condition UNDEFINED, not failed or passed. Both
+    # readings are reported; neither is chosen after the fact.
     for r in notched:
-        r["c2_pass"] = bool(r["share_window"] >= threshold and r["ci_lo"] > 0.0)
+        ci_defined = bool(np.isfinite(r["ci_lo"]) and np.isfinite(r["ci_hi"]))
+        if r["share_window"] < threshold or (ci_defined and not r["ci_lo"] > 0.0):
+            r["c2_status"] = "fail"
+        else:
+            r["c2_status"] = "pass" if ci_defined else "undefined"
     for r in smooth:
-        r["c2_pass"] = bool(r["ci_lo"] <= 0.0 <= r["ci_hi"])
-    notched_frac = float(np.mean([r["c2_pass"] for r in notched]))
-    smooth_frac = float(np.mean([r["c2_pass"] for r in smooth]))
+        ci_defined = bool(np.isfinite(r["ci_lo"]) and np.isfinite(r["ci_hi"]))
+        if not ci_defined:
+            r["c2_status"] = "undefined"
+        else:
+            r["c2_status"] = "pass" if r["ci_lo"] <= 0.0 <= r["ci_hi"] else "fail"
+    for r in notched + smooth:
+        r["c2_pass"] = r["c2_status"] == "pass"
+
+    def frac(rows_: list[dict[str, object]], ok: tuple[str, ...]) -> float:
+        return float(np.mean([r["c2_status"] in ok for r in rows_])) if rows_ else float("nan")
+
+    notched_frac = frac(notched, ("pass",))
+    smooth_frac = frac(smooth, ("pass",))
+    notched_frac_share = frac(notched, ("pass", "undefined"))
+    smooth_frac_share = frac(smooth, ("pass", "undefined"))
     criterion_2 = {
         "b_hat_dp": threshold,
         "threshold_quantity": "learned share of REPORT rows in [1.00, 1.02] (AMBIGUITY-011)",
         "notched_pass_frac": notched_frac,
         "smooth_pass_frac": smooth_frac,
+        "notched_pass_frac_undefined_as_pass": notched_frac_share,
+        "smooth_pass_frac_undefined_as_pass": smooth_frac_share,
+        "n_undefined": sum(r["c2_status"] == "undefined" for r in notched + smooth),
         "passed": bool(notched_frac >= SEED_PASS_FRACTION and smooth_frac >= SEED_PASS_FRACTION),
+        "passed_undefined_as_pass": bool(
+            notched_frac_share >= SEED_PASS_FRACTION and smooth_frac_share >= SEED_PASS_FRACTION
+        ),
     }
 
     # Criterion 3 (padding elasticity) across the three a*pen levels, notched arm.
@@ -474,14 +499,21 @@ def _report(
             f"| {r['arm']} | {r['seed_index']} | {r['b_hat']:.3f} | "
             f"[{r['ci_lo']:.3f}, {r['ci_hi']:.3f}] | {r['hole_mass']:.3f} | "
             f"{r['share_window']:.3f} | {r['padding']:.4f} | {r['effort']:.3f} | "
-            f"{'yes' if r.get('c2_pass') else 'no'} |"
+            f"{r.get('c2_status', 'n/a')} |"
         )
     lines += [
         "",
         f"- notched: {c2['notched_pass_frac']:.0%} of seeds pass (need >= "
-        f"{SEED_PASS_FRACTION:.0%})",
-        f"- smooth: {c2['smooth_pass_frac']:.0%} of seeds pass (need >= {SEED_PASS_FRACTION:.0%})",
-        f"- **criterion_2: {'PASS' if c2['passed'] else 'FAIL'}**",
+        f"{SEED_PASS_FRACTION:.0%}); {c2['notched_pass_frac_undefined_as_pass']:.0%} if an "
+        "undefined CI counts as met",
+        f"- smooth: {c2['smooth_pass_frac']:.0%} of seeds pass (need >= "
+        f"{SEED_PASS_FRACTION:.0%}); {c2['smooth_pass_frac_undefined_as_pass']:.0%} if an "
+        "undefined CI counts as met",
+        f"- seeds with an undefined CI (all measured mass inside the excluded window, so the "
+        f"polynomial counterfactual has no support; AMBIGUITY-022): {c2['n_undefined']}",
+        f"- **criterion_2 (strict: undefined = not met): "
+        f"{'PASS' if c2['passed'] else 'FAIL'}**; with undefined counted as met: "
+        f"{'PASS' if c2['passed_undefined_as_pass'] else 'FAIL'}",
         "",
         "## Criterion 3 - padding elasticity in `a*pen`",
         "",
