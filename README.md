@@ -71,8 +71,9 @@ unless it is attached to a named contrast and a CI.
 - **Transfer of any absolute number to archival data.** No quantity produced here is an estimate of
   anything that happened.
 
-The coupling to `forensic-stats` / `forensics_core` is scoped to **estimator robustness**
-(PLAN §7.3) and to nothing else.
+The coupling to `forensics_core` ([`Xocas12/forensics-core`](https://github.com/Xocas12/forensics-core), which now holds the method library and the
+former `forensic-stats` projects) is scoped to **estimator robustness** (PLAN §7.3) and to
+nothing else. The data contract is [`projects/gosplan/docs/GOSPLAN_ENV_COUPLING.md`](https://github.com/Xocas12/forensics-core/blob/main/projects/gosplan/docs/GOSPLAN_ENV_COUPLING.md).
 
 ## What each phase can establish
 
