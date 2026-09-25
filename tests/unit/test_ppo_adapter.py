@@ -134,13 +134,15 @@ def test_heads_exist_only_for_the_active_action_dimensions(p1_cfg, implemented) 
 
 @pytest.mark.skeleton
 def test_report_head_is_initialised_on_the_notch(p1_cfg, implemented) -> None:
-    """The report head starts with squashed mean `rho = 1` and standard deviation 0.05.
+    """The report head starts with squashed mean `rho = 1`.
 
     Assertion: at construction, sampling `report_ratio` from the untrained policy gives a mean of
-    `ppo.report_head_init_ratio = 1.0` to 0.01 and a standard deviation of
-    `ppo.report_head_init_std = 0.05` to 0.01, in ratio units - the head's bias and log-std are
-    pushed through the tanh squash and its local Jacobian to achieve that, rather than being set in
-    pre-squash units and hoped for. Starting on the notch is deliberate (PLAN section 6.1): the
+    `ppo.report_head_init_ratio = 1.0` (to 0.05, the tolerance the code asserts) - the head's bias
+    is solved through the tanh squash to achieve that, rather than being set in pre-squash units and
+    hoped for. Its spread is `ppo.report_head_init_std`: since the owner's gate-G2 decision
+    (AMBIGUITY-021 option A, LEAD edit of this docstring) the default is `None`, the pre-squash
+    sigma_z = 1 of every other head; PLAN section 6.1's original 0.05 in ratio units never
+    explored the DP's low reports. Starting on the notch is deliberate (PLAN section 6.1): the
     question is what the policy does around `rho = 1`, and an initialisation far from it would make
     the answer a fact about exploration.
     """
