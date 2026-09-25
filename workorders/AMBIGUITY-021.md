@@ -63,3 +63,11 @@ the squashed initial mean is exactly `rho = 1` (Gauss-Hermite expectation, bisec
 pinned 0.05) and keeps the mean on the notch. No other hyper-parameter, economic parameter,
 tolerance, level, seed or budget changes. Attempt 2 is preserved under `runs/dp_vs_ppo/attempt2/`;
 attempt 3 re-runs criterion 1 in full and is reported whatever it shows.
+
+## OWNER DECISION (2026-09-25): after attempt 3
+
+- If attempt 3 passes criterion 1: continue straight to criteria 2-4 (WO-020) as the
+  pre-registered gate.
+- If attempt 3 fails: record criterion 1 as failed with its diagnosis and run criteria 2-4 as a
+  SEPARATELY LABELLED STUDY ("criterion 1 not met"), not as a G2 pass. The WO-020 report carries
+  the criterion-1 status read from `runs/dp_vs_ppo/report.md` in its header.
