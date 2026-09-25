@@ -52,3 +52,14 @@ B. Record criterion 1 as failed with this diagnosis and run criteria 2-4 as a se
 C. Stop at G2: report the failure and the diagnosis, and end Phase 1 here.
 
 LEAD recommendation: A, with the new value fixed before attempt 3 and recorded here.
+
+## OWNER DECISION (2026-09-25): option A
+
+The owner chose A. LEAD implementation, fixed before attempt 3 and not tuned on any result:
+`PPOConfig.report_head_init_std` defaults to `None`, meaning the report head takes the same
+pre-squash log-std as every other head, 0 (CleanRL's default, sigma_z = 1), with the bias solved so
+the squashed initial mean is exactly `rho = 1` (Gauss-Hermite expectation, bisection). At
+`rho_max = 10` that puts about 28% of the initial report draws below `rho = 0.1` (0% under the
+pinned 0.05) and keeps the mean on the notch. No other hyper-parameter, economic parameter,
+tolerance, level, seed or budget changes. Attempt 2 is preserved under `runs/dp_vs_ppo/attempt2/`;
+attempt 3 re-runs criterion 1 in full and is reported whatever it shows.
