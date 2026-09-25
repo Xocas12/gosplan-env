@@ -400,6 +400,25 @@ def main() -> int:
     return 0 if Path(dict(out["artefacts"])["report"]).exists() else 1
 
 
+CRITERION_1_REPORT = Path("runs/dp_vs_ppo/report.md")
+"""Where criterion 1's result is read from for this report's header (AMBIGUITY-021)."""
+
+
+def _criterion_1_status() -> str:
+    """The header line stating whether criterion 1 passed. When it did not, the owner's decision
+    (AMBIGUITY-021) makes this run a separately labelled study, not a G2 pass, and the line says
+    so; when its report is absent the line says that instead."""
+    if not CRITERION_1_REPORT.exists():
+        return "**Criterion 1: no report found at `runs/dp_vs_ppo/report.md`.**"
+    text = CRITERION_1_REPORT.read_text(encoding="utf-8")
+    if "criterion_1_passed: True" in text:
+        return "**Criterion 1 passed** (`runs/dp_vs_ppo/report.md`): this is the G2 gate run."
+    return (
+        "**LABELLED STUDY - criterion 1 NOT met** (`runs/dp_vs_ppo/report.md`, AMBIGUITY-021). "
+        "By the owner's decision these criteria are run and reported, but they are not a G2 pass."
+    )
+
+
 def _report(
     rows: list[dict[str, object]],
     c2: dict[str, object],
@@ -417,6 +436,8 @@ def _report(
     at_base = [r for r in rows if np.isclose(r["ap_level"], base_ap)]
     lines = [
         "# Gate G2 criteria 2-4 - Phase-1 gate (WO-020)",
+        "",
+        _criterion_1_status(),
         "",
         f"Git: `{_g2.git_hash()}`. Configuration: G1 record at `N = 20`, `a*pen` = {base_ap:g}.",
         f"Sizing (AMBIGUITY-019): `{GATE_SIZING}`; {ELASTICITY_SEEDS} seeds per extra level.",
