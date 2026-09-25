@@ -275,6 +275,17 @@ def evaluate(
     return metrics, ledger
 
 
+def step_discount(gamma: float, cfg: EnvConfig) -> float:
+    """The per-agent-step discount used in GAE: `gamma ** (1 / (M + 1))`.
+
+    `PPOConfig.gamma` is a PER-PLAN-PERIOD discount - the one the DP applies as `psi * gamma` per
+    period (PLAN section 5) - and a period is `M + 1` agent-steps (PLAN section 2.5). Discounting
+    at `gamma` per agent-step would make the learner `gamma ** (M + 1)` per period and optimise a
+    different objective from the DP it is checked against (LEAD ruling AMBIGUITY-020).
+    """
+    return float(gamma) ** (1.0 / (cfg.incentive.steps_per_period + 1))
+
+
 def checkpoint_path(run_dir: Path, update: int) -> Path:
     """Where the checkpoint for one update goes (WO-018).
 
@@ -364,6 +375,7 @@ def train_manifest_extra(
             "end": ppo_cfg.entropy_coef_end,
         },
         "eval_policy": EVAL_POLICY,
+        "gae_step_discount": step_discount(ppo_cfg.gamma, train_cfg.env_cfg),
         "train_envs_records": False,
         "vector_env_wrappers": "none (list of GosplanEnv stepped in lockstep)",
         "train_config": train_record,
@@ -517,7 +529,7 @@ def train(train_cfg: TrainConfig) -> Path:
             buf_value,
             buf_done,
             np.asarray(next_value),
-            ppo_cfg.gamma,
+            step_discount(ppo_cfg.gamma, cfg),
             ppo_cfg.lambda_gae,
         )
         batch = {
