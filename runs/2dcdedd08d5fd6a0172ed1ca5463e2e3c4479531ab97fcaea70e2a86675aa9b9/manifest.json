@@ -164,7 +164,7 @@
     }
   },
   "spec_version": "1.1.0",
-  "git_hash": "875eb4df9985638e9fe340a0e7ca398c59b213e8",
+  "git_hash": "69e3f2d5a67a89754971a4adc6721e87a2f5f8e5-dirty",
   "seed_env": 0,
   "seed_policy": 0,
   "reference_ppo_version": null,
