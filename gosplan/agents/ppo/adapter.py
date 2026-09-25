@@ -214,9 +214,11 @@ class PPOConfig:
     the default is the lead's pin, `REFERENCE_VERSION`."""
 
     gamma: float = 0.99
-    """Technical discount factor (PLAN section 6.1). Distinct from `cfg.incentive.tenure`, the
-    economic continuation probability of PLAN section 2.12; the DP's continuation factor is the
-    product `psi * gamma` (PLAN section 5)."""
+    """Technical discount factor PER PLAN PERIOD (PLAN section 6.1). Distinct from
+    `cfg.incentive.tenure`, the economic continuation probability of PLAN section 2.12; the DP's
+    continuation factor is the product `psi * gamma` per period (PLAN section 5). The harness
+    applies it per agent-step as `gamma ** (1 / (M + 1))` (`train.step_discount`, LEAD ruling
+    AMBIGUITY-020)."""
 
     lambda_gae: float = 0.97
     """GAE trace-decay `lambda_GAE` (PLAN section 6.1)."""
