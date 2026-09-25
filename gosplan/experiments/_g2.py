@@ -141,8 +141,9 @@ def seeded(cfg: EnvConfig, seed_index: int, seed_env: int | None = None) -> EnvC
     return dataclasses.replace(cfg, tech=tech)
 
 
-def run_many(jobs: list[tuple[EnvConfig, RunSizing, Path]]) -> list[dict[str, object]]:
-    """Train and measure every `(cfg, sizing, run_root)` job, `MAX_WORKERS` at a time, in a
+def run_many(jobs: list[tuple]) -> list[dict[str, object]]:
+    """Train and measure every `(cfg, sizing, run_root[, ppo_cfg])` job (`ppo_cfg` omitted or
+    `None`: the default `PPOConfig()`), `MAX_WORKERS` at a time, in a
     `spawn` pool with single-threaded XLA per worker. A job whose run directory already holds a
     measurement for the same sizing is read back rather than re-trained, so an interrupted G2 run
     resumes where it stopped. Returns one summary (see `train_and_measure`) per job, in order."""
@@ -157,7 +158,7 @@ def run_many(jobs: list[tuple[EnvConfig, RunSizing, Path]]) -> list[dict[str, ob
         return list(pool.map(train_and_measure, jobs))
 
 
-def train_and_measure(job: tuple[EnvConfig, RunSizing, Path]) -> dict[str, object]:
+def train_and_measure(job: tuple) -> dict[str, object]:
     """Train one run with the WO-018 harness, then measure its final policy.
 
     The measurement re-loads the final checkpoint and runs `measure_episodes` evaluation episodes
@@ -177,19 +178,21 @@ def train_and_measure(job: tuple[EnvConfig, RunSizing, Path]) -> dict[str, objec
         phenomenon_bunching,
     )
 
-    cfg, sizing, run_root = job
+    cfg, sizing, run_root = job[:3]
+    ppo_cfg = job[3] if len(job) > 3 and job[3] is not None else _ppo_config()
     run_dir = Path(run_root) / cfg.hash()
     out_path = run_dir / "g2_measure.json"
     sizing_record = dataclasses.asdict(sizing)
+    ppo_record = {k: _jsonable(v) for k, v in dataclasses.asdict(ppo_cfg).items()}
     if out_path.exists():
         done = json.loads(out_path.read_text(encoding="utf-8"))
-        if done.get("sizing") == sizing_record:
+        if done.get("sizing") == sizing_record and done.get("ppo", ppo_record) == ppo_record:
             return done
 
     n_updates = sizing.total_agent_steps // (sizing.n_envs * sizing.rollout_steps)
     train_cfg = TrainConfig(
         env_cfg=cfg,
-        ppo_cfg=_ppo_config(),
+        ppo_cfg=ppo_cfg,
         n_envs=sizing.n_envs,
         rollout_steps=sizing.rollout_steps,
         total_agent_steps=sizing.total_agent_steps,
@@ -227,6 +230,7 @@ def train_and_measure(job: tuple[EnvConfig, RunSizing, Path]) -> dict[str, objec
         "seed_policy": int(cfg.tech.seed_policy),
         "run_dir": str(run_dir),
         "sizing": sizing_record,
+        "ppo": ppo_record,
         "n_updates": n_updates,
         "metrics": {k: float(v) for k, v in metrics.items()},
         "share_window": share,
@@ -258,6 +262,15 @@ def git_hash() -> str | None:
     except (OSError, subprocess.CalledProcessError):
         return None
     return head + ("-dirty" if dirty else "")
+
+
+def _jsonable(value: object) -> object:
+    """A float that is not finite, or any non-JSON value, as a string; everything else as is."""
+    if isinstance(value, float) and not np.isfinite(value):
+        return str(value)
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return str(value)
 
 
 def _ppo_config():

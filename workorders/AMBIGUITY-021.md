@@ -82,3 +82,12 @@ far more often than the DP (27-49% of reports below rho = 0.1 against about 12%)
 collapse to zero effort, and returns fall. Wider exploration moved the policy past the DP's mixed
 strategy instead of to it: criterion 1 is not met under either initialisation. Per the owner's
 decision, criteria 2-4 now run as a separately labelled study.
+
+## OWNER DECISION (2026-09-25): learner for the labelled study
+
+The owner chose the attempt-2 learner for the criteria-2-4 study: per-period discount (AMBIGUITY-020)
+with PLAN section 6.1's narrow report-head initialisation (std 0.05 in ratio units), the closest
+of the three to the DP. `phase1_gate.study_ppo_config()` passes it explicitly to every run; it is
+part of each run's measurement cache key and is stated in the report header. A study run that had
+started with the attempt-3 default was stopped before any run finished and its partial output
+discarded.

@@ -145,6 +145,20 @@ ELASTICITY_SEEDS = 10
 Phase-1 level reuses the `N_SEEDS` notched runs). PLAN section 4.5 does not state a count; the lead
 fixed it at criterion 1's `SEEDS_PER_LEVEL` before any G2 run (AMBIGUITY-019)."""
 
+STUDY_REPORT_HEAD_INIT_STD = 0.05
+"""Learner setting of the criteria-2-4 run, chosen by the owner after criterion 1 failed in three
+attempts (AMBIGUITY-021): the attempt-2 learner - per-period discount and PLAN section 6.1's narrow
+report-head initialisation (std 0.05 in ratio units) - which came closest to the DP."""
+
+
+def study_ppo_config():
+    """The `PPOConfig` every WO-020 run trains with: the default except
+    `report_head_init_std = STUDY_REPORT_HEAD_INIT_STD` (AMBIGUITY-021)."""
+    from gosplan.agents.ppo.adapter import PPOConfig
+
+    return PPOConfig(report_head_init_std=STUDY_REPORT_HEAD_INIT_STD)
+
+
 PRICE_SENSITIVITY_DEFERRAL = (
     "PLAN section 7.5's standing price check recomputes padding_index, welfare_ratio and "
     "specification_gap; the last two need the Phase-2 oracle (WO-026) and the check itself is "
@@ -252,7 +266,9 @@ def run(
         for ap in extra_levels
         for s in range(ELASTICITY_SEEDS)
     ]
-    summaries = _g2.run_many([(job_cfg, GATE_SIZING, run_root) for *_, job_cfg in jobs])
+    summaries = _g2.run_many(
+        [(job_cfg, GATE_SIZING, run_root, study_ppo_config()) for *_, job_cfg in jobs]
+    )
     rows = []
     for (arm, ap, s, job_cfg), summ in zip(jobs, summaries, strict=True):
         b = summ["bunching"]
@@ -441,6 +457,8 @@ def _report(
         "",
         f"Git: `{_g2.git_hash()}`. Configuration: G1 record at `N = 20`, `a*pen` = {base_ap:g}.",
         f"Sizing (AMBIGUITY-019): `{GATE_SIZING}`; {ELASTICITY_SEEDS} seeds per extra level.",
+        f"Learner (AMBIGUITY-021, owner's choice): report-head init std "
+        f"{STUDY_REPORT_HEAD_INIT_STD} in ratio units, per-period discount - the attempt-2 learner.",
         f"Estimator: `{backend.name}` {backend.version}, PLAN section 4.5 settings (degree 9).",
         "",
         "## Criterion 2 - bunching present / absent",
