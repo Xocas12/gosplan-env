@@ -30,7 +30,9 @@ What the adapter must guarantee, and what the frozen tests check:
   `a(z) = lo + (hi - lo) * (tanh(z) + 1) / 2`, the bias solves `a(z0) = 1`, i.e.
   `z0 = atanh(2 * (1 - lo) / (hi - lo) - 1)`, and the initial log-std is set so that the induced
   standard deviation in ratio units, `|da/dz|(z0) * sigma_z = (hi - lo) / 2 * (1 - tanh(z0)**2) *
-  sigma_z`, equals `PPOConfig.report_head_init_std`. Why it matters: a policy initialised at
+  sigma_z`, equals `PPOConfig.report_head_init_std`. Since the owner's gate-G2 decision
+  (AMBIGUITY-021 option A) the default is `report_head_init_std = None`: pre-squash sigma_z = 1 as
+  for every other head, with the bias solved so the squashed mean is `rho = 1`. Why it matters: a policy initialised at
   `rho = 1` starts *on* the notch of PLAN section 2.8, so the discontinuity is inside the initial
   exploration support and bunching is neither seeded nor made unreachable.
 
@@ -242,9 +244,13 @@ class PPOConfig:
     (PLAN section 6.1, "report head initialised with mean at `rho = 1`"). Pushed through the tanh
     squash as shown in the module docstring. Starting on the notch is deliberate."""
 
-    report_head_init_std: float = 0.05
-    """Initial standard deviation of `report_ratio` in ratio units (PLAN section 6.1, "std 0.05"),
-    converted to a pre-squash log-std through the local Jacobian of the squash."""
+    report_head_init_std: float | None = None
+    """Initial spread of `report_ratio`. `None` (the default since the owner's gate-G2 decision,
+    AMBIGUITY-021 option A): the report head gets the same pre-squash log-std as every other head,
+    0 (CleanRL's default, sigma_z = 1), and its bias is solved so the SQUASHED MEAN is exactly
+    `report_head_init_ratio`. A float restores PLAN section 6.1's original rule - that standard
+    deviation in ratio units via the local Jacobian (the pinned 0.05 of criterion-1 attempts 1-2,
+    which never explores the DP's low reports)."""
 
     normalise_advantages: bool = True
     """Per-batch advantage normalisation, explicitly permitted by CONTRACT rule 4. There is
@@ -323,7 +329,9 @@ class IPPO:
         self.scale = float(reward_scale(cfg))
         self.head_names = tuple(active_action_dims(cfg))
         self.report_head_init_ratio = float(ppo.report_head_init_ratio)
-        self.report_head_init_std = float(ppo.report_head_init_std)
+        self.report_head_init_std = (
+            None if ppo.report_head_init_std is None else float(ppo.report_head_init_std)
+        )
         self.obs_dim = len(obs_spec(cfg))
         spec = action_spec(cfg)
         self._head_slices: dict[str, slice] = {}
@@ -630,12 +638,29 @@ def _require_shared_parameters(cfg: EnvConfig) -> None:
         )
 
 
-def _report_head_init(lo: float, hi: float, ratio: float, std: float) -> tuple[float, float]:
-    """WO-017 note 3: bias `z0` with `a(z0) = ratio`, and the log-std giving `std` in ratio units.
+def _report_head_init(lo: float, hi: float, ratio: float, std: float | None) -> tuple[float, float]:
+    """WO-017 note 3: the report head's bias `z0` and pre-squash log-std.
 
-    `z0 = atanh(2 * (ratio - lo) / (hi - lo) - 1)`;
+    `std` a float: `z0 = atanh(2 * (ratio - lo) / (hi - lo) - 1)`,
     `log_std = log(std / ((hi - lo) / 2 * (1 - tanh(z0)**2)))`.
+    `std = None` (AMBIGUITY-021): `log_std = 0` and `z0` solves `E[a(z0 + eps)] = ratio`,
+    `eps ~ N(0, 1)`, by bisection on a 41-node Gauss-Hermite expectation.
     """
+    if std is None:
+        nodes, weights = np.polynomial.hermite_e.hermegauss(41)
+        weights = weights / weights.sum()
+
+        def squashed_mean(z: float) -> float:
+            return float(np.dot(weights, lo + (hi - lo) * (np.tanh(z + nodes) + 1.0) / 2.0))
+
+        a, b = -20.0, 20.0
+        for _ in range(200):
+            mid = 0.5 * (a + b)
+            if squashed_mean(mid) < ratio:
+                a = mid
+            else:
+                b = mid
+        return 0.5 * (a + b), 0.0
     z0 = math.atanh(2.0 * (ratio - lo) / (hi - lo) - 1.0)
     jacobian = (hi - lo) / 2.0 * (1.0 - math.tanh(z0) ** 2)
     return z0, math.log(std / jacobian)
