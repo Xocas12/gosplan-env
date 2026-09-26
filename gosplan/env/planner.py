@@ -492,6 +492,16 @@ def deliver(state: State, alloc: Array, cfg: EnvConfig) -> tuple[State, Array, A
     pool_den = np.bincount(sector, weights=claimed, minlength=j)
     poolfill = np.divide(pool_num, pool_den, out=np.ones(j), where=pool_den > 0)
     deliv = alloc * poolfill[None, :]
+    # LEAD ruling on AMBIGUITY-023 item 2: when the planner's claims (lagged, noisy or forwarded)
+    # differ from the sellers' obligations, `alloc * poolfill` no longer equals what was shipped.
+    # The allocation fixes each buyer's SHARE; physical shipments fix the QUANTITY, so buyers of good
+    # j receive exactly (1 - phi_j) * shipped_j. When the two already agree (every Phase-1
+    # configuration) the old formula is kept bit for bit.
+    target = (1.0 - phi) * np.bincount(sector, weights=shipped, minlength=j)
+    current = deliv.sum(axis=0)
+    if not np.allclose(current, target, rtol=1e-12, atol=1e-12):
+        scale = np.divide(target, current, out=np.zeros(j), where=current > 0)
+        deliv = deliv * scale[None, :]
     if cfg.supply.quality_matters:
         # R5: qbar_j is the claim-weighted mean qbar of good j's sellers; with no claim in the
         # pool, the plain sector mean (AMBIGUITY-023 item 5).
