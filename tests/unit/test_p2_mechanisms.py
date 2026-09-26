@@ -753,3 +753,42 @@ def test_p2_default_config_runs_a_full_episode(agent_name: str) -> None:
             if env.state.phase == "produce" and env.state.k_step == 0:
                 assert np.all(env.state.pending_deliv == 0.0)
         assert steps % (cfg.incentive.steps_per_period + 1) == 0
+
+
+def test_deliveries_conserve_goods_when_claims_differ_from_obligations() -> None:
+    """LEAD ruling, AMBIGUITY-023 item 2: under lag, channel noise and a ministry, buyers of good j
+    receive exactly `(1 - phi_j) * shipped_j` at every DELIVER."""
+    import numpy as np
+
+    from gosplan.agents.heuristic import TruthfulMyopic
+    from gosplan.config import p2_default_config
+    from gosplan.env.env import GosplanEnv
+    from gosplan.metrics.ledger import Ledger
+
+    cfg = p2_default_config()
+    env = GosplanEnv(cfg)
+    ledger = Ledger()
+    env.attach_ledger(ledger)
+    agent = TruthfulMyopic(cfg)
+    rng = np.random.default_rng(0)
+    obs, _ = env.reset(5, 0)
+    for _ in range(60):
+        obs, _, done, _ = env.step(agent.act(obs, env.phase(), rng))
+        if done:
+            break
+    phi = np.asarray(cfg.supply.final_demand_share)
+    sector = np.asarray(cfg.supply.sector_of)
+    periods = {r.t_period for r in ledger.records}
+    assert len(periods) > 3
+    for t in periods:
+        rows = [
+            r for r in ledger.records if r.t_period == t and r.phase == "produce" and r.k_step == 0
+        ]
+        shipped = np.bincount(
+            sector[[r.enterprise for r in rows]],
+            weights=[r.shipped for r in rows],
+            minlength=phi.size,
+        )
+        np.testing.assert_allclose(
+            np.sum([r.deliv for r in rows], axis=0), (1 - phi) * shipped, atol=1e-9
+        )

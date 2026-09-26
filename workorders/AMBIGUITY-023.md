@@ -100,3 +100,22 @@ them. At the Phase-1 values of every toggle, none of them changes a number: gold
       audited one has a penalty to forgive.
     Why: these are the literal readings of R8 and R10. Note for WO-026: a non-rule ministry policy
     run under `ministry_passthrough = 1` is bypassed by that transparent branch.
+
+---
+
+## LEAD rulings (2026-09-26)
+
+- **Item 1: accepted.** The lag counts back from the view's own period. R2's "same lagged claims"
+  holds in that sense, and allocation is lagged one period less than the ratchet. A third history
+  column is not added in Phase 2.
+- **Item 2: overruled in part.** Goods must be conserved. `deliver` keeps the planner's allocation as
+  each buyer's share, and rescales deliveries per good so buyers receive exactly
+  `(1 - phi_j) * shipped_j`.
+  - When claims equal obligations, the old formula runs bit for bit, so Phase 1 and the goldens are
+    unchanged.
+  - A good with shipments but no allocation is still lost, as before. That happens only when no
+    buyer needs it.
+  - The opening obligation `ministry_prev = T_0` is accepted. Its `fill = 0` in period 0 lies
+    outside the t >= 2 window.
+  - Test: `test_deliveries_conserve_goods_when_claims_differ_from_obligations`.
+- **Items 3-11: accepted** as written.
