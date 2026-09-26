@@ -211,6 +211,10 @@ def produce_step(
 
     e = np.clip(np.asarray(action.effort, dtype=float), 0.0, 1.0)
     q = np.asarray(action.quality, dtype=float)
+    if sup.quality_matters:
+        # P2 revision R5: the quality action is live, so it is held to its `action_spec` box
+        # [0, 1] exactly as effort is (AMBIGUITY-023 item 6). Phase 1 leaves `q` untouched.
+        q = np.clip(q, 0.0, 1.0)
     v = np.asarray(action.invest, dtype=float)
 
     productivity = np.asarray(sup.productivity, dtype=float)[sector]
@@ -250,3 +254,44 @@ def produce_step(
         pending[:, -1] += y_tilde * v
     state.pending_invest = pending
     return state, y, c
+
+
+def period_quality(quality_acc: Array, cfg: EnvConfig) -> Array:
+    """Period-average quality `qbar_i` (PLAN sections 2.1, 2.9.2; P2 revision R5).
+
+    Takes: `quality_acc` `(N,)`, the sum of the `quality` action over the PRODUCE steps of a period
+    (`State.quality_acc`), and `cfg`. Returns: `qbar` `(N,)`.
+
+        qbar_i = quality_acc_i / M          if cfg.supply.quality_matters     (R5)
+        qbar_i = 1                          otherwise (Phase 1)
+
+    `M = cfg.incentive.steps_per_period`. R5 adopts the reference implementation's rule (the plain
+    mean over the `M` PRODUCE steps). Takes an array, never a `State`, so the planner module may
+    call it without breaking CONTRACT rule 5. Owning WO: **WO-021**.
+    """
+    acc = np.asarray(quality_acc, dtype=float)
+    if not cfg.supply.quality_matters:
+        return np.ones(acc.shape[0])
+    return acc / cfg.incentive.steps_per_period
+
+
+def credit_arrivals(state: State, cfg: EnvConfig) -> State:
+    """Credit the deliveries scheduled for this step to `X` (PLAN section 2.6; P2 revision R6).
+
+    Takes: `state` at the start of PRODUCE step `k = state.k_step`, and `cfg`. Returns: the same
+    state with `inv_inputs += pending_deliv[:, :, k]` and that slot of `pending_deliv` zeroed.
+
+    Called by the step machine before `produce_step`, so a unit scheduled for step `k` is usable at
+    step `k` (R6: "credited to X at the start of step k, before PRODUCE"). Units scheduled for step
+    0 never wait: `deliver` credits them at DELIVER, as under `uniform` timing. Under
+    `delivery_timing = "uniform"` nothing is ever pending and the step machine does not call this
+    function, so Phase 1 is untouched. Quantity is conserved exactly: what leaves the buffer is
+    what reaches `X`. Owning WO: **WO-022**.
+    """
+    pending = np.array(state.pending_deliv, dtype=float)
+    k = state.k_step
+    arriving = pending[:, :, k].copy()
+    pending[:, :, k] = 0.0
+    state.inv_inputs = np.asarray(state.inv_inputs, dtype=float) + arriving
+    state.pending_deliv = pending
+    return state

@@ -78,6 +78,10 @@ def process_reports(state: State, action: EnterpriseAction, cfg: EnvConfig) -> S
         S_i <- (1 - h) * S_i + y_i            # holding loss on carried stock, THEN this period's y
         R_i  = clip(rho_i_report, 0, rho_max) * T_i
 
+    and, from Phase 2 (P2 revision R7), the input holding loss at the same step
+
+        X_ij <- (1 - h_X) * X_ij              # h_X = cfg.supply.input_holding_loss; P1: 0
+
     with `h = cfg.supply.holding_loss` (Phase 1: 0.02), `y_i = state.cum_output` (the true output
     accumulated over this period's `M` PRODUCE steps), `rho_i_report = action.report_ratio[i]`,
     `rho_max = cfg.tech.report_max_ratio` (Phase 1: 10.0) and `T_i = state.target`.
@@ -139,9 +143,17 @@ def process_reports(state: State, action: EnterpriseAction, cfg: EnvConfig) -> S
     # `input_request` is a multiple of need, rescaled here (WO-009 card note 9; AMBIGUITY-008).
     request = np.clip(np.asarray(action.input_request, dtype=float), 0.0, r_max) * need
 
+    # P2 revision R7: input holding loss at the REPORT step, alongside the own-good loss above:
+    # X_ij <- (1 - h_X) * X_ij. Skipped at the Phase-1 value h_X = 0, where it is the identity.
+    inv_inputs = state.inv_inputs
+    h_x = cfg.supply.input_holding_loss
+    if h_x > 0.0:
+        inv_inputs = (1.0 - h_x) * np.asarray(inv_inputs, dtype=float)
+
     return dataclasses.replace(
         state,
         inv_output=stock,
+        inv_inputs=inv_inputs,
         last_report_ratio=ratio,
         last_report=report,
         request=request,
