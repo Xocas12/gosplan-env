@@ -86,10 +86,11 @@ PRICE_LOG_SIGMA = 0.3
 verbatim). The draw is per good `j`, so relative prices move, not just the overall level - a common
 scale factor would cancel out of every ratio in PLAN section 2.9.4 and check nothing."""
 
-PRICE_PERTURBATION_SEEDS: tuple[int, ...] = (0, 1, 2)
+PRICE_PERTURBATION_SEEDS: tuple[int, ...] = (11, 12, 13)
 """The "fixed seeds" of PLAN section 2.9.4. PLAN fixes that the seeds are *fixed and reused*, not
-which integers they are; these three are this module's registered choice and they are recorded in
-the manifest. The requirement they satisfy is that the same three perturbed price vectors are
+which integers they are. These three are the ones the G3 acceptance run used (spec/P2_REVISION.md
+R14), adopted for every Phase-3 table by spec/P3_REVISION.md S6 so the project has one triple; they
+are recorded in the manifest. The requirement they satisfy is that the same three perturbed price vectors are
 applied to every headline table, so sensitivity is comparable across tables rather than being three
 fresh draws each time."""
 
