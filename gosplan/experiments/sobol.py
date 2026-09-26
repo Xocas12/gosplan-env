@@ -1,6 +1,6 @@
-"""Saltelli/Sobol sensitivity design (OPTIONAL) - PLAN sections 4.3, 12.5 (WO-033), 13 and 14.
+"""Saltelli/Sobol sensitivity design (OPTIONAL) - PLAN sections 4.3, 12.5, 13 and 14.
 
-Realises: the optional Saltelli paragraph of PLAN section 4.3. Owning work order: **WO-033**
+Realises: the optional Saltelli paragraph of PLAN section 4.3. Owning task: a later task
 (MID-strong, Phase 3, marked *optional* in PLAN section 12.5). Gate: **G4**, as supporting material
 only - PLAN section 13 lists contrasts, estimator-bias curves, the LLM study and price sensitivity
 as the G4 conditions; the Sobol design is not among them. **This experiment never blocks a gate and
@@ -21,7 +21,7 @@ quantity: **total-order indices**.
 
 Inputs
     The post-G3 Phase-2 full configuration as the design centre; the swept INFO+INC parameters with
-    their PLAN section 3 ranges (see the ambiguity below); the JAX path (WO-029), which PLAN section
+    their PLAN section 3 ranges (see the ambiguity below); the JAX path, which PLAN section
     14 makes a hard requirement for this design; `gosplan.metrics` for the outcomes.
 
 Outputs
@@ -32,19 +32,19 @@ Outputs
                                 design size actually run, and the convergence diagnostics
     `runs/<config-hash>/`       per-run directories with `manifest.json` (CONTRACT rule 10)
 
-    PLAN section 12.5 names no artefact paths for WO-033; these follow the `runs/<experiment>/`
-    convention of the Phase-1 cards.
+    PLAN section 12.5 names no artefact paths for a later task; these follow the `runs/<experiment>/`
+    convention of the Phase-1 tasks.
 
 Cost (PLAN section 14): 1,500-2,800 runs, **JAX only**, about 1-3 GPU-days. If the JAX port is not
 available, this experiment is not run - it is not re-scoped onto the NumPy path.
 
-OPEN - AMBIGUITY FOR THE WO-033 SESSION (CONTRACT rule 3; do not silently choose)
+OPEN QUESTION (CONTRACT rule 3; do not silently choose)
     PLAN section 4.3 says "the 13 swept INFO+INC parameters" but does not enumerate them, and the
     PLAN section 3 registry lists more than 13 INFO and INC rows with sweep ranges (before counting
     the categorical rows `aggregation_level`, `audit_mode`, `objective_metric`, `penalty_form`,
     `penalty_arg`, and the fixed rows `ratchet_cap_up`, `ratchet_cap_dn`, `alloc_eta_need`). The
     count 13 is confirmed by arithmetic - 100 * (13 + 2) = 1500 and 100 * (2 * 13 + 2) = 2800 - but
-    the membership is not. File an AMBIGUITY REPORT and let the lead fix the list at issue time; the
+    the membership is not. File an OPEN QUESTION and let the lead fix the list at issue time; the
     list actually used is recorded in the manifest and printed in the table beside the ranges.
 
 Runtime bindings. `EnvConfig` is `gosplan.config.EnvConfig` (field-for-field identical to
@@ -96,17 +96,17 @@ OUTCOMES: tuple[str, ...] = ("welfare_ratio", "padding_index", "specification_ga
 and Deltas are read on identical quantities."""
 
 REQUIRES_JAX = True
-"""PLAN section 14 marks this design "JAX only". If `gosplan.jax` (WO-029) is unavailable the
+"""PLAN section 14 marks this design "JAX only". If `gosplan.jax` is unavailable the
 experiment does not run: it is optional, and re-scoping it onto the NumPy path would cost days of
 CPU for a result no gate depends on."""
 
 OPTIONAL = True
-"""PLAN section 12.5 marks WO-033 optional, and PLAN section 13 does not list Sobol indices among
+"""PLAN section 12.5 marks a later task optional, and PLAN section 13 does not list Sobol indices among
 the gate G4 conditions. Recorded as data so a report generator can place this section as supporting
 material rather than as a result."""
 
 OUT_DIR = Path("runs/sobol")
-"""Artefact directory, relative to the repository root; a WO-033 convention."""
+"""Artefact directory, relative to the repository root; a a later task convention."""
 
 TABLE_PATH = OUT_DIR / "table.parquet"
 """Total-order indices per parameter and outcome, with the assumed range for every parameter."""
@@ -155,7 +155,7 @@ def run(
       2. Generate the Saltelli sample over `ranges` at `n_base`, giving `RUNS_FIRST_AND_TOTAL_ORDER`
          or `RUNS_WITH_SECOND_ORDER` design points.
       3. Build one validated `EnvConfig` per design point by overriding the sampled fields, and
-         evaluate the `OUTCOMES` on the JAX path (WO-029), writing `runs/<hash>/manifest.json` per
+         evaluate the `OUTCOMES` on the JAX path, writing `runs/<hash>/manifest.json` per
          run (CONTRACT rule 10).
       4. Estimate total-order indices (and first-order alongside) per outcome, with bootstrap
          intervals and the sampler's convergence diagnostics.
@@ -169,9 +169,9 @@ def run(
     Binds: no gate condition - PLAN section 13 does not list Sobol indices among the G4 conditions.
     The design size is bound by `RUNS_FIRST_AND_TOTAL_ORDER` / `RUNS_WITH_SECOND_ORDER`.
 
-    Realises: PLAN sections 4.3, 12.5 (WO-033), 14. Owning WO: **WO-033**.
+    Realises: PLAN sections 4.3, 12.5, 14. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 4.3 (WO-033) - implemented in WO-033")
+    raise NotImplementedError("PLAN section 4.3")
 
 
 def main() -> int:
@@ -182,13 +182,13 @@ def main() -> int:
     command-line surface and any JAX device setup is built inside this function.
 
     Returns: a process exit code - 0 when the design ran and `runs/sobol/report.md` was written, 1
-    when it could not run, including the case where the JAX path of WO-029 is unavailable
+    when it could not run, including the case where the JAX path of a later task is unavailable
     (`REQUIRES_JAX`). Because this experiment is `OPTIONAL`, a non-zero exit blocks nothing: PLAN
     section 13 does not list Sobol indices among the gate G4 conditions.
 
-    Realises: PLAN sections 4.3, 12.5 (WO-033). Owning WO: **WO-033**.
+    Realises: PLAN sections 4.3, 12.5. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 4.3 (WO-033) - implemented in WO-033")
+    raise NotImplementedError("PLAN section 4.3")
 
 
 if __name__ == "__main__":

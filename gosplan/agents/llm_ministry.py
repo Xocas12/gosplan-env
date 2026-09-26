@@ -1,12 +1,12 @@
 """LLM ministry: the Phase-2 study of PLAN section 7.4. **Study stub - interface only.**
 
 Realises: PLAN section 7.4 (the LLM ministry study) over the ministry layer of PLAN section 2.14,
-with the manifest requirements of CONTRACT rule 10. Owning work orders: **WO-026** (the adapter -
+with the manifest requirements of CONTRACT rule 10. Owning tasks: a later task (the adapter -
 `MinistryView` to text, strict-JSON parsing, retry, fallback, prompt/completion logging, version
-pinning) and **WO-035** (the study harness; the lead writes both framing prompts and the
+pinning) and a later task (the study harness; the lead writes both framing prompts and the
 manipulation-check prompt).
 
-What this replaces. `ministry_forward(view, cfg)` (PLAN section 2.14, WO-025) is the rule-based
+What this replaces. `ministry_forward(view, cfg)` (PLAN section 2.14, a later task) is the rule-based
 ministry: `R_tilde_i = pi * R_i + (1 - pi) * [Rbar_i_prev + kappa_m * max(0, T_i - R_i)]`, a
 smoother that pads shortfalls, with `pi = cfg.information.ministry_passthrough`. The study swaps
 that function for a model call that receives *the same* `MinistryView` rendered as text and returns
@@ -48,7 +48,7 @@ fallbacks and manipulation-check exchanges, so the study is auditable after the 
 changes something underneath it.
 
 Import discipline: this module imports no vendor SDK and no `json`; the client is injected as an
-opaque object and the JSON handling lives in the implementation (WO-026).
+opaque object and the JSON handling lives in the implementation.
 """
 
 from __future__ import annotations
@@ -59,7 +59,7 @@ from typing import TYPE_CHECKING, Literal
 
 from gosplan.agents.base import Array
 
-if TYPE_CHECKING:  # runtime homes: WO-003 (config), WO-025 (ministry view); PLAN section 8
+if TYPE_CHECKING:  # runtime homes: config, ministry view; PLAN section 8
     from gosplan.config import EnvConfig
     from gosplan.env.ministry import MinistryView
 
@@ -116,12 +116,12 @@ class LLMMinistryConfig:
     """Pinned model identity, study cell and logging destination for one LLM ministry (sec. 7.4).
 
     Frozen and hashable; every field is written into the run manifest (CONTRACT rule 10), which
-    names "LLM model ids and versions" explicitly. Owning WO: **WO-026**.
+    names "LLM model ids and versions" explicitly. Owning WO: a later task.
     """
 
     model_id: str
     """Provider-qualified model identifier, pinned to an exact version - not a moving alias. **No
-    default**: the models are chosen by the lead when WO-035 is issued and there is no defensible
+    default**: the models are chosen by the lead when a later task is issued and there is no defensible
     placeholder."""
 
     model_version: str
@@ -169,7 +169,7 @@ class LLMMinistry:
     forwarded number would be belongs to the model, not to this wrapper - a wrapper that clips,
     smooths or sanity-checks the model's numbers would be measuring itself.
 
-    Owning WO: **WO-026** (adapter), **WO-035** (study harness).
+    Owning WO: a later task (adapter), a later task (study harness).
     """
 
     cfg: LLMMinistryConfig
@@ -179,7 +179,7 @@ class LLMMinistry:
     """The model client, injected. Typed `object` on purpose: no vendor SDK may appear in this
     interface, so the study can add a model without a signature change, and the skeleton imports
     nothing beyond the standard library and numpy. The implementation calls it behind
-    `_complete`-style glue that WO-026 owns."""
+    `_complete`-style glue that one task owns."""
 
     def forward(self, view: MinistryView, cfg: EnvConfig) -> Array:
         """Forward this ministry's enterprises' claims upward, as the model decides (sec. 7.4).
@@ -202,9 +202,9 @@ class LLMMinistry:
         wrapper does not otherwise bound what the model returns - a wildly padded number is a
         measurement, and the environment's own bounds (CONTRACT rule 8) do the bounding.
 
-        Owning WO: **WO-026**.
+        Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 7.4 - implemented in WO-026")
+        raise NotImplementedError("PLAN section 7.4")
 
     def reset(self) -> None:
         """Clear per-episode state.
@@ -213,9 +213,9 @@ class LLMMinistry:
         is independent and the 20 episodes of a study cell are 20 samples rather than one long
         conversation. It does not clear the log.
 
-        Owning WO: **WO-026**.
+        Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 7.4 - implemented in WO-026")
+        raise NotImplementedError("PLAN section 7.4")
 
 
 def render_ministry_view(view: MinistryView, framing: Framing) -> str:
@@ -237,12 +237,12 @@ def render_ministry_view(view: MinistryView, framing: Framing) -> str:
 
     The two framings differ in vocabulary only - `neutral` in ordinary business terms, `historical`
     in Soviet planning terms - over an identical numeric payload and an identical schema. The lead
-    writes both prompt texts (WO-035) and they are versioned with the study, so a framing effect is
+    writes both prompt texts and they are versioned with the study, so a framing effect is
     attributable to the words that were actually used.
 
-    Owning WO: **WO-026** (renderer), **WO-035** (the two prompt texts).
+    Owning WO: a later task (renderer), a later task (the two prompt texts).
     """
-    raise NotImplementedError("PLAN section 7.4 - implemented in WO-026")
+    raise NotImplementedError("PLAN section 7.4")
 
 
 def parse_forward_response(text: str, n_enterprises: int) -> tuple[Array, str]:
@@ -262,9 +262,9 @@ def parse_forward_response(text: str, n_enterprises: int) -> tuple[Array, str]:
     turn a parse failure into a behavioural datum, which is precisely the confound the strict-JSON
     rule and the logged fallback rate exist to keep visible.
 
-    Owning WO: **WO-026**.
+    Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 7.4 - implemented in WO-026")
+    raise NotImplementedError("PLAN section 7.4")
 
 
 def log_exchange(log_dir: Path, record: dict[str, object]) -> None:
@@ -281,9 +281,9 @@ def log_exchange(log_dir: Path, record: dict[str, object]) -> None:
     returns. "Every prompt and completion logged" is the design's own words; the manipulation-check
     exchanges are logged the same way, tagged as such.
 
-    Owning WO: **WO-026**.
+    Owning WO: a later task.
     """
-    raise NotImplementedError("CONTRACT rule 10 - implemented in WO-026")
+    raise NotImplementedError("CONTRACT rule 10")
 
 
 def manipulation_check_prompt(framing: Framing) -> str:
@@ -299,11 +299,11 @@ def manipulation_check_prompt(framing: Framing) -> str:
     analysis stratifies on whether the free-text answer names Soviet planning, which is the
     covariate that separates retrieval from reasoning in the primary measure.
 
-    The lead writes this text (WO-035) and it is versioned with the study.
+    The lead writes this text and it is versioned with the study.
 
-    Owning WO: **WO-035** (text), **WO-026** (the seam that calls it).
+    Owning WO: a later task (text), a later task (the seam that calls it).
     """
-    raise NotImplementedError("PLAN section 7.4 - implemented in WO-035")
+    raise NotImplementedError("PLAN section 7.4")
 
 
 def run_manipulation_check(client: object, cfg: LLMMinistryConfig, episode: int) -> str:
@@ -315,13 +315,13 @@ def run_manipulation_check(client: object, cfg: LLMMinistryConfig, episode: int)
     free-text answer verbatim, unparsed and unjudged.
 
     Classification of the answer - did it name Soviet planning? - is a separate, documented step in
-    the study harness (WO-035), applied uniformly and reported with its own rule, so that the
+    the study harness, applied uniformly and reported with its own rule, so that the
     stratification of PLAN section 7.4 is reproducible from the logs alone. The exchange is written
     through `log_exchange` tagged as a manipulation check.
 
-    Owning WO: **WO-026** (this seam), **WO-035** (the classification rule).
+    Owning WO: a later task (this seam), a later task (the classification rule).
     """
-    raise NotImplementedError("PLAN section 7.4 - implemented in WO-026")
+    raise NotImplementedError("PLAN section 7.4")
 
 
 __all__ = [

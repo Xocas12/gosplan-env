@@ -5,7 +5,7 @@ Realises: PLAN sections 2.5 (period schedule), 2.6 (production), 2.7 (planner ru
 demand) and 2.11 (inventory). Three sections outside that range are unavoidably in scope because
 the schedule and the golden files touch them: 2.12 (termination - schedule stage 7), 2.4 (the
 observation the golden files record) and 2.15 (the keyed RNG this module must reproduce exactly).
-Owning work order: **WO-002** (Reference dynamics and frozen tests; LEAD; PLAN section 12.3).
+Owning task: a later task (Reference dynamics and frozen tests; LEAD; PLAN section 12.3).
 
 Why this file exists. PLAN section 11 puts four test categories in the repository, and the golden
 category is defined as "implementation == reference to 1e-9 on seeded trajectories". This module is
@@ -19,9 +19,9 @@ therefore bottoms out here, and this module is validated by exactly two things a
      `docs/ref_worked_example.md`, which is derived from the PLAN formulas *before* this code is
      run and is never edited to agree with it.
 
-Hard rules for every implementer of this file (WO-002 card, PLAN section 12.3):
+Hard rules for every contributor of this file (task specification, PLAN section 12.3):
 
-  * **`ref/` MUST NOT import anything from `gosplan/`.** That is the WO-002 "Forbidden" line, and
+  * **`ref/` MUST NOT import anything from `gosplan/`.** That is the corresponding task "Forbidden" line, and
     it is the whole point: an oracle that shares code with the implementation cannot detect a bug
     in the shared code. Nothing here may import `gosplan.rng`, `gosplan.config`, `gosplan.env.*`,
     `gosplan.agents.*` or `gosplan.metrics.*`, directly or transitively. `spec/spec.py` is not
@@ -29,7 +29,7 @@ Hard rules for every implementer of this file (WO-002 card, PLAN section 12.3):
   * **Plain Python loops and floats, not vectorised numpy.** Every quantity below is a `float`, a
     `list[float]` or a `list[list[float]]`, and every formula is written as an explicit loop over
     enterprises `i`, sectors/goods `j` and steps `k`. Readability and hand-checkability beat speed:
-    this module is only ever run at `N <= 4` (WO-002 card), for 30 agent-steps at a time. If a
+    this module is only ever run at `N <= 4` (task specification), for 30 agent-steps at a time. If a
     formula here cannot be followed on paper, it is written wrong.
   * **numpy appears for one purpose only.** `ref_draw` must reproduce the *same* key-based
     construction as `gosplan/rng.py` (PLAN section 2.15) so that trajectories agree bit for bit:
@@ -53,9 +53,9 @@ mirrors it. `RefState`, `RefAction` and `RefPlannerView` are field-for-field re-
 has `Array`), and `ref_draw`, `ref_coverage`, `ref_bonus`, `ref_reward_scale`, `ref_allocate`,
 `ref_ship`, `ref_select_audits`, `ref_update_targets`, `ref_fulfilment_measure`,
 `ref_val_measured`, `ref_val_true` and `ref_welfare_true` mirror the identically named spec
-callables one for one. `tests/unit/test_spec_imports.py` (WO-001) and the golden parity test
+callables one for one. `tests/unit/test_spec_imports.py` and the golden parity test
 together enforce that the mirror never drifts: a spec signature that moves without a matching move
-here is a defect, and the golden files are regenerated under WO-013 with a `spec/CHANGELOG.md`
+here is a defect, and the golden files are regenerated under a later task with a `spec/CHANGELOG.md`
 entry.
 
 Configuration is passed as a plain nested mapping (`Config`), never as an `EnvConfig`, for the same
@@ -121,7 +121,7 @@ Purpose = Literal[
     "trade_visibility",
     "selfobs",
 ]
-"""Enumerated RNG purposes (PLAN section 2.15, plus `selfobs` for the observation noise of WO-008);
+"""Enumerated RNG purposes (PLAN section 2.15, plus `selfobs` for the observation noise of a later task);
 mirrors `spec.Purpose`. Keying by purpose is what makes draws order-independent (T-U6)."""
 
 Dist = Literal["lognormal", "normal", "bernoulli", "categorical"]
@@ -472,7 +472,7 @@ def ref_draw(
     production `draw` returns an `Array` of the requested `shape`, and the two must agree
     elementwise for every key).
 
-    Construction, which MUST match `gosplan/rng.py` element for element (PLAN section 2.15, WO-004
+    Construction, which MUST match `gosplan/rng.py` element for element (PLAN section 2.15, a later task
     notes) - it is described here rather than imported, because an oracle that shares the
     implementation's RNG cannot detect a bug in it:
 
@@ -534,7 +534,7 @@ def ref_initial_prices(cfg: Config) -> Goods:
     normalisation, identically to `spec.initial_prices`.
 
     Convergence requires `(1 + m) * sum_k a_jk < 1` for every row, which is why
-    `EnvConfig.validate` rejects `sum_k a_jk >= 1` (WO-003). Phase 1 holds prices fixed thereafter
+    `EnvConfig.validate` rejects `sum_k a_jk >= 1`. Phase 1 holds prices fixed thereafter
     (`price_lag = inf`).
 
     Binds: `tests/unit/test_prices.py` (fixed point converges; every price positive) and the golden
@@ -662,7 +662,7 @@ def ref_state_digest(state: RefState) -> str:
     `tests/golden/` must rebuild the identical digest from the production `State`, whose fields are
     `Array`s: the test flattens each array row-major to Python floats and applies the same rules.
     Any change to the rendering invalidates every golden file and is therefore a regeneration under
-    WO-013 with a `spec/CHANGELOG.md` entry (CONTRACT rule 1).
+    a later task with a `spec/CHANGELOG.md` entry (CONTRACT rule 1).
 
     Digesting rather than storing the whole state keeps a golden file small while still failing on
     any divergence; observations and rewards are stored in full, so a mismatch localises to either
@@ -797,7 +797,7 @@ def ref_make_planner_view(state: RefState, cfg: Config, claim_history: list[Vec]
     False / zero until `ref_select_audits` and `ref_audit_penalty` have run, after which the view
     is reissued with them filled (that reissue is `ref_audit`).
 
-    **Interface note (open item for the v1 freeze, WO-013).** `spec.make_planner_view` takes
+    **Interface note (open item for the v1 freeze, a later task).** `spec.make_planner_view` takes
     `(state, cfg)` only, and `spec.State` carries no claim history, so the production
     implementation must carry it somewhere - inside `GosplanEnv`, or as a new state field. This
     module makes the history an explicit argument because an oracle should hide nothing. The
@@ -1403,9 +1403,9 @@ def ref_observation(state: RefState, cfg: Config, initial_targets: Vec, deliv: M
     termination (PLAN sections 2.4, 2.12; CONTRACT rule 6).
 
     Phase-1 `self_obs_noise = 0`, so indices 4 and 5 are exact; when it is non-zero they are
-    multiplied by `exp(N(0, s**2))` drawn with purpose `selfobs` (WO-008).
+    multiplied by `exp(N(0, s**2))` drawn with purpose `selfobs`.
 
-    **RESOLVED - ambiguity report #60 (AMB-007), spec/CHANGELOG.md 0.1.2.** PLAN section 2.4 wrote
+    **RESOLVED - open question #60 (AMB-007), spec/CHANGELOG.md 0.1.2.** PLAN section 2.4 wrote
     the denominator of indices 11, 12:12+J and 12+2J:12+3J as `need_ij` without saying which need,
     and the two candidates differ numerically. The denominator is the **PLANNED need** of PLAN
     section 2.7.2, evaluated with the enterprise's OWN true I-O row:
@@ -1434,9 +1434,9 @@ def ref_observation(state: RefState, cfg: Config, initial_targets: Vec, deliv: M
     input. `gosplan/env/obs.py` already states the denominator this way.
 
     `need_ij == 0` gives a coverage field of exactly 1.0 (edge case E3), never a division by zero.
-    `gosplan/env/obs.py` (WO-008) mirrors this choice.
+    `gosplan/env/obs.py` mirrors this choice.
 
-    Scope note: PLAN section 2.4 sits outside the section 2.5-2.11 range of the WO-002 card, but
+    Scope note: PLAN section 2.4 sits outside the section 2.5-2.11 range of its task specification, but
     the golden schema of PLAN section 11 records per-step observations, so the oracle must build
     them - independently of `gosplan/env/obs.py`, like everything else here.
 
@@ -1504,7 +1504,7 @@ def ref_conservation_residual(
     period; `holding_loss` `(N,)` and `cap_overflow` `(N,)`, the two sinks of PLAN section 2.11;
     and `cfg`. Returns: the residual per good, length `J`.
 
-    Identity, CORRECTED - see ambiguity report #64 and spec/CHANGELOG.md 0.1.3. PLAN section 11
+    Identity, CORRECTED - see open question #64 and spec/CHANGELOG.md 0.1.3. PLAN section 11
     states T-U1 as
 
         sum y + sum S_prev = sum inputs consumed + sum consumer + sum S_next
@@ -1635,7 +1635,7 @@ def ref_produce(state: RefState, action: RefAction, cfg: Config) -> tuple[RefSta
     dep) * Kap_t + matured investment`; I-O drift `a <- a * exp(zeta)` (purpose `drift`) with
     `planner_io` held fixed; quality routed through the input bundle.
 
-    Constraints: this stage may not reference reports, targets or rewards (WO-005 forbidden list,
+    Constraints: this stage may not reference reports, targets or rewards (forbidden list,
     mirrored here), and every stochastic term goes through `ref_draw` (CONTRACT rule 9).
 
     Binds: `tests/unit/test_production.py` (yield mean 1 to 1e-3 over 1e5 draws; the `v` diversion;

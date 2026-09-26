@@ -3,8 +3,8 @@
 Realises: PLAN section 11 (behavioural test T-B9), read against PLAN sections 2.12 (the horizon),
 2.15 (the keyed `terminate` draw), 2.4 (periods remaining are never observed), 4.4 (no
 end-of-episode exclusion under geometric termination) and 3 (`tenure` is an INC parameter, distinct
-from the technical PPO discount `gamma`). Owning work order: **WO-002**; on the must-pass list of
-**WO-009** (`gosplan/env/step.py`, `env.py`, `state.py`).
+from the technical PPO discount `gamma`). Owning task: a later task; on the must-pass list of
+a later task (`gosplan/env/step.py`, `env.py`, `state.py`).
 
 What T-B9 asserts (PLAN section 11, verbatim): *under geometric mode, empirical continuation is
 approximately `psi`; no observation field correlates with periods remaining (regression coefficient
@@ -22,7 +22,7 @@ Finding F4: the agent never observes periods remaining, so there is no end-game.
 control of the last test - a mode in which the hazard is *not* geometric, so a test that could not
 tell the two apart would be worthless.
 
-"Approximately" is made precise below rather than left to the implementer: the hazard estimate must
+"Approximately" is made precise below rather than left to the contributor: the hazard estimate must
 lie within `HAZARD_SIGMA` standard errors of `psi`, and each regression coefficient within
 `SLOPE_SIGMA` standard errors of zero after a Bonferroni correction over the `12 + 3J` observation
 components. Both are evaluated at the fixed seeds of `TB9_SEEDS`, so the test is deterministic: it
@@ -37,13 +37,13 @@ import numpy as np
 import pytest
 
 SKIP_REASON = (
-    "skeleton: T-B9 assertions are written by WO-002 (frozen tests); they bind WO-009 "
-    "(the period schedule and the terminate draw) and WO-004 (draw)"
+    "skeleton: T-B9 assertions are written by frozen tests; they bind a later task "
+    "(the period schedule and the terminate draw) and draw"
 )
-"""Reason attached to every `@pytest.mark.skip` below; the bodies arrive with WO-002."""
+"""Reason attached to every `@pytest.mark.skip` below; the bodies arrive with a later task."""
 
 TB9_SEEDS: tuple[int, ...] = tuple(range(2000))
-"""Environment seeds, one episode each: 2,000 episodes at `p1_default_config()`. A WO-002
+"""Environment seeds, one episode each: 2,000 episodes at `p1_default_config()`. A a later task
 test-design constant sized for the hazard estimate - with `psi = 0.9`, `P_min = 4` and `P_max = 20`
 these give of the order of 12,000 eligible periods, so the standard error of the hazard is about
 0.003 and `HAZARD_SIGMA` standard errors is a band of about 1% around `psi`."""
@@ -169,7 +169,7 @@ def test_empirical_continuation_equals_tenure() -> None:
     estimated separately on the first and second halves of `TB9_SEEDS` agrees with `psi` in both
     (a hazard that drifted with the seed would average out otherwise).
 
-    Owning WO: **WO-002**; binds **WO-009** and **WO-004**.
+    Owning WO: a later task; binds a later task and a later task.
     """
     cfg = _cfg()
     lengths = []
@@ -204,7 +204,7 @@ def test_termination_draw_is_global_keyed_and_state_independent() -> None:
 
     Length independent of the policy is what makes common random numbers meaningful across arms
     (PLAN sections 2.15, 4.3): two arms that share `seed_env` see the same episode boundaries, so a
-    difference between them is behaviour and not horizon. Owning WO: **WO-002**; binds **WO-009**.
+    difference between them is behaviour and not horizon. Owning WO: a later task; binds a later task.
     """
     from gosplan.rng import draw
 
@@ -257,7 +257,7 @@ def test_no_observation_field_predicts_periods_remaining() -> None:
     `test_periods_remaining_are_not_observable` in `test_welfare_blindness.py` (T-B5), which asserts
     that no observation entry *is* the remaining-period count; a leak could be either shape.
 
-    Owning WO: **WO-002**; binds **WO-008** and **WO-009**.
+    Owning WO: a later task; binds a later task and a later task.
     """
     from gosplan.env.obs import NEVER_OBSERVED, obs_spec
 
@@ -281,8 +281,8 @@ def test_fixed_horizon_mode_is_deterministic() -> None:
     This test exists to show the previous ones have power: a stub that always terminated at the cap
     would sail through a hazard estimate computed the wrong way, and would be caught here. PLAN
     section 2.12 keeps `"fixed"` in the design precisely as the known-rotation counterfactual,
-    studied separately and never mixed into a geometric arm. Owning WO: **WO-002**; binds
-    **WO-009**.
+    studied separately and never mixed into a geometric arm. Owning WO: a later task; binds
+    a later task.
     """
     cfg = _cfg(tech=dict(horizon_mode="fixed"))
     lengths = {

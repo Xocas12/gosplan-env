@@ -1,13 +1,13 @@
-"""Smoke test for the Monte-Carlo sanity harness (PLAN section 12.3, WO-012; gate G0).
+"""Smoke test for the Monte-Carlo sanity harness (PLAN section 12.3, a later task; gate G0).
 
-Realises: PLAN section 12.3 (the WO-012 card), PLAN section 13 (gate G0, whose artefact is
+Realises: PLAN section 12.3 (its task specification), PLAN section 13 (gate G0, whose artefact is
 `runs/mc_sanity/report.md`), PLAN section 14 (the wall-clock estimate the harness measures against
-reality) and PLAN section 11 (test architecture, unit/property category). Owning work order:
-**WO-002** (frozen tests; LEAD). Binds the WO-012 must-pass line of PLAN section 12.3, verbatim -
+reality) and PLAN section 11 (test architecture, unit/property category). Owning task:
+a later task (frozen tests; LEAD). Binds the corresponding task must-pass line of PLAN section 12.3, verbatim -
 "`tests/unit/test_mc_sanity_runs.py` (smoke)". Module under test:
 `gosplan/experiments/mc_sanity.py`.
 
-WO-012 card, verbatim: "Runs 2,000 episodes each of `Random`, `TruthfulMyopic`, `Padder` at
+task specification, verbatim: "Runs 2,000 episodes each of `Random`, `TruthfulMyopic`, `Padder` at
 `p1_default_config()` and at 20 random perturbations of SUPPLY parameters; asserts conservation to
 1e-9, no NaN/inf, bounded `T` and `S`, `fill in [0,1]`, `Padder` produces downstream shortage, run
 time per episode; writes `runs/mc_sanity/report.md`."
@@ -15,14 +15,14 @@ time per episode; writes `runs/mc_sanity/report.md`."
 SMOKE, NOT A GATE. These tests run the harness at a small `n_episodes` and `n_perturbations` and
 assert that it runs, returns the documented mapping and writes its report. The gate itself is G0,
 run by the lead with the full 2,000-episode sweep (CONTRACT rule 13: tests are not experiments, and
-nothing in `tests/acceptance/` is on any work order's must-pass list).
+nothing in `tests/acceptance/` is on any task's must-pass list).
 
-HELD OUT. WO-012 is forbidden from computing or plotting any quantity in PLAN section 4.1 rows 2
+HELD OUT. a later task is forbidden from computing or plotting any quantity in PLAN section 4.1 rows 2
 (storming), 5 (hoarding), 6 (blat) and 7 (hidden reserves), and no test here asks it to. The
 `Padder` shortage assertion is the property of test T-B3 (shortage *propagation*), which is not a
 held-out row; the direction of hoarding is asserted nowhere.
 
-FROZEN BY CONTRACT RULE 2. SKELETON: every test is `@pytest.mark.skeleton` and skipped until WO-012
+FROZEN BY CONTRACT RULE 2. SKELETON: every test is `@pytest.mark.skeleton` and skipped until a later task
 lands; each docstring states the exact assertion, formula and tolerance.
 """
 

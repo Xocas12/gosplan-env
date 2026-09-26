@@ -2,9 +2,9 @@
 
 Realises: PLAN sections 2.2 (state), 2.3 (actions), 2.5 (period schedule bookkeeping and the
 per-step diagnostic payload), 2.11 (inventory), 2.12 (the `alive` flag) and 2.15 (the two seed
-fields). Owning work order: **WO-009** (step function and env wrapper; LEAD).
+fields). Owning task: a later task (step function and env wrapper; LEAD).
 
-Struct-of-arrays with leading dimension `N` throughout, so the Phase-2 JAX port (WO-029) is a
+Struct-of-arrays with leading dimension `N` throughout, so the Phase-2 JAX port is a
 mechanical translation and its parity test is meaningful. Shapes are stated in a comment on every
 field. Dimensions used below: `N = cfg.supply.n_enterprises`, `J = cfg.supply.n_sectors`,
 `L = cfg.supply.invest_lag`, `M = cfg.incentive.steps_per_period`.
@@ -13,10 +13,10 @@ field. Dimensions used below: `N = cfg.supply.n_enterprises`, `J = cfg.supply.n_
 `EnterpriseAction` and `StepInfo`. `spec/` is a document directory, not an importable package, so
 this module declares the runtime dataclasses instead of importing them, and they MUST stay
 field-for-field identical to the frozen declarations: same field names, same order, same
-annotations. `tests/unit/test_spec_imports.py` (WO-001) and `tests/unit/test_env_api.py` (WO-009)
+annotations. `tests/unit/test_spec_imports.py` and `tests/unit/test_env_api.py`
 enforce the agreement; any divergence is a spec change and needs a `spec/CHANGELOG.md` entry
 (CONTRACT rule 1). The cross-module types this module names - `EnvConfig` and the literal alias
-`Phase` from `gosplan/config.py` (WO-003), `StepRecord` from `gosplan/metrics/ledger.py` (WO-011) -
+`Phase` from `gosplan/config.py`, `StepRecord` from `gosplan/metrics/ledger.py` -
 are imported under `TYPE_CHECKING`, so this module stays importable while its siblings are still
 skeletons.
 
@@ -36,12 +36,12 @@ Exactly two functions may read it on someone's behalf - `make_planner_view` in
   * Holding loss `h = cfg.supply.holding_loss` (Phase 1: 0.02) is charged once per period at the
     REPORT step, on the stock carried *in*, before this period's output is added:
     `S_i <- (1 - h) * S_i + y_i` (PLAN section 2.8). The order matters and is tested. The update
-    itself belongs to `process_reports` in `gosplan/env/reporting.py` (WO-007), not to this
+    itself belongs to `process_reports` in `gosplan/env/reporting.py`, not to this
     module; this module owns only the field it writes into.
   * Cap `S_max = cfg.tech.inventory_cap_mult * cap_i`, i.e. `3 * cap_i` at the Phase-1 defaults.
     Stock above the cap is lost, and the lost amount (the "cap overflow") is logged per enterprise
     per period so that it stays visible in the conservation identity instead of silently
-    vanishing. The cap is applied by `process_reports` immediately after the line above (WO-007).
+    vanishing. The cap is applied by `process_reports` immediately after the line above.
   * Input stocks `inv_inputs` (`X_ij`) carry **no** holding loss in Phase 1:
     `cfg.supply.input_holding_loss = 0.0`, so holding inputs has no direct carrying cost. That is
     a design decision, not an oversight - it is what leaves the hoarding phenomenon free to be
@@ -79,14 +79,14 @@ It is a normalisation rather than a configuration field - `cfg.supply.productivi
 1.0 against it, which is what makes the TECH row `T_0 = 0.6 * A * cap` read as `T_0 = 0.6` - so it
 is named here instead of appearing as a bare literal in `initial_state`, `initial_targets` and in
 the `S_max` cap of PLAN section 2.11. Capital moves only in Phase 2, when `cfg.supply.capital_dep`
-and the investment action are switched on (WO-021 onward)."""
+and the investment action are switched on (a later task onward)."""
 
 
 @dataclass
 class State:
     """The full environment state (PLAN section 2.2), struct-of-arrays with leading dimension `N`.
 
-    Mutable by design: `gosplan/env/step.py` (WO-009) threads one `State` through the period
+    Mutable by design: `gosplan/env/step.py` threads one `State` through the period
     schedule of PLAN section 2.5. Field-for-field identical to `spec.State`; see the module
     docstring for the enforcement and for the inventory rules of PLAN section 2.11.
     """
@@ -124,14 +124,14 @@ class EnterpriseAction:
 
     The dimension set is fixed across phases; configuration flags decide which dimensions the
     environment reads, and the PPO adapter builds heads only for `active_action_dims(cfg)` (PLAN
-    section 6.1, WO-017). Inactive dimensions are ignored by the environment rather than rejected,
+    section 6.1, a later task). Inactive dimensions are ignored by the environment rather than rejected,
     so a Phase-1 policy and a Phase-2 policy share one action type. Dimensions irrelevant to the
     current phase are likewise ignored: `effort`, `quality` and `invest` are read only at PRODUCE
     steps, `report_ratio` and `input_request` only at the REPORT step.
 
-    Bounds are those of `action_spec(cfg)` (WO-009). Field-for-field identical to
+    Bounds are those of `action_spec(cfg)`. Field-for-field identical to
     `spec.EnterpriseAction`; declared here because `spec/` is not importable and because
-    `gosplan/env/production.py` and `gosplan/env/reporting.py` both need the type. If WO-009's
+    `gosplan/env/production.py` and `gosplan/env/reporting.py` both need the type. If a later task's
     `step.py` or a later spec revision gives this record another home, the duplicate must be
     removed and the move recorded in `spec/CHANGELOG.md`.
     """
@@ -149,9 +149,9 @@ class StepInfo:
     """Per-agent-step diagnostic payload: true quantities for the ledger, never for agents.
 
     Carries the `StepRecord`s produced by one agent-step - one per enterprise, in enterprise-index
-    order - plus the period-level scalars. CONTRACT rule 6 and the WO-009 card make the boundary
+    order - plus the period-level scalars. CONTRACT rule 6 and its task specification make the boundary
     explicit: `StepInfo` is written by the environment and read by `gosplan/metrics/ledger.py` and
-    by lead-run experiments; no agent, no policy and no reward term may read it (the WO-010
+    by lead-run experiments; no agent, no policy and no reward term may read it (the corresponding task
     forbidden list is "any agent reading `StepInfo`"), which is why `GosplanEnv.step` returns it
     beside the observation rather than inside it.
 
@@ -159,7 +159,7 @@ class StepInfo:
     sections 2.5, 2.9.3) and are zero at every other agent-step: `val_measured` and `val_true` at
     the REPORT step, `welfare` after DELIVER, when `consumer` is known. Field-for-field identical
     to `spec.StepInfo`; declared here because `gosplan/env/step.py` and `gosplan/env/env.py` both
-    bind it to this module. Owning WO: **WO-009**.
+    bind it to this module. Owning WO: a later task.
     """
 
     records: tuple[StepRecord, ...]  # one per enterprise, in enterprise-index order
@@ -194,9 +194,9 @@ def initial_targets(cfg: EnvConfig) -> Array:
     T_0` (PLAN section 2.7.1). `T_0` never changes within an episode - only `State.target` moves.
 
     Binds: `tests/unit/test_obs.py` (observation field 2 is 0 at reset), test T-U4 (the target
-    floor is respected). Owning WO: **WO-009**.
+    floor is respected). Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN sections 2.7.1, 3 - implemented in WO-009")
+    raise NotImplementedError("PLAN sections 2.7.1, 3")
 
 
 def initial_state(cfg: EnvConfig) -> State:
@@ -242,9 +242,9 @@ def initial_state(cfg: EnvConfig) -> State:
 
     Binds: `tests/unit/test_env_api.py` (reset returns this state; shapes and dtypes as declared)
     and `tests/golden/*` (T-B7 - the opening state must match `ref/ref_step.py` to 1e-9). Owning
-    WO: **WO-009**.
+    WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.2 - implemented in WO-009")
+    raise NotImplementedError("PLAN section 2.2")
 
 
 def reset_period_accumulators(state: State) -> State:
@@ -264,9 +264,9 @@ def reset_period_accumulators(state: State) -> State:
     in place at the next REPORT and AUDIT steps.
 
     Binds: test T-U1 (`tests/unit/test_conservation.py`) - the conservation identity is stated per
-    period, so an accumulator not zeroed at exactly this boundary breaks it. Owning WO: **WO-009**.
+    period, so an accumulator not zeroed at exactly this boundary breaks it. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN sections 2.2, 2.5 - implemented in WO-009")
+    raise NotImplementedError("PLAN sections 2.2, 2.5")
 
 
 def advance_phase(state: State, cfg: EnvConfig) -> State:
@@ -289,6 +289,6 @@ def advance_phase(state: State, cfg: EnvConfig) -> State:
 
     Binds: `tests/unit/test_env_api.py` (an episode of `P` periods produces exactly `P * (M + 1)`
     agent-steps, and the phase sequence within a period is `M` times "produce" then "report") and
-    `tests/golden/*` (T-B7). Owning WO: **WO-009**.
+    `tests/golden/*` (T-B7). Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+    raise NotImplementedError("PLAN section 2.5")

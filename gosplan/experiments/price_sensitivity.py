@@ -1,7 +1,7 @@
-"""Price-vector sensitivity - PLAN sections 2.9.4, 2.10, 7.5, 12.5 (WO-036), 13 (gate G4) and 14.
+"""Price-vector sensitivity - PLAN sections 2.9.4, 2.10, 7.5, 12.5, 13 (gate G4) and 14.
 
 Realises: the standing robustness check of PLAN section 2.9.4, scoped as PLAN section 7.5. Owning
-work order: **WO-036** (MID-fast, Phase 3). Gate: **G4** - PLAN section 13 requires "price
+task: a later task (MID-fast, Phase 3). Gate: **G4** - PLAN section 13 requires "price
 sensitivity on every headline table".
 
     THE STANDING RULE (PLAN sections 2.9.4, 7.5). Recompute all three headline metrics under
@@ -27,7 +27,7 @@ with `val_measured = sum_i p_{s(i)} * R_i * q_hat_i` and `val_true = sum_i p_{s(
 2.10) - a modelling choice, not a market outcome - so every price-weighted conclusion must be shown
 to survive a different plausible weighting.
 
-    RECOMPUTATION VERSUS RE-RUN (a distinction WO-036 must respect). For `objective_metric = "val"`
+    RECOMPUTATION VERSUS RE-RUN (a distinction a later task must respect). For `objective_metric = "val"`
     - Phase 1, and C0 in the contrasts - prices enter only the logged aggregates, so a perturbed
     price vector is a pure **post-hoc recomputation** over an existing ledger: no retraining, and
     the environment is untouched. For `objective_metric = "net_output"` - the C_INC and C_BOTH arms
@@ -38,7 +38,7 @@ to survive a different plausible weighting.
     or the reverse.
 
 Inputs
-    The headline table to check, and the ledgers behind it (`runs/<config-hash>/`, WO-011). The
+    The headline table to check, and the ledgers behind it (`runs/<config-hash>/`, a later task). The
     unperturbed plan prices come from `initial_prices(cfg)` (PLAN section 2.10).
 
 Outputs
@@ -48,20 +48,20 @@ Outputs
     `runs/price_sensitivity/report.md`      the sensitivity block for every headline table, with the
                                             sign-change column for `specification_gap` first
 
-    The same block is embedded beneath each headline table by the report generator (WO-037), which
+    The same block is embedded beneath each headline table by the report generator, which
     is what "on every headline table" means in practice. PLAN section 12.5 names no artefact paths
-    for WO-036; these follow the `runs/<experiment>/` convention of the Phase-1 cards.
+    for a later task; these follow the `runs/<experiment>/` convention of the Phase-1 tasks.
 
 Cost (PLAN section 14): no separate line - the recomputation path is CPU minutes over existing
 ledgers. The re-run path described above costs one extra run per affected arm and seed, and is
 budgeted with the arm it audits.
 
-OPEN - AMBIGUITY FOR THE WO-036 SESSION (CONTRACT rule 3; do not silently choose)
+OPEN QUESTION (CONTRACT rule 3; do not silently choose)
     PLAN section 2.10 also assigns the consumer CES parameters `ces_alpha` and `ces_sigma` to this
     check ("swept in the price-sensitivity check, not in the treatment arms"), but neither PLAN
     section 2.9.4 nor PLAN section 3 gives them a sweep grid, and PLAN section 7.5 specifies only
     the price-vector perturbation. The price-vector half of this module is fully determined; the CES
-    half is not. File an AMBIGUITY REPORT and let the lead fix the grid; whatever is used is printed
+    half is not. File an OPEN QUESTION and let the lead fix the grid; whatever is used is printed
     in the table beside the indices it moves.
 
 Runtime bindings. `EnvConfig` is `gosplan.config.EnvConfig` (field-for-field identical to
@@ -116,7 +116,7 @@ metric that reads `plan_prices`) forces the `rerun` path; `val` and `quality_wei
 prices in the fulfilment measure and take the `recomputation` path."""
 
 OUT_DIR = Path("runs/price_sensitivity")
-"""Artefact directory, relative to the repository root; a WO-036 convention."""
+"""Artefact directory, relative to the repository root; a a later task convention."""
 
 TABLE_PATH = OUT_DIR / "table.parquet"
 """One row per (source table, row, price vector, metric)."""
@@ -179,9 +179,9 @@ def run(
     Binds: gate G4 of PLAN section 13 - "price sensitivity on every headline table" - and the
     standing robustness check of PLAN section 2.9.4.
 
-    Realises: PLAN sections 2.9.4, 2.10, 7.5, 12.5 (WO-036), 13. Owning WO: **WO-036**.
+    Realises: PLAN sections 2.9.4, 2.10, 7.5, 12.5, 13. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 7.5 (WO-036) - implemented in WO-036")
+    raise NotImplementedError("PLAN section 7.5")
 
 
 def main() -> int:
@@ -199,9 +199,9 @@ def main() -> int:
     gate G4 failure (PLAN section 13), not a silent omission. A sign change in `SIGN_CHANGE_METRIC`
     is *not* an error condition - it is a reported result, and the exit code stays 0.
 
-    Realises: PLAN sections 2.9.4, 7.5, 12.5 (WO-036), 13. Owning WO: **WO-036**.
+    Realises: PLAN sections 2.9.4, 7.5, 12.5, 13. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 7.5 (WO-036) - implemented in WO-036")
+    raise NotImplementedError("PLAN section 7.5")
 
 
 if __name__ == "__main__":

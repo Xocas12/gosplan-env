@@ -1,19 +1,19 @@
-"""DP regime map - PLAN sections 5, 12.3 (WO-015 card), 13 (gate G1) and 14.
+"""DP regime map - PLAN sections 5, 12.3 (task specification), 13 (gate G1) and 14.
 
-Realises: the regime-map bullet of PLAN section 5 and the WO-015 card of PLAN section 12.3. Owning
-work order: **WO-015** (MID-fast, difficulty 2; depends on WO-014, the single-enterprise DP). Gate:
+Realises: the regime-map bullet of PLAN section 5 and its task specification of PLAN section 12.3. Owning
+task: a later task (MID-fast, difficulty 2; depends on a later task, the single-enterprise DP). Gate:
 **G1** - the human reads this map, picks the Phase-1 values of the daggered PLAN section 3 rows from
 the *interior* of the bunching region, and records them, the three `a * pen` levels for gate G2 and
 the `b_hat_DP` thresholds in `runs/G1_decision.md` **before any training run**.
 
 Inputs
-    A base `EnvConfig` (WO-015 runs `p1_default_config()`); `solve_single_enterprise` and
-    `classify_regime` from `gosplan.agents.dp` (WO-014), on the `DPGrid` defaults of PLAN section 5
+    A base `EnvConfig` (a later task runs `p1_default_config()`); `solve_single_enterprise` and
+    `classify_regime` from `gosplan.agents.dp`, on the `DPGrid` defaults of PLAN section 5
     - 80 log-spaced target points, 50 stock points, effort step 0.05, `rho` in [0, 3] step 0.02,
     9 Gauss-Hermite nodes, value tolerance 1e-6, and a stationary distribution from 200 episodes x
     200 periods.
 
-Outputs (PLAN section 12.3, WO-015)
+Outputs (PLAN section 12.3, a later task)
     `runs/regime_map/table.parquet`   one row per sampled point: the eight swept parameters, the
                                       `RegimeLabel` from `classify_regime`, `b_hat_dp`,
                                       `fictitious_padding`, `mean_effort`, `rho_edge_frac`,
@@ -21,16 +21,16 @@ Outputs (PLAN section 12.3, WO-015)
                                       configuration solved
     `runs/regime_map/regime.png`      heat map of the regime label over the swept space
     `runs/regime_map/bhat.png`        heat map of `b_hat_dp` over the same space
-    `runs/regime_map/candidates.md`   the candidate list the WO-015 card requires: at least
+    `runs/regime_map/candidates.md`   the candidate list its task specification requires: at least
                                       `MIN_BUNCHING_CANDIDATES` interior bunching-region points with
                                       their `b_hat_DP`. The three parquet/png names are PLAN's
-                                      verbatim; this fourth filename is a WO-015 convention, and its
+                                      verbatim; this fourth filename is a a later task convention, and its
                                       content is what the human copies into `runs/G1_decision.md`.
 
 Cost (PLAN section 14): 500 configurations at about 1 CPU-minute each - about 1 hour on 8 cores.
 
 FORBIDDEN
-    No reinforcement learning of any kind (the WO-014/WO-015 line of PLAN section 12.3): this map is
+    No reinforcement learning of any kind (the corresponding task/a later task line of PLAN section 12.3): this map is
     analytical, and it is produced *before* any MARL run so that the Phase-1 values cannot be chosen
     to suit a training result.
 
@@ -39,18 +39,18 @@ FORBIDDEN
     computes the field, this experiment simply never tabulates or plots it. The same prohibition
     covers rows 2, 5 and 6, none of which the single-enterprise DP can produce anyway.
 
-OPEN - AMBIGUITIES FOR THE WO-015 SESSION (CONTRACT rule 3; do not silently choose)
+OPEN - AMBIGUITIES FOR THE a later task SESSION (CONTRACT rule 3; do not silently choose)
     1. Factorisation of `a * pen`. PLAN section 5 sweeps the compound `a * pen`, while `EnvConfig`
        carries `information.audit_rate` and `incentive.penalty_scale` separately, and `audit_rate`
        is dual-classified (PLAN section 4.3). Two conventions are consistent with the text: hold
        `audit_rate` at the registry value and set `penalty_scale = a_pen / audit_rate`, or sample
-       both marginals inside their PLAN section 3 ranges and record the realised product. The card
-       does not decide. File an AMBIGUITY REPORT; whichever the lead fixes is recorded in the run
+       both marginals inside their PLAN section 3 ranges and record the realised product. The task
+       does not decide. File an OPEN QUESTION; whichever the lead fixes is recorded in the run
        manifest and printed in the table header.
     2. "Interior" of the bunching region. PLAN section 5 asks the human to pick from the interior
        but does not define a neighbourhood. Candidate definitions: every point within a fixed
        normalised parameter distance is also labelled `bunching`; or the k nearest neighbours in the
-       Latin-hypercube design are. File an AMBIGUITY REPORT rather than choosing; the definition
+       Latin-hypercube design are. File an OPEN QUESTION rather than choosing; the definition
        used is stated in `candidates.md` next to every candidate.
 
 Runtime bindings. `EnvConfig` is `gosplan.config.EnvConfig` (field-for-field identical to
@@ -94,7 +94,7 @@ schedule, a true discontinuity; `w = 0.25` is the smooth counterfactual knob of 
 Sampling is stratified so both levels carry the same number of design points."""
 
 MIN_BUNCHING_CANDIDATES = 5
-"""Minimum number of interior bunching-region points the WO-015 card requires in `candidates.md`,
+"""Minimum number of interior bunching-region points its task specification requires in `candidates.md`,
 each reported with its `b_hat_DP`. Fewer than this is a reported failure of the map - the human then
 has nothing to pick from at G1 - and never a reason to relax `classify_regime`."""
 
@@ -112,7 +112,7 @@ BHAT_FIG_PATH = OUT_DIR / "bhat.png"
 
 CANDIDATES_PATH = OUT_DIR / "candidates.md"
 """The candidate list of at least `MIN_BUNCHING_CANDIDATES` interior bunching-region points. The
-filename is a WO-015 convention; the requirement is PLAN section 12.3's, and the content is what the
+filename is a a later task convention; the requirement is PLAN section 12.3's, and the content is what the
 human transcribes into `runs/G1_decision.md` at gate G1."""
 
 TABLE_COLUMNS: tuple[str, ...] = (
@@ -150,7 +150,7 @@ def run(
 ) -> dict[str, object]:
     """Solve the DP over the Latin-hypercube design and write the regime map.
 
-    Takes: `base_cfg`, the configuration every design point starts from (WO-015 runs
+    Takes: `base_cfg`, the configuration every design point starts from (a later task runs
     `p1_default_config()`), already validated; `out_dir`, where the four artefacts are written;
     `n_points`, design points to sample; `seed`, the seed of the Latin-hypercube generator - `None`
     means `base_cfg.tech.seed_env`. The seed is recorded in the table header and in every run
@@ -170,7 +170,7 @@ def run(
         "artefacts"           dict[str, str], the four paths written
         "ap_factorisation"    str, the convention used for ambiguity 1, as fixed by the lead
 
-    Procedure (PLAN section 5, regime-map bullet; WO-015 card):
+    Procedure (PLAN section 5, regime-map bullet; task specification):
 
       1. Draw `n_points` Latin-hypercube points over the seven continuous dimensions of
          `LHS_RANGES`, stratified over the two levels of `LHS_LEVELS["notch_width"]`.
@@ -189,22 +189,22 @@ def run(
          that are interior under the definition the lead fixed (ambiguity 2), each with all eight
          parameters, `b_hat_DP`, the regime labels of its neighbours, and its `config_hash`.
 
-    Nothing in this function trains anything (no RL, WO-014/WO-015 forbidden list) and nothing
+    Nothing in this function trains anything (no RL, the forbidden list) and nothing
     writes or plots `DPSolution.hidden_reserves` (PLAN section 4.1 row 7, held out).
 
-    Binds: the WO-015 smoke test (a small `n_points` produces the four artefacts and the mapping
+    Binds: the corresponding task smoke test (a small `n_points` produces the four artefacts and the mapping
     above). Gate: this map is the G1 artefact of PLAN section 13; the human's selection is recorded
     in `runs/G1_decision.md` before any training run.
 
-    Realises: PLAN sections 5, 12.3 (WO-015), 13, 14. Owning WO: **WO-015**.
+    Realises: PLAN sections 5, 12.3, 13, 14. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 5 (WO-015) - implemented in WO-015")
+    raise NotImplementedError("PLAN section 5")
 
 
 def main() -> int:
     """Entry point: build the regime map at `p1_default_config()` and write the four artefacts.
 
-    Takes: nothing; the WO-015 card fixes the base configuration (`p1_default_config()`), the design
+    Takes: nothing; its task specification fixes the base configuration (`p1_default_config()`), the design
     size (`N_LHS_POINTS`) and the DP grid (the PLAN section 5 defaults of `DPGrid`). Any
     command-line surface, and any process pool used to reach the PLAN section 14 figure of about an
     hour on 8 cores, is built inside this function.
@@ -214,9 +214,9 @@ def main() -> int:
     means "gate G1 passed": G1 is a human decision recorded in `runs/G1_decision.md`, taken after
     reading this map and before any training run (PLAN section 13).
 
-    Realises: PLAN sections 5, 12.3 (WO-015), 13. Owning WO: **WO-015**.
+    Realises: PLAN sections 5, 12.3, 13. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 5 (WO-015) - implemented in WO-015")
+    raise NotImplementedError("PLAN section 5")
 
 
 if __name__ == "__main__":

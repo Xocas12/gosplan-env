@@ -2,12 +2,12 @@
 
 Realises: PLAN section 11 (test architecture - the unit/property, behavioural and golden categories,
 their owners and their frozen status) and PLAN section 12.3 (the "Must pass" line of every Phase-1
-work order card). Owning work order: **WO-002** (reference dynamics and frozen tests; LEAD).
+task task). Owning task: a later task (reference dynamics and frozen tests; LEAD).
 
 FROZEN BY CONTRACT RULE 2. `tests/unit`, `tests/behavioural` and `tests/golden` are read-only for
-implementers. An implementer session may not edit a test, may not skip one, and may not
-special-case an implementation to make one pass; a test that looks wrong is an AMBIGUITY REPORT
-(`workorders/AMBIGUITY_TEMPLATE.md`, CONTRACT rule 3), never an edit. This file is part of that
+contributors. An contributor may not edit a test, may not skip one, and may not
+special-case an implementation to make one pass; a test that looks wrong is an OPEN QUESTION
+(an open question in the issue tracker, CONTRACT rule 3), never an edit. This file is part of that
 frozen surface: the fixtures below are the configuration objects the frozen tests run at, so that
 "the configuration this result was produced under" is a single auditable fact rather than a literal
 repeated in twenty modules.
@@ -17,9 +17,9 @@ experiments G0-G4 of PLAN section 13, nothing there is a unit test, and `pyproje
 `testpaths` never collects it.
 
 SKELETON STATUS. The repository is a skeleton. Every fixture body here raises `NotImplementedError`
-naming the work order that fills it, and every test in `tests/unit` except `test_spec_imports.py`
+naming the task that fills it, and every test in `tests/unit` except `test_spec_imports.py`
 carries `@pytest.mark.skeleton` plus `@pytest.mark.skip`, with a docstring stating the exact
-assertion the eventual test must make. The skips lift work order by work order as PLAN section 12.3
+assertion the eventual test must make. The skips lift task by task as PLAN section 12.3
 lands the implementations; the assertions are already frozen by CONTRACT rule 2 and are not
 renegotiable at the moment they start to run.
 """
@@ -36,7 +36,7 @@ SKELETON_MARKER = (
 )
 """The `skeleton` marker description, verbatim from the `markers` entry of `pyproject.toml`. Held
 here as data and re-registered by `pytest_configure` so the suite also collects under
-`--strict-markers` when it is run with a different ini file (for example from a work order's
+`--strict-markers` when it is run with a different ini file (for example from a task's
 completion command)."""
 
 
@@ -80,14 +80,14 @@ def _require_implemented(*targets: object) -> None:
     hand-lifted `@pytest.mark.skip` markers the skeleton shipped with.
 
     The problem it solves. A frozen test asserts the behaviour of an implementation that does not
-    exist yet, so it must not fail the build today; but rule 2 forbids an implementer from editing a
-    frozen test, which is exactly what "lift the skip when your card lands" would require. A
-    hand-lifted marker also means a card can be reported complete while its must-pass tests are
+    exist yet, so it must not fail the build today; but rule 2 forbids an contributor from editing a
+    frozen test, which is exactly what "lift the skip when your task lands" would require. A
+    hand-lifted marker also means a task can be reported complete while its must-pass tests are
     still skipping - the failure mode where a green completion command proves nothing.
 
     With this helper the test carries its real assertion from the day it is written, skips itself
     for a stated reason while its dependency is a stub, and STARTS RUNNING THE INSTANT the
-    implementing card lands - with no edit to any frozen file, by anyone.
+    implementing task lands - with no edit to any frozen file, by anyone.
 
     Takes: the callables or classes the test's assertion depends on. Returns: `None`, or raises
     `Skipped` naming every dependency that is still unimplemented.
@@ -132,7 +132,7 @@ def p1_cfg():
 
     Binds: every `tests/unit` module below; the Phase-1 identity cases of `test_planner.py`
     (`report_lag = 0`, `channel_noise = 0`, `aggregation_level = "enterprise"`) and of
-    `test_obs.py` (`self_obs_noise = 0`). Owning WO: **WO-003** (`gosplan/config.py`).
+    `test_obs.py` (`self_obs_noise = 0`). Owning WO: a later task (`gosplan/config.py`).
     """
     from gosplan.config import p1_default_config
 
@@ -152,11 +152,11 @@ def tiny_cfg():
     whose two off-diagonal entries are non-zero so each sector depends on the other (coverage,
     delivery and shortage propagation are live in both directions), and `final_demand_share`,
     `productivity`, `yield_sigma`, `ces_alpha` all resized to length 2. Every row of the I-O matrix
-    must satisfy `sum_k a[j][k] < 1` (`EnvConfig.validate`, WO-003) and, more tightly,
+    must satisfy `sum_k a[j][k] < 1` (`EnvConfig.validate`, a later task) and, more tightly,
     `(1 + m) * sum_k a[j][k] < 1`, or the cost-plus price fixed point of PLAN section 2.10 does not
     converge. The configuration must validate; it is `validate()`d before being returned.
 
-    The numeric values are not invented here: they are the ones WO-002 records in
+    The numeric values are not invented here: they are the ones a later task records in
     `docs/ref_worked_example.md` section 1 when it validates `ref/ref_step.py` by hand, so the
     fixture, the reference oracle and the worked example are the same case and the golden files can
     be traced to a hand computation (PLAN section 11, finding F14).
@@ -166,7 +166,7 @@ def tiny_cfg():
     are all checkable by hand, and a failure names one enterprise rather than twenty.
 
     Binds: `test_conservation.py`, `test_planner.py`, `test_production.py`, `test_env_api.py`.
-    Owning WO: **WO-003** (`gosplan/config.py`), with the numeric case from **WO-002**.
+    Owning WO: a later task (`gosplan/config.py`), with the numeric case from a later task.
     """
     import dataclasses
 
@@ -209,6 +209,6 @@ def rng_seed():
 
     Binds: `test_rng.py` (T-U6), `test_production.py` (the yield-shock moments),
     `test_planner.py` (audit selection), `test_conservation.py` and `test_env_api.py`. Owning WO:
-    **WO-004** (`gosplan/rng.py`).
+    a later task (`gosplan/rng.py`).
     """
     return 0

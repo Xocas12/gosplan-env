@@ -2,7 +2,7 @@
 
 Realises: PLAN section 6.1 (agents; the IPPO adapter over a pinned reference PPO), PLAN section
 2.9.1 (the analytic reward scale) and PLAN section 11 (test architecture; the adapter half of
-**T-B5**). Owning work order: **WO-002** (frozen tests; LEAD). Binds the WO-017 must-pass line of
+**T-B5**). Owning task: a later task (frozen tests; LEAD). Binds the corresponding task must-pass line of
 PLAN section 12.3, verbatim - "`tests/unit/test_ppo_adapter.py` (forward takes `obs` only - T-B5; no
 `RunningMeanStd` on rewards, checked by inspection of the wrapped object; actions within bounds)".
 Module under test: `gosplan/agents/ppo/adapter.py`.
@@ -15,12 +15,12 @@ statistics change the effective reward over training and, with heavy-tailed pena
 notch in normalised units). Per-batch advantage normalisation inside PPO is permitted.
 `scale = reward_scale(cfg)`, computed analytically from the configuration."
 
-WO-017 card, verbatim: "Heads only for `active_action_dims`; tanh-squashed Gaussian; report head
+task specification, verbatim: "Heads only for `active_action_dims`; tanh-squashed Gaussian; report head
 bias initialised at `rho = 1`; sector one-hot in obs handled by `param_sharing`; fixed
 `reward_scale`; no reward normalisation (rule 4); per-batch advantage normalisation on;
 `gamma = 0.99`, `lambda_GAE = 0.97`; phase-aware masking of inactive dims per step."
 
-FROZEN BY CONTRACT RULE 2. SKELETON: every test is `@pytest.mark.skeleton` and skipped until WO-017
+FROZEN BY CONTRACT RULE 2. SKELETON: every test is `@pytest.mark.skeleton` and skipped until a later task
 lands; each docstring states the exact assertion, formula and tolerance.
 """
 
@@ -40,7 +40,7 @@ def test_forward_signature_takes_obs_and_nothing_else() -> None:
     reaches the policy through observation components 0 (`phase`) and 1 (`k_over_M`), and it is
     `act` that masks heads, not `forward`.
 
-    First bullet of the WO-017 must-pass list, and the signature clause of CONTRACT rule 6. The
+    First bullet of the corresponding task must-pass list, and the signature clause of CONTRACT rule 6. The
     behavioural half - sentinels in `welfare_true`, other enterprises' `y` and periods remaining,
     absent from every observation - is test T-B5 in
     `tests/behavioural/test_welfare_blindness.py`.
@@ -66,7 +66,7 @@ def test_no_running_reward_normalisation_on_the_wrapped_object() -> None:
     to be present; there is deliberately no reward-normalisation field on `PPOConfig`, so it cannot
     be switched on from a config file.
 
-    Second bullet of the WO-017 must-pass list, and CONTRACT rule 4: running statistics change the
+    Second bullet of the corresponding task must-pass list, and CONTRACT rule 4: running statistics change the
     effective reward over training and, with heavy-tailed penalties, shrink the notch in normalised
     units - which would dissolve the very discontinuity the Phase-1 design measures.
     """
@@ -92,7 +92,7 @@ def test_sampled_actions_lie_inside_the_action_spec_boxes(p1_cfg, rng_seed, impl
     onto the box, so the bound is never enforced by a post-hoc clip that would hide a policy pushing
     against it (CONTRACT rule 8: the fraction of reports at the bound is a logged result).
 
-    Third bullet of the WO-017 must-pass list.
+    Third bullet of the corresponding task must-pass list.
     """
     from gosplan.agents.ppo.adapter import IPPO, PPOConfig
     from gosplan.env.env import GosplanEnv
@@ -228,7 +228,7 @@ def test_manifest_entry_pins_the_reference_implementation(p1_cfg, implemented) -
     """`manifest_entry()` records the pinned learner, as CONTRACT rule 10 requires.
 
     Assertion: the mapping returned carries `reference_impl` and `reference_version` (both non-empty
-    strings, with no default on `PPOConfig` - the lead pins them when WO-017 is issued) plus the
+    strings, with no default on `PPOConfig` - the lead pins them when a later task is issued) plus the
     TECH hyper-parameters `gamma = 0.99`, `lambda_gae = 0.97`, `learning_rate = 3e-4`,
     `clip_coef = 0.2`, `entropy_coef_start = 0.01`, `entropy_coef_end = 0.001` and
     `normalise_advantages = True`; and those values reach the manifest's `reference_ppo_version`

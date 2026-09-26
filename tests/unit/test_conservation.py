@@ -1,8 +1,8 @@
 """The per-period, per-good conservation identity (PLAN section 11, test **T-U1**).
 
 Realises: PLAN sections 2.5-2.11 (the period schedule and every rule that moves a physical
-quantity) and PLAN section 11 (test architecture; property test **T-U1**). Owning work order:
-**WO-002** (frozen tests; LEAD). Binds the WO-009 must-pass line of PLAN section 12.3, verbatim -
+quantity) and PLAN section 11 (test architecture; property test **T-U1**). Owning task:
+a later task (frozen tests; LEAD). Binds the corresponding task must-pass line of PLAN section 12.3, verbatim -
 "`tests/unit/test_conservation.py` (T-U1)". Modules under test: `gosplan/env/step.py`,
 `gosplan/env/env.py`, `gosplan/env/state.py`.
 
@@ -12,7 +12,7 @@ T-U1, verbatim (PLAN section 11):
     + sum S_next + holding loss + cap overflow`, per good, to 1e-9.
 
 The reference implementation states the same identity in the form the tests evaluate it in
-(`ref/ref_step.py::ref_conservation_residual`, WO-002):
+(`ref/ref_step.py::ref_conservation_residual`, a later task):
 
     sum y + sum S_prev = sum inputs consumed + sum consumer + sum S_next
                          + holding loss + cap overflow
@@ -29,7 +29,7 @@ cap_i`, both of PLAN section 2.11; both appear as explicit terms precisely so th
 disappears silently. Phase 2 adds one more, the trade transaction cost `tau` (PLAN section 2.13),
 which enters the identity as a term of its own.
 
-FROZEN BY CONTRACT RULE 2. SKELETON: every test is `@pytest.mark.skeleton` and skipped until WO-009
+FROZEN BY CONTRACT RULE 2. SKELETON: every test is `@pytest.mark.skeleton` and skipped until a later task
 lands; each docstring states the exact assertion, formula and tolerance.
 """
 
@@ -42,8 +42,7 @@ import pytest
 def _run_one_period(cfg, seed_env, implemented, agent="TruthfulMyopic"):
     """Drive `GosplanEnv` for one complete plan period and return its `StepRecord`s.
 
-    Gated on the environment and the heuristic agent, both of which belong to later cards
-    (WO-009, WO-010), so this module skips until they land rather than failing.
+    Gated on the environment and the heuristic agent, both of which belong to later tasks, so this module skips until they land rather than failing.
     """
     from gosplan.agents import heuristic
     from gosplan.env.env import GosplanEnv
@@ -204,7 +203,7 @@ def test_identity_holds_for_every_period_of_a_full_episode(
     each of the reference heuristics of PLAN section 6.1 - `Random`, `TruthfulMyopic` and `Padder`
     - every period's per-good residual is below 1e-9 in absolute value; the largest residual seen is
     reported in the failure message so a regression is sized, not merely detected. The same
-    identity, at the same tolerance, is asserted by the Monte-Carlo sanity harness of WO-012 across
+    identity, at the same tolerance, is asserted by the Monte-Carlo sanity harness of a later task across
     20 SUPPLY perturbations (`gosplan/experiments/mc_sanity.py`, `CONSERVATION_TOL`).
     """
     for cfg in (tiny_cfg, p1_cfg):

@@ -3,8 +3,8 @@
 Realises: PLAN section 11 (behavioural test T-B2), read against PLAN sections 2.7.1 (the target
 rule), 2.9.2 (the fulfilment measure the ratchet keys on), 2.5 (the period schedule, TARGET after
 REPORT) and 1.3/3 (finding F1 - the growth directive is the forcing term, and it must be a
-treatment variable *because* the map has a fixed point without it). Owning work order: **WO-002**;
-on the must-pass list of **WO-010** (heuristic agents) and binding **WO-006** (`update_targets`).
+treatment variable *because* the map has a fixed point without it). Owning task: a later task;
+on the must-pass list of a later task (heuristic agents) and binding a later task (`update_targets`).
 
 What T-B2 asserts (PLAN section 11, verbatim): *`Padder` at `g = 0` keeps `T` constant; at `g > 0`
 `T` grows at exactly `(1 + g)`.*
@@ -26,7 +26,7 @@ makes this a *fixed point* test rather than a numerical one: the assertions belo
 
 `Padder` is a sanity probe, never a baseline (PLAN section 6.1 and the class docstring in
 `gosplan/agents/heuristic.py`): its two uses are this test and T-B3, plus the Monte-Carlo sanity
-harness of WO-012. No table, plot or claim may use it as a comparison point for padding (PLAN
+harness of a later task. No table, plot or claim may use it as a comparison point for padding (PLAN
 section 4.1 row 4) - its padding is assumed, not learned.
 
 Held-out phenomena (PLAN section 4.1): nothing here computes rows 2, 5, 6 or 7. The quantity under
@@ -41,10 +41,10 @@ import numpy as np
 import pytest
 
 SKIP_REASON = (
-    "skeleton: T-B2 assertions are written by WO-002 (frozen tests); they bind WO-006 "
-    "(update_targets), WO-009 (the period schedule) and WO-010 (Padder)"
+    "skeleton: T-B2 assertions are written by frozen tests; they bind a later task "
+    "(update_targets), the period schedule and Padder"
 )
-"""Reason attached to every `@pytest.mark.skip` below; the bodies arrive with WO-002."""
+"""Reason attached to every `@pytest.mark.skip` below; the bodies arrive with a later task."""
 
 TB2_AGENT = "Padder"
 """The probe of PLAN section 11's T-B2 clause: `gosplan.agents.heuristic.Padder`, which reports
@@ -65,7 +65,7 @@ must be identical for every `lambda` in the range [0, 1] of PLAN section 3; a de
 `lambda` means the step was not zero."""
 
 TB2_SEEDS: tuple[int, ...] = (0, 1, 2)
-"""Environment seeds, one episode each. A WO-002 test-design constant. Three seeds, because the
+"""Environment seeds, one episode each. A a later task test-design constant. Three seeds, because the
 claim is that the target path does not depend on the yield draws at all - `test_target_path_is_
 independent_of_yield_draws` compares the paths across these seeds."""
 
@@ -116,7 +116,7 @@ def _cfg(**sections):
 def _episode(cfg, agent_name, seed_env, implemented, max_periods=None):
     """Drive one episode of `GosplanEnv` with a named heuristic; return the ledger records.
 
-    Gated on the environment (WO-009), the heuristic agents (WO-010) and the ledger (WO-011), so a
+    Gated on the environment, the heuristic agents and the ledger, so a
     behavioural module skips naming its missing dependency rather than failing.
     """
     from gosplan.agents import heuristic
@@ -166,8 +166,8 @@ def test_targets_constant_at_zero_growth(ratchet_lambda: float, implemented) -> 
     ratchet's fixed point and not the floor clamping a falling sequence.
 
     The `lambda` sweep is the point of the parametrisation: at `rho = 1` the step is zero, so the
-    path must be identical for `lambda in RATCHET_LAMBDA_VALUES`. Owning WO: **WO-002**; binds
-    **WO-006** (`update_targets`, T-U4's behavioural counterpart) and **WO-010**.
+    path must be identical for `lambda in RATCHET_LAMBDA_VALUES`. Owning WO: a later task; binds
+    a later task (`update_targets`, T-U4's behavioural counterpart) and a later task.
     """
     cfg = _cfg(incentive=dict(growth_directive=ZERO_GROWTH, ratchet_lambda=ratchet_lambda))
     floor = cfg.tech.target_floor_frac * cfg.tech.initial_target_frac
@@ -202,7 +202,7 @@ def test_targets_grow_at_exactly_one_plus_g(growth: float, implemented) -> None:
 
     This is the forcing term of finding F1 (PLAN sections 1.3, 2.7.1): because the map has a fixed
     point at `g = 0`, `g` must be a treatment variable rather than a constant, and this test is
-    what pins its arithmetic. Owning WO: **WO-002**; binds **WO-006** and **WO-010**.
+    what pins its arithmetic. Owning WO: a later task; binds a later task and a later task.
     """
     cfg = _cfg(incentive=dict(growth_directive=growth))
     for seed in TB2_SEEDS:
@@ -230,7 +230,7 @@ def test_target_path_is_independent_of_yield_draws(implemented) -> None:
     the claim is `rho * T`, so no yield shock, no coverage shortfall and no audit outcome enters
     the ratchet. A seed-dependent target path means some true quantity leaked into the target rule,
     which is a CONTRACT rule 5 failure as well as a T-B2 failure - `update_targets` takes a
-    `PlannerView`. Owning WO: **WO-002**; binds **WO-006**.
+    `PlannerView`. Owning WO: a later task; binds a later task.
     """
     cfg = _cfg()
     paths = []

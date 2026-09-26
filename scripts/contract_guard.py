@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Static enforcement of `CONTRACT.md` - the rules a linter can actually see.
 
-WHY THIS FILE EXISTS. The whole delegation model of this repository assumes that an implementer
-session cannot quietly violate the contract: cards are handed out one at a time, the implementer
+WHY THIS FILE EXISTS. The whole delegation model of this repository assumes that an contributor
+session cannot quietly violate the contract: tasks are handed out one at a time, the contributor
 reads only its whitelist, and nobody reviews every line of every diff. `CONTRACT.md` is therefore
 load-bearing, and a contract nobody mechanises is a contract nobody keeps. This script mechanises
 the subset of the thirteen rules that is decidable from source text, and it is deliberately the
@@ -390,7 +390,7 @@ def check_spec_freeze(root: Path, changed: set[str] | None) -> list[Violation]:
 
     Rule 1, verbatim: "spec/spec.py is provisional (v0) until gate G1 and frozen (v1) thereafter.
     After v1, only the lead may change it, and only with a spec/CHANGELOG.md entry (version,
-    reason, affected work orders). No other session edits spec/spec.py."
+    reason, affected tasks). No other session edits spec/spec.py."
 
     Mechanised as: if `spec/spec.py` is in the diff against the base ref, then
     `spec/CHANGELOG.md` must be in the same diff, and it must carry a version heading that is not
@@ -404,7 +404,7 @@ def check_spec_freeze(root: Path, changed: set[str] | None) -> list[Violation]:
         return []
     fix_add = (
         f"add a {SPEC_CHANGELOG_PATH} entry in the format that file's 'Required entry format' "
-        "section fixes: version, reason, change, affected work orders, golden files, suite, "
+        "section fixes: version, reason, change, affected tasks, golden files, suite, "
         "approver."
     )
     if SPEC_CHANGELOG_PATH not in changed:
@@ -416,7 +416,7 @@ def check_spec_freeze(root: Path, changed: set[str] | None) -> list[Violation]:
                 message=(
                     "CONTRACT rule 1 (FROZEN SPEC): spec/spec.py changed in this diff but "
                     f"{SPEC_CHANGELOG_PATH} did not. Rule 1: the spec may change 'only with a "
-                    "spec/CHANGELOG.md entry (version, reason, affected work orders)'."
+                    "spec/CHANGELOG.md entry (version, reason, affected tasks)'."
                 ),
                 fix=fix_add,
             )
@@ -475,7 +475,7 @@ FROZEN_TEST_NON_FROZEN_PATHS: frozenset[str] = frozenset({"tests/unit/test_contr
 CONTRACT rule 2 freezes `tests/unit`, `tests/behavioural` and `tests/golden` because they hold the
 frozen expectations the environment implementation is measured against (PLAN section 11). This
 guard's own test suite sits in `tests/unit/` only because that is where pytest looks for it: it
-makes no claim about environment behaviour, it is on no work order's must-pass list, and it is
+makes no claim about environment behaviour, it is on no task's must-pass list, and it is
 edited by whoever edits `scripts/contract_guard.py` - in the same pull request, or the guard and
 its test drift apart.
 
@@ -512,11 +512,11 @@ def check_frozen_tests(root: Path, changed: set[str] | None) -> list[Violation]:
     """CONTRACT rule 2 (FROZEN TESTS): the three frozen test directories are read-only.
 
     Rule 2, verbatim: "tests/unit, tests/behavioural and tests/golden are read-only for
-    implementers. If a test looks wrong, file an AMBIGUITY REPORT; do not edit it, do not skip it,
+    contributors. If a test looks wrong, file an OPEN QUESTION; do not edit it, do not skip it,
     do not special-case the implementation to pass it."
 
     A SCRIPT CANNOT SEE WHO OPENED THE PULL REQUEST, so it cannot apply the rule's real condition
-    ("read-only for implementers" - the lead may edit them). It is mechanised instead as a
+    ("read-only for contributors" - the lead may edit them). It is mechanised instead as a
     violation of severity `review-required` on every frozen-test file in the diff except the paths
     in `FROZEN_TEST_NON_FROZEN_PATHS`, which are not part of the frozen surface at all. The
     severity is suppressible two further ways, both of which leave a trace a reviewer can see:
@@ -556,14 +556,14 @@ def check_frozen_tests(root: Path, changed: set[str] | None) -> list[Violation]:
                 line=1,
                 message=(
                     "CONTRACT rule 2 (FROZEN TESTS): this file is in tests/unit, "
-                    "tests/behavioural or tests/golden, which are read-only for implementers - "
+                    "tests/behavioural or tests/golden, which are read-only for contributors - "
                     "'do not edit it, do not skip it, do not special-case the implementation to "
                     "pass it'. A script cannot see whether the lead opened this pull request, so "
                     "the change is flagged for review rather than judged."
                 ),
                 fix=(
-                    "if a test looks wrong, file an AMBIGUITY REPORT "
-                    "(workorders/AMBIGUITY_TEMPLATE.md) instead of editing it; if the lead is "
+                    "if a test looks wrong, file an OPEN QUESTION "
+                    "(the open-question form) instead of editing it; if the lead is "
                     f"making this change, list the path in {FROZEN_TEST_EXEMPTION_PATH} on this "
                     f"branch, or run with {FROZEN_TEST_ENV_VAR}=1 locally."
                 ),
@@ -680,7 +680,7 @@ with `make_planner_view` the single `State -> planner` boundary. `deliver` is th
 entry: it is the physical execution of an allocation already decided from the view, it makes no
 planner decision, and the interface note in `spec/spec.py` records that the frozen behavioural test
 T-B4 whitelists it - to be recorded in `spec/CHANGELOG.md`, or relocated to `gosplan/env/step.py`,
-at the v1 freeze (WO-013).
+at the v1 freeze.
 
 So the guard and the frozen test can never drift apart, `check_planner_blindness` also reads
 `STATE_ARGUMENT_WHITELIST` out of `tests/behavioural/test_planner_blindness.py` and reports a
@@ -762,7 +762,7 @@ def check_planner_blindness(root: Path, changed: set[str] | None) -> list[Violat
                 fix=(
                     "take a PlannerView built by make_planner_view(state, cfg) instead, and read "
                     "the quantity from the view; if the rule genuinely needs a true quantity, "
-                    "that is an AMBIGUITY REPORT, not a signature change."
+                    "that is an OPEN QUESTION, not a signature change."
                 ),
             )
         )
@@ -1008,7 +1008,7 @@ def check_hardcoded_pathology(root: Path, changed: set[str] | None) -> list[Viol
                     fix=(
                         "delete the branch or the variable and let the outcome fall out of the "
                         "PLAN section 2.7 formulas; if the mechanism genuinely needs it, that is "
-                        "an AMBIGUITY REPORT to the lead, who reviews every gosplan/env/ diff "
+                        "an OPEN QUESTION to the lead, who reviews every gosplan/env/ diff "
                         "against rule 7 by hand."
                     ),
                 )
@@ -1043,7 +1043,7 @@ def check_rng(root: Path, changed: set[str] | None) -> list[Violation]:
 
     A type annotation naming `np.random.Generator` under `gosplan/env/` trips this check too, and
     that is intended: environment code holds no `Generator` at all, module-level generators are
-    forbidden outright (WO-004), and the policy-side stream lives behind `seed_policy` in the agent
+    forbidden outright, and the policy-side stream lives behind `seed_policy` in the agent
     layer, which this check does not scan.
 
     Every module under `gosplan/env/` states in prose that no `numpy.random` call may appear there;
@@ -1157,7 +1157,7 @@ def check_acceptance_isolation(root: Path, changed: set[str] | None) -> list[Vio
     """CONTRACT rule 13 (TESTS ARE NOT EXPERIMENTS): `tests/acceptance/` is never collected.
 
     Rule 13, verbatim: "tests/acceptance/ holds lead-run experiments (gates). Nothing there is a
-    unit test, nothing there is on any work order's must-pass list, and no implementer session runs
+    unit test, nothing there is on any task's must-pass list, and no contributor runs
     it."
 
     Two mechanical halves:
@@ -1193,7 +1193,7 @@ def check_acceptance_isolation(root: Path, changed: set[str] | None) -> list[Vio
                         f"{ACCEPTANCE_DIR}/ matches pytest's default collection patterns "
                         "(test_*.py / *_test.py), so a bare pytest run would collect a lead-run "
                         "gate experiment as a test. 'Nothing there is a unit test, nothing there "
-                        "is on any work order's must-pass list, and no implementer session runs "
+                        "is on any task's must-pass list, and no contributor runs "
                         "it.'"
                     ),
                     fix=(
@@ -1228,7 +1228,7 @@ def check_acceptance_isolation(root: Path, changed: set[str] | None) -> list[Vio
                 message=(
                     "CONTRACT rule 13 (TESTS ARE NOT EXPERIMENTS): pytest's testpaths names "
                     f"{ACCEPTANCE_DIR}. The gate experiments G0-G4 are never collected, by CI or "
-                    "by an implementer session."
+                    "by a contributor."
                 ),
                 fix=(
                     'set testpaths = ["tests/unit", "tests/behavioural", "tests/golden"] - the '
@@ -1256,9 +1256,9 @@ the four EMERGENCE claims. Rows 1, 3 and 4 are pipeline checks and are not held 
 
 PHENOMENA_PATH = "gosplan/metrics/phenomena.py"
 PHASE1_PHENOMENA: tuple[str, ...] = ("phenomenon_bunching", "phenomenon_padding")
-"""The Phase-1 section of `gosplan/metrics/phenomena.py`: rows 1 and 4, owned by WO-016. The
+"""The Phase-1 section of `gosplan/metrics/phenomena.py`: rows 1 and 4, owned by a single task. The
 Phase-1 region scanned below is module-level code plus these two function bodies; the Phase-2
-functions may of course reference each other, since WO-030 is where they are computed."""
+functions may of course reference each other, since a later task is where they are computed."""
 
 PHASE1_EXPERIMENT_MODULES: tuple[str, ...] = (
     "gosplan/experiments/mc_sanity.py",
@@ -1267,13 +1267,13 @@ PHASE1_EXPERIMENT_MODULES: tuple[str, ...] = (
     "gosplan/experiments/phase1_gate.py",
     "gosplan/experiments/price_sensitivity.py",
 )
-"""Every experiment module that runs before the Phase-2 acceptance run: WO-012 (MC sanity), WO-015
-(regime map), WO-019 (DP vs PPO), WO-020 (the Phase-1 gate), and the standing price-sensitivity
+"""Every experiment module that runs before the Phase-2 acceptance run: MC sanity, a later task
+(regime map), DP vs PPO, the Phase-1 gate, and the standing price-sensitivity
 recomputation that PLAN section 7.5 applies to every headline table, Phase-1 tables included. The
 list is explicit rather than inferred, because "which experiments are Phase 1" is a design fact
 from PLAN section 12.3, not something a script should guess."""
 
-HELD_OUT_COMPUTED_BY = "WO-030"
+HELD_OUT_COMPUTED_BY = "a later task"
 
 
 def _phase1_region_nodes(tree: ast.Module) -> list[ast.AST]:
@@ -1306,11 +1306,11 @@ def check_held_out_phenomena(root: Path, changed: set[str] | None) -> list[Viola
     `gosplan/experiments/mc_sanity.py` or any other Phase-1 experiment module
     (`PHASE1_EXPERIMENT_MODULES`), or in the Phase-1 section of `gosplan/metrics/phenomena.py` -
     module-level code plus the bodies of `phenomenon_bunching` and `phenomenon_padding`. The one
-    place they may be computed is WO-030, in the Phase-2 acceptance run.
+    place they may be computed is a later task, in the Phase-2 acceptance run.
 
     This is the check most likely to be tripped by good intentions: it is genuinely tempting to
     plot hoarding while debugging the allocation weights. Looking is the violation. Not decidable
-    here: computing the same statistic inline under another name, which the WO-012 and WO-016 cards
+    here: computing the same statistic inline under another name, which the corresponding task tasks
     forbid in words and which the lead checks in review.
     """
     out: list[Violation] = []
@@ -1414,7 +1414,7 @@ def check_plan_leak(root: Path, changed: set[str] | None) -> list[Violation]:
     """PLAN.md is never committed, and no tracked file embeds a local absolute path.
 
     `PLAN.md` is the build instruction for this repository. It is supplied out of band, it is not
-    the output of any work order, it is deliberately git-ignored, and the repository is public: the
+    the output of any task, it is deliberately git-ignored, and the repository is public: the
     guard asserts that `git ls-files --error-unmatch PLAN.md` FAILS. Without git - a source
     tarball, a synthetic tree - it falls back to asserting that `.gitignore` names it, which is the
     same property one step removed.
@@ -1438,7 +1438,7 @@ def check_plan_leak(root: Path, changed: set[str] | None) -> list[Violation]:
                     line=1,
                     message=(
                         "PLAN.md is tracked by git. It is the out-of-band build instruction for "
-                        "this repository, it is not the output of any work order, and this "
+                        "this repository, it is not the output of any task, and this "
                         "repository is public: it is git-ignored deliberately and must never be "
                         "committed or un-ignored."
                     ),

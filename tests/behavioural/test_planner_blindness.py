@@ -2,8 +2,8 @@
 
 Realises: PLAN section 11 (behavioural test T-B4) and CONTRACT rule 5, read against PLAN sections
 2.4 (the planner information invariant), 2.2 (the true state), 2.7.1-2.7.5 (the planner rules and
-the three information filters) and 10 (`PlannerView`'s declared fields). Owning work order:
-**WO-002**; on the must-pass list of **WO-006** (`gosplan/env/planner.py`).
+the three information filters) and 10 (`PlannerView`'s declared fields). Owning task:
+a later task; on the must-pass list of a later task (`gosplan/env/planner.py`).
 
 CONTRACT rule 5 (PLANNER BLINDNESS): planner rules take a `PlannerView` and nothing else;
 `PlannerView` is built by `make_planner_view()` and contains no true quantity; **any planner
@@ -25,11 +25,10 @@ Why the whitelist has two entries. `make_planner_view` is the single `State -> p
 it makes no planner decision: it is the physical execution of an allocation already decided from
 the view, and it reads no claim except through `alloc` (see `deliver`'s interface note in
 `spec/spec.py`). The spec records that T-B4 whitelists it, and that the lead either records the
-whitelist or relocates `deliver` to `gosplan/env/step.py` in `spec/CHANGELOG.md` at the v1 freeze
-(WO-013). The whitelist is asserted to contain exactly those two names, so a third can only appear
-by editing this frozen test - which CONTRACT rule 2 forbids an implementer from doing.
+whitelist or relocates `deliver` to `gosplan/env/step.py` in `spec/CHANGELOG.md` at the v1 freeze. The whitelist is asserted to contain exactly those two names, so a third can only appear
+by editing this frozen test - which CONTRACT rule 2 forbids an contributor from doing.
 
-Implementing the static check (WO-002). Read `gosplan/env/planner.py` as text and `ast.parse` it;
+Implementing the static check. Read `gosplan/env/planner.py` as text and `ast.parse` it;
 walk every `ast.FunctionDef` and `ast.AsyncFunctionDef`, including methods, and inspect each
 argument's annotation, rendering it with `ast.unparse`. A function is a violation when any
 annotation's *terminal name* is `State` - so `State`, `spec.State`, `Optional[State]`,
@@ -42,7 +41,7 @@ structural check. If an `inspect`-based cross-check is added, resolve annotation
 `typing.get_type_hints(func, include_extras=True)` and compare against the `State` class object,
 never against the string.
 
-Scope: the check is on `gosplan/env/planner.py`, the module CONTRACT rule 5 and the WO-006 card
+Scope: the check is on `gosplan/env/planner.py`, the module CONTRACT rule 5 and its task specification
 name. Planner rules that later move elsewhere move the check with them, which is a spec change
 under CONTRACT rule 1, not a test edit.
 """
@@ -53,19 +52,19 @@ import numpy as np
 import pytest
 
 SKIP_REASON = (
-    "skeleton: T-B4 assertions are written by WO-002 (frozen tests); they bind WO-006 "
+    "skeleton: T-B4 assertions are written by frozen tests; they bind a later task "
     "(make_planner_view and the planner rules of gosplan/env/planner.py)"
 )
-"""Reason attached to every `@pytest.mark.skip` below; the bodies arrive with WO-002."""
+"""Reason attached to every `@pytest.mark.skip` below; the bodies arrive with a later task."""
 
 PLANNER_MODULE_PATH = "gosplan/env/planner.py"
-"""The module CONTRACT rule 5 and the WO-006 card name; the static check parses this file."""
+"""The module CONTRACT rule 5 and its task specification name; the static check parses this file."""
 
 STATE_ARGUMENT_WHITELIST: tuple[str, ...] = ("make_planner_view", "deliver")
 """The only functions in `PLANNER_MODULE_PATH` that may take a `State`. `make_planner_view` is the
 single `State -> planner` boundary of CONTRACT rule 5; `deliver` is physical execution of an
 already-decided allocation and is whitelisted by the interface note in `spec/spec.py`, to be
-recorded in `spec/CHANGELOG.md` at the v1 freeze (WO-013). The tests assert this tuple's exact
+recorded in `spec/CHANGELOG.md` at the v1 freeze. The tests assert this tuple's exact
 contents, so widening it is a deliberate edit of a frozen test (CONTRACT rule 2)."""
 
 STATE_TYPE_NAME = "State"
@@ -149,7 +148,7 @@ def _cfg(**sections):
 def _episode(cfg, agent_name, seed_env, implemented, max_periods=None):
     """Drive one episode of `GosplanEnv` with a named heuristic; return the ledger records.
 
-    Gated on the environment (WO-009), the heuristic agents (WO-010) and the ledger (WO-011), so a
+    Gated on the environment, the heuristic agents and the ledger, so a
     behavioural module skips naming its missing dependency rather than failing.
     """
     from gosplan.agents import heuristic
@@ -234,7 +233,7 @@ def test_planner_view_contains_no_sentinel(sentinel: float, implemented) -> None
 
     A sentinel appearing anywhere in the view is a CONTRACT rule 5 violation: the planner would be
     keying on a quantity it does not observe, which is finding F6 and the reason `welfare` is not
-    an `ObjectiveMetric`. Owning WO: **WO-002**; binds **WO-006**.
+    an `ObjectiveMetric`. Owning WO: a later task; binds a later task.
     """
     from gosplan.env.planner import make_planner_view
 
@@ -261,7 +260,7 @@ def test_planner_view_fields_are_exactly_the_declared_set() -> None:
     This is the structural half of the dynamic check: the sentinel sweep shows that today's values
     do not leak, while this shows that no *place* to leak them was added. A new planner-side field
     is a spec change under CONTRACT rule 1 with a `spec/CHANGELOG.md` entry, and it must arrive
-    with an update to this frozen test by the lead (CONTRACT rule 2). Owning WO: **WO-002**.
+    with an update to this frozen test by the lead (CONTRACT rule 2). Owning WO: a later task.
     """
     import dataclasses
 
@@ -295,7 +294,7 @@ def test_no_planner_function_accepts_state() -> None:
 
     The check reads source and imports nothing, so it holds while every body still raises
     `NotImplementedError`; that is deliberate, since CONTRACT rule 5 is a claim about signatures,
-    not about behaviour. Owning WO: **WO-002**; binds **WO-006**.
+    not about behaviour. Owning WO: a later task; binds a later task.
     """
     import ast
     import pathlib
@@ -334,7 +333,7 @@ def test_planner_rules_take_only_a_planner_view() -> None:
     CONTRACT rule 5 says planner rules take a `PlannerView` "and nothing else"; the previous test
     catches the `State` route and this one catches the others - a rule that reached the ledger, a
     `StepInfo` or another module's record would be just as blind a violation. Owning WO:
-    **WO-002**; binds **WO-006**.
+    a later task; binds a later task.
     """
     import ast
     import pathlib

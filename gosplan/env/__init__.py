@@ -1,22 +1,22 @@
 """The `gosplan.env` package: the environment of PLAN sections 2.2-2.15.
 
 Realises: PLAN section 8 (repository layout), which gives this package one module per numbered
-block of the environment specification. Owning work order: **WO-009** (step function and env
+block of the environment specification. Owning task: a later task (step function and env
 wrapper; LEAD).
 
 Modules, and the PLAN section each one realises:
 
-    state.py       2.2   state record, action record, initial state, period bookkeeping  (WO-009)
-    production.py  2.6   PRODUCE step: coverage aggregator, yield, input consumption     (WO-005)
-    planner.py     2.7   targets, allocation, physical delivery, audits, planner view    (WO-006)
-    reporting.py   2.8   report processing, audit measurement, penalty, bonus            (WO-007)
-    reward.py      2.9   enterprise reward, reward scale, val, true welfare              (WO-007)
-    obs.py         2.4   the observation vector                                          (WO-008)
-    prices.py      2.10  cost-plus plan prices; price-sensitivity perturbation           (WO-007)
-    trade.py       2.13  bilateral trade matching                             (Phase 2,  WO-024)
-    ministry.py    2.14  the ministry layer                                   (Phase 2,  WO-025)
-    step.py        2.5   the period schedule as an explicit state machine                (WO-009)
-    env.py         2.5   reset/step wrapper, specs, `StepInfo` and ledger hookup         (WO-009)
+    state.py       2.2   state record, action record, initial state, period bookkeeping
+    production.py  2.6   PRODUCE step: coverage aggregator, yield, input consumption
+    planner.py     2.7   targets, allocation, physical delivery, audits, planner view
+    reporting.py   2.8   report processing, audit measurement, penalty, bonus
+    reward.py      2.9   enterprise reward, reward scale, val, true welfare
+    obs.py         2.4   the observation vector
+    prices.py      2.10  cost-plus plan prices; price-sensitivity perturbation
+    trade.py       2.13  bilateral trade matching                             (Phase 2,  a later task)
+    ministry.py    2.14  the ministry layer                                   (Phase 2,  a later task)
+    step.py        2.5   the period schedule as an explicit state machine
+    env.py         2.5   reset/step wrapper, specs, `StepInfo` and ledger hookup
 
 **This file deliberately contains no re-export.** `step.py` imports from `state.py`,
 `production.py`, `planner.py`, `reporting.py`, `reward.py` and `obs.py`, and `env.py` imports from

@@ -3,7 +3,7 @@
 Realises: PLAN section 2.4 (`PlannerView` and the planner information invariant), PLAN sections
 2.7.1 (target rule), 2.7.2 (allocation), 2.7.3 (physical delivery), 2.7.4 (audit selection) and
 2.7.5 (aggregation, lag, channel noise), plus PLAN section 2.9.2 (fulfilment measure, which the
-target rule keys on). Owning work order: **WO-006** (Planner; MID-strong).
+target rule keys on). Owning task: a later task (Planner; MID-strong).
 
 CONTRACT RULE 5 (PLANNER BLINDNESS) IS LOAD-BEARING IN THIS MODULE and is the reason the planner
 rules live in a file of their own. `make_planner_view` is the ONLY function in this module that may
@@ -18,7 +18,7 @@ The one documented exception is `deliver`, which takes a `State` because it is *
 of an allocation already decided from the view: it makes no planner decision, and reads no claim
 except through the `alloc` array handed to it. `spec/spec.py` records that T-B4 whitelists `deliver`
 alongside `make_planner_view`, and that the lead may instead relocate `deliver` to
-`gosplan/env/step.py` at the v1 freeze (WO-013); either way the whitelist must be recorded in
+`gosplan/env/step.py` at the v1 freeze; either way the whitelist must be recorded in
 `spec/CHANGELOG.md`. Do not add a third `State`-taking function here.
 
 THE THREE INFORMATION FILTERS OF PLAN SECTION 2.7.5 must all be implemented, in this order, inside
@@ -30,9 +30,9 @@ map:
     channel noise `information.channel_noise`;     Phase 1 0.0 log-sd (identity)
 
 They are in the frozen signature, so they are implemented now and the *identity case* is what
-`tests/unit/test_planner.py` checks (WO-006 card). Writing `if cfg.information.report_lag: raise
+`tests/unit/test_planner.py` checks (task specification). Writing `if cfg.information.report_lag: raise
 NotImplementedError`, or silently skipping a branch because Phase 1 does not exercise it, is a
-work-order failure: Phase 2 turns each of them on without touching this file.
+task failure: Phase 2 turns each of them on without touching this file.
 
 CONTRACT RULE 7 (NO HARD-CODED PATHOLOGY). Padding (a claim above stock) and shaving (a claim below
 stock) are **consequences** of the four lines of PLAN section 2.7.3, never rules. A claim above
@@ -53,9 +53,9 @@ through `gosplan.rng.draw`. No direct `numpy.random` or `jax.random` call may ap
 Binding to the frozen interface. `spec/spec.py` is the frozen interface (CONTRACT rule 1); the
 callables below carry its names, argument names, argument order and return types exactly.
 `spec/spec.py` is not an importable package, so the runtime dataclasses live in the `gosplan`
-package - `EnvConfig` and the arm configs in `gosplan/config.py` (WO-003), `State` and
-`EnterpriseAction` in `gosplan/env/state.py` (WO-009), and `PlannerView` here, since PLAN section
-12.3 assigns it to WO-006 and WO-006 writes only this file. Each of them MUST stay field-for-field
+package - `EnvConfig` and the arm configs in `gosplan/config.py`, `State` and
+`EnterpriseAction` in `gosplan/env/state.py`, and `PlannerView` here, since PLAN section
+12.3 assigns it to a later task writes only this file. Each of them MUST stay field-for-field
 identical to its `spec/spec.py` declaration; `tests/unit/test_spec_imports.py` enforces that by
 comparing field names, order and annotations. The cross-module types are imported under
 `TYPE_CHECKING` so this module stays importable while its sibling modules are still skeletons.
@@ -74,7 +74,7 @@ if TYPE_CHECKING:  # pragma: no cover - types only; see the binding note in the 
 
 Array = np.ndarray
 """Alias for every numeric array in this module (PLAN section 10), mirroring `spec.spec.Array`. The
-Phase-2 JAX port (WO-029) substitutes its own array type behind the same name, so no signature here
+Phase-2 JAX port substitutes its own array type behind the same name, so no signature here
 may depend on a numpy-only method."""
 
 
@@ -99,7 +99,7 @@ class PlannerView:
     Binds: test T-B4 in `tests/behavioural/test_planner_blindness.py` - a state is constructed with
     `S != R` and sentinel `y` values, no sentinel may reach this record, and no function in
     `gosplan/env/planner.py` other than `make_planner_view` (and the whitelisted `deliver`) may
-    accept a `State`. Owning WO: **WO-006**.
+    accept a `State`. Owning WO: a later task.
     """
 
     claims: Array  # (N,) claimed_i = R_i as it reached the planner, lagged/noised/aggregated
@@ -153,7 +153,7 @@ def make_planner_view(state: State, cfg: EnvConfig) -> PlannerView:
 
     ALL THREE BRANCHES MUST EXIST even though the Phase-1 configuration (`"enterprise"`, `0`, `0.0`)
     makes each of them the identity map; the identity case is exactly what
-    `tests/unit/test_planner.py` checks (WO-006 card). The order matters: aggregate, then lag, then
+    `tests/unit/test_planner.py` checks (task specification). The order matters: aggregate, then lag, then
     noise - the noise is what the reporting channel does to whatever actually travels down it.
 
     The record is built once per period, after the REPORT step. `audited` and `audit_meas` are all
@@ -167,9 +167,9 @@ def make_planner_view(state: State, cfg: EnvConfig) -> PlannerView:
 
     Binds: test T-B4 in `tests/behavioural/test_planner_blindness.py` (sentinels planted in the
     state reach no field of the view; the static signature check over this module) and the identity
-    cases in `tests/unit/test_planner.py`. Owning WO: **WO-006**.
+    cases in `tests/unit/test_planner.py`. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.4/2.7 - implemented in WO-006")
+    raise NotImplementedError("PLAN section 2.4/2.7")
 
 
 def update_targets(view: PlannerView, cfg: EnvConfig) -> Array:
@@ -207,9 +207,9 @@ def update_targets(view: PlannerView, cfg: EnvConfig) -> Array:
     step bounded by `c_up` / `c_dn`; the floor `T_min` respected; the deadband inert outside
     `|rho - 1| <= delta` - and test T-B2 in `tests/behavioural/test_fixed_point.py` - `Padder` at
     `g = 0` keeps `T` constant, and at `g > 0` `T` grows at exactly `(1 + g)`. Owning WO:
-    **WO-006**.
+    a later task.
     """
-    raise NotImplementedError("PLAN section 2.7.1 - implemented in WO-006")
+    raise NotImplementedError("PLAN section 2.7.1")
 
 
 def fulfilment_measure(view: PlannerView, cfg: EnvConfig) -> Array:
@@ -237,9 +237,9 @@ def fulfilment_measure(view: PlannerView, cfg: EnvConfig) -> Array:
 
     Binds: `tests/unit/test_planner.py` and `tests/unit/test_reward.py` - the `val` branch is the
     identity on `view.claims`; `net_output` falls as allocated inputs rise; `quality_weighted`
-    reduces to `val` at `mu = 0`. Owning WO: **WO-006**.
+    reduces to `val` at `mu = 0`. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.9.2 - implemented in WO-006")
+    raise NotImplementedError("PLAN section 2.9.2")
 
 
 def allocate(view: PlannerView, cfg: EnvConfig) -> Array:
@@ -276,9 +276,9 @@ def allocate(view: PlannerView, cfg: EnvConfig) -> Array:
 
     Binds: `tests/unit/test_planner.py` - the allocation sums to `avail_j` per good; `eta_q = 0`
     makes the result exactly invariant to `view.requests`; the `1e-6` regularisers keep the weights
-    finite when a need or a request is zero. Owning WO: **WO-006**.
+    finite when a need or a request is zero. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.7.2 - implemented in WO-006")
+    raise NotImplementedError("PLAN section 2.7.2")
 
 
 def deliver(state: State, alloc: Array, cfg: EnvConfig) -> tuple[State, Array, Array, Array]:
@@ -311,7 +311,7 @@ def deliver(state: State, alloc: Array, cfg: EnvConfig) -> tuple[State, Array, A
     function may test for, name, reward or penalise either case, and every `gosplan/env/` diff is
     reviewed against that rule.
 
-    Interface note for the v1 freeze (WO-013): this signature takes a `State` and lives in
+    Interface note for the v1 freeze: this signature takes a `State` and lives in
     `gosplan/env/planner.py`, while CONTRACT rule 5 and the T-B4 static check forbid any function in
     this module except `make_planner_view` from accepting a `State`. `deliver` is physical execution
     of an allocation already decided from the view - it makes no planner decision and reads no claim
@@ -323,9 +323,9 @@ def deliver(state: State, alloc: Array, cfg: EnvConfig) -> tuple[State, Array, A
     `S` equals what reaches buyers plus the consumer sink; `claimed = 0` gives `fill = 1`), test
     T-U1, the per-period conservation identity to 1e-9, and test T-B3 in
     `tests/behavioural/test_shortage_propagation.py` (a `Padder` with `S = 0` produces `fill < 1`
-    for every downstream buyer; `TruthfulMyopic` produces `fill = 1`). Owning WO: **WO-006**.
+    for every downstream buyer; `TruthfulMyopic` produces `fill = 1`). Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.7.3 - implemented in WO-006")
+    raise NotImplementedError("PLAN section 2.7.3")
 
 
 def select_audits(view: PlannerView, cfg: EnvConfig, t: int) -> Array:
@@ -344,7 +344,7 @@ def select_audits(view: PlannerView, cfg: EnvConfig, t: int) -> Array:
     Both branches must exist. Phase 1 uses `random`; `targeted` is inert in Phase 1 because
     `view.downstream_shortfall` is all zeros while `shortfall_visibility = 0`, which makes the two
     branches agree there. `kappa_t` is the targeting-strength coefficient of PLAN section 2.7.4,
-    fixed by WO-023 when the targeted mode is switched on and never chosen here.
+    fixed by a later task when the targeted mode is switched on and never chosen here.
 
     `downstream_shortfall_i` is the planner's noisy knowledge of buyers' complaints and is therefore
     an information quantity, which is why `audit_mode` sits in `InformationConfig` even though the
@@ -357,6 +357,6 @@ def select_audits(view: PlannerView, cfg: EnvConfig, t: int) -> Array:
     the `last_audited` observation field of the *following* period (PLAN section 2.4).
 
     Binds: `tests/unit/test_planner.py` - the empirical audit frequency matches `audit_rate` over
-    many periods, and the selection is deterministic in `(seed_env, t)`. Owning WO: **WO-006**.
+    many periods, and the selection is deterministic in `(seed_env, t)`. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.7.4 - implemented in WO-006")
+    raise NotImplementedError("PLAN section 2.7.4")

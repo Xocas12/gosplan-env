@@ -1,8 +1,8 @@
 """PPO layer: the thin adapter over a pinned reference PPO, and its training harness.
 
 Realises: PLAN section 6.1 (the `IPPO` row of the agent table) and the Phase-1 training path of
-PLAN sections 4.5 (gate G2) and 14 (compute). Owning work orders: **WO-017** (adapter, LEAD) and
-**WO-018** (training harness).
+PLAN sections 4.5 (gate G2) and 14 (compute). Owning tasks: a later task (adapter, LEAD) and
+a later task (training harness).
 
 Two modules, deliberately separate:
 

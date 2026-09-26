@@ -3,7 +3,7 @@
 Realises: PLAN section 2.8 (the bonus schedule `B(rho)` and its smoothing `Lambda_w`), PLAN section
 2.9.1 (the enterprise reward and the analytic reward scale), PLAN section 2.9.3 (`val_measured`,
 `val_true` and true consumer welfare - logged, never observed) and PLAN section 2.9.4 (the three
-dimensionless headline metrics). Owning work order: **WO-007** (Reporting and reward; MID-strong).
+dimensionless headline metrics). Owning task: a later task (Reporting and reward; MID-strong).
 
 --------------------------------------------------------------------------------------------------
 CONTRACT RULE 4, REPRODUCED IN FULL (`CONTRACT.md`; the two formula lines are transcribed into the
@@ -28,12 +28,11 @@ Consequences that bind every session touching this file:
     before a single step is taken, and written into the manifest with the configuration.
   * NO RUNNING REWARD NORMALISATION IS PERMITTED anywhere - not here, not in the PPO adapter, not
     in the training harness. A `RunningMeanStd` wrapper on rewards is a rule-4 violation, and
-    `tests/unit/test_ppo_adapter.py` checks the wrapped object by inspection for exactly that
-    (WO-017). The reason is substantive rather than stylistic: running statistics change the
+    `tests/unit/test_ppo_adapter.py` checks the wrapped object by inspection for exactly that. The reason is substantive rather than stylistic: running statistics change the
     effective reward over the course of training, and with heavy-tailed penalties they shrink the
     notch in normalised units - which is the very quantity the Phase-1 experiments measure.
   * PER-BATCH ADVANTAGE NORMALISATION INSIDE PPO *IS* PERMITTED, and Phase 1 has it switched on
-    (PLAN section 12.3, WO-017). Normalising advantages within a batch does not change the reward
+    (PLAN section 12.3, a later task). Normalising advantages within a batch does not change the reward
     function; normalising rewards across time does.
 --------------------------------------------------------------------------------------------------
 
@@ -67,10 +66,10 @@ in `gosplan/env/`.
 Binding to the frozen interface. `spec/spec.py` is the frozen interface (CONTRACT rule 1) and the
 callables below carry its names, argument names, argument order and return types exactly; the three
 headline metrics of PLAN section 2.9.4 are not in `spec/spec.py` v0 and are declared here for the
-first time, so the lead records them in `spec/CHANGELOG.md` at the v1 freeze (WO-013).
+first time, so the lead records them in `spec/CHANGELOG.md` at the v1 freeze.
 `spec/spec.py` is not an importable package, so the runtime dataclasses live in the `gosplan`
-package - `EnvConfig` and the arm configs in `gosplan/config.py` (WO-003), `State` in
-`gosplan/env/state.py` (WO-009) - and each MUST stay field-for-field identical to its `spec/spec.py`
+package - `EnvConfig` and the arm configs in `gosplan/config.py`, `State` in
+`gosplan/env/state.py` - and each MUST stay field-for-field identical to its `spec/spec.py`
 declaration, which `tests/unit/test_spec_imports.py` enforces. They are imported under
 `TYPE_CHECKING` so this module stays importable while its siblings are skeletons.
 """
@@ -87,7 +86,7 @@ if TYPE_CHECKING:  # pragma: no cover - types only; see the binding note in the 
 
 Array = np.ndarray
 """Alias for every numeric array in this module (PLAN section 10), mirroring `spec.spec.Array`. The
-Phase-2 JAX port (WO-029) substitutes its own array type behind the same name, so no signature here
+Phase-2 JAX port substitutes its own array type behind the same name, so no signature here
 may depend on a numpy-only method."""
 
 
@@ -117,7 +116,7 @@ def bonus(rho: Array, cfg: EnvConfig) -> Array:
     numerically, because `exp(-x / w)` overflows long before the limit is reached.
 
     `rho_cap = inf` means no cap at all, hence no kink: the implementation must NOT clip in that
-    branch (WO-007 notes), since `clip(x, 0, inf)` is the correct limit but must be reached by a
+    branch (a later task notes), since `clip(x, 0, inf)` is the correct limit but must be reached by a
     branch, not by feeding `inf` into a clip that a JAX port would have to trace.
 
     Named configurations (PLAN section 2.8), which are the arms of the Phase-1 experiments:
@@ -134,9 +133,9 @@ def bonus(rho: Array, cfg: EnvConfig) -> Array:
 
     Binds: test T-U3 in `tests/unit/test_reward.py` - `bonus` is monotone non-decreasing in `rho`;
     discontinuous at `rho = 1` if and only if `w = 0`; continuous with continuous derivative if and
-    only if `w > 0` and `rho_cap = inf`. Owning WO: **WO-007**.
+    only if `w > 0` and `rho_cap = inf`. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.8 - implemented in WO-007")
+    raise NotImplementedError("PLAN section 2.8")
 
 
 def reward_scale(cfg: EnvConfig) -> float:
@@ -154,20 +153,19 @@ def reward_scale(cfg: EnvConfig) -> float:
 
     CONTRACT rule 4 forbids running reward normalisation outright, because running statistics change
     the effective reward over training and, with heavy-tailed penalties, shrink the notch in
-    normalised units. Per-batch advantage normalisation inside PPO is permitted and is on in Phase 1
-    (WO-017). This function is the only normalisation in the system; it is constant for the whole
+    normalised units. Per-batch advantage normalisation inside PPO is permitted and is on in Phase 1. This function is the only normalisation in the system; it is constant for the whole
     run and is recorded in the run manifest alongside the configuration hash (CONTRACT rule 10).
 
     Degenerate configurations: `B_cfg(1.1) = 0` (for instance `beta = 0` together with `s = 0`, the
-    zero-incentive configuration the DP tests of WO-014 use) makes the scale undefined; the
+    zero-incentive configuration the DP tests of a later task use) makes the scale undefined; the
     implementation raises rather than silently returning `inf`, and `EnvConfig.validate` is the
     place a configuration is rejected, not this function.
 
     Binds: test T-U2 in `tests/unit/test_reward.py` - `reward_scale(cfg) * bonus(1.1, cfg) == 1` to
     floating-point tolerance, for every configuration in the test matrix, including the notched,
-    smooth-counterfactual and kink-only arms of PLAN section 2.8. Owning WO: **WO-007**.
+    smooth-counterfactual and kink-only arms of PLAN section 2.8. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.9.1 - implemented in WO-007")
+    raise NotImplementedError("PLAN section 2.9.1")
 
 
 def enterprise_reward(
@@ -215,9 +213,9 @@ def enterprise_reward(
 
     Binds: test T-B6 in `tests/behavioural/` - the reward is recomputed independently from the
     five-term formula on random states and must agree exactly - and the T-U2 / T-U3 scale and
-    monotonicity tests through `bonus` and `reward_scale`. Owning WO: **WO-007**.
+    monotonicity tests through `bonus` and `reward_scale`. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.9.1 - implemented in WO-007")
+    raise NotImplementedError("PLAN section 2.9.1")
 
 
 def val_measured(state: State, cfg: EnvConfig) -> float:
@@ -236,9 +234,9 @@ def val_measured(state: State, cfg: EnvConfig) -> float:
     LOGGED ONLY. CONTRACT rule 6: it never appears in any observation, reward or agent input; test
     T-B5 asserts this with sentinels, and `gosplan/env/obs.py` names it on its "never in any
     observation" list. It is one half of `padding_index = val_measured / val_true` (PLAN section
-    2.9.4) and it is the numerator of the first term of `specification_gap`. Owning WO: **WO-007**.
+    2.9.4) and it is the numerator of the first term of `specification_gap`. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.9.3 - implemented in WO-007")
+    raise NotImplementedError("PLAN section 2.9.3")
 
 
 def val_true(state: State, cfg: EnvConfig) -> float:
@@ -255,9 +253,9 @@ def val_true(state: State, cfg: EnvConfig) -> float:
 
     LOGGED ONLY, exactly as `val_measured` (CONTRACT rule 6). The ratio
     `val_measured / val_true` is the `padding_index` of PLAN section 2.9.4 and is at least 1
-    whenever output is fictitious. Owning WO: **WO-007**.
+    whenever output is fictitious. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.9.3 - implemented in WO-007")
+    raise NotImplementedError("PLAN section 2.9.3")
 
 
 def welfare_true(consumer: Array, cfg: EnvConfig) -> float:
@@ -274,7 +272,7 @@ def welfare_true(consumer: Array, cfg: EnvConfig) -> float:
     which is how propagated shortage shows up in welfare at all).
 
     The `sigma_c -> 1` limit is the Cobb-Douglas index `prod_j consumer_j**alpha_j` and MUST be
-    implemented as an explicit branch (WO-007 must-pass list): at `sigma_c = 1` the exponent
+    implemented as an explicit branch (a later task must-pass list): at `sigma_c = 1` the exponent
     `rho_ces` is 0 and the closed form is a `0/0` that no amount of floating point recovers. The
     branch is tested directly against the Cobb-Douglas product in `tests/unit/test_reward.py`.
     `W = mean_t welfare_t` over the measurement window of PLAN section 4.4 (periods `t >= 2`, which
@@ -286,9 +284,9 @@ def welfare_true(consumer: Array, cfg: EnvConfig) -> float:
     that reason (PLAN section 2.9.2, finding F6). It is the numerator of
     `welfare_ratio = W / W_oracle` (PLAN section 2.9.4), where `W_oracle` comes from the
     expected-value MIP oracle of PLAN section 6.2; Phase 1 uses `W_truthful_max` as a clearly
-    labelled placeholder denominator. Owning WO: **WO-007**.
+    labelled placeholder denominator. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.9.3 - implemented in WO-007")
+    raise NotImplementedError("PLAN section 2.9.3")
 
 
 def padding_index(val_measured_window: Array, val_true_window: Array) -> float:
@@ -321,9 +319,9 @@ def padding_index(val_measured_window: Array, val_true_window: Array) -> float:
     by rescaling the index here.
 
     Binds: `tests/unit/test_reward.py` - the index is exactly 1 on a truthful trajectory, and
-    exceeds 1 whenever any claim exceeds the corresponding true output. Owning WO: **WO-007**.
+    exceeds 1 whenever any claim exceeds the corresponding true output. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.9.4 - implemented in WO-007")
+    raise NotImplementedError("PLAN section 2.9.4")
 
 
 def welfare_ratio(welfare_window: Array, welfare_oracle: float) -> float:
@@ -349,9 +347,9 @@ def welfare_ratio(welfare_window: Array, welfare_oracle: float) -> float:
 
     Binds: `tests/unit/test_reward.py` (the ratio is 1 when the trajectory equals the oracle's, and
     the `sigma_c -> 1` branch of `welfare_true` propagates through unchanged) and the Phase-1 gate
-    reporting of PLAN section 4.5. Owning WO: **WO-007**.
+    reporting of PLAN section 4.5. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.9.4 - implemented in WO-007")
+    raise NotImplementedError("PLAN section 2.9.4")
 
 
 def specification_gap(
@@ -388,6 +386,6 @@ def specification_gap(
 
     Binds: `tests/unit/test_reward.py` - the gap is 0 on a truthful, oracle-matching trajectory, and
     strictly positive when claims are padded while deliveries are unchanged - and the
-    price-sensitivity table of PLAN section 7.5. Owning WO: **WO-007**.
+    price-sensitivity table of PLAN section 7.5. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.9.4 - implemented in WO-007")
+    raise NotImplementedError("PLAN section 2.9.4")

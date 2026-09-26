@@ -1,7 +1,7 @@
-"""DP-vs-PPO recovery experiment - PLAN sections 4.5 (criterion 1), 5, 12.3 (WO-019) and 14.
+"""DP-vs-PPO recovery experiment - PLAN sections 4.5 (criterion 1), 5, 12.3 and 14.
 
-Realises: gate G2 criterion 1 of PLAN section 4.5 and the WO-019 card of PLAN section 12.3. Owning
-work order: **WO-019** (MID-strong, difficulty 3; depends on WO-014 the DP and WO-018 the training
+Realises: gate G2 criterion 1 of PLAN section 4.5 and its task specification of PLAN section 12.3. Owning
+task: a later task (MID-strong, difficulty 3; depends on a later task the DP and a later task the training
 harness). Gate: **G2 criterion 1** - the single-enterprise recovery check. PLAN section 4.5 is
 explicit about its status: *failure of criterion 1 is a training-stack failure and blocks
 everything*. It is not a result about planning, it is the check that the optimiser can find an
@@ -20,15 +20,15 @@ Inputs
     daggered PLAN section 3 rows, the three `a * pen` levels that span the bunching region, and the
     `b_hat_DP` thresholds. This experiment reads those levels; it never chooses them, and it never
     re-derives them from a training result.
-    `gosplan.agents.dp.solve_single_enterprise` (WO-014) on the PLAN section 5 `DPGrid` defaults;
-    `gosplan.agents.ppo.train` (WO-018) with the pinned reference PPO of WO-017.
+    `gosplan.agents.dp.solve_single_enterprise` on the PLAN section 5 `DPGrid` defaults;
+    `gosplan.agents.ppo.train` with the pinned reference PPO of a later task.
 
 Outputs
     `runs/dp_vs_ppo/report.md`      the gate G2 artefact of PLAN section 13: the comparison table,
                                     the Wasserstein-1 distances, and one pass/fail line per
                                     `a * pen` level with the seed count that met the tolerances
     `runs/dp_vs_ppo/table.parquet`  the same comparison, one row per (level, seed), for re-analysis.
-                                    The report name is PLAN's verbatim; this filename is a WO-019
+                                    The report name is PLAN's verbatim; this filename is a a later task
                                     convention
     `runs/<config-hash>/`           per-run directory with `manifest.json` (CONTRACT rule 10,
                                     including the reference-PPO version) and the ledger
@@ -99,7 +99,7 @@ REPORT_PATH = OUT_DIR / "report.md"
 """The gate G2 artefact named in PLAN section 13."""
 
 TABLE_PATH = OUT_DIR / "table.parquet"
-"""One row per (level, seed) comparison; a WO-019 convention, not a PLAN-named artefact."""
+"""One row per (level, seed) comparison; a a later task convention, not a PLAN-named artefact."""
 
 COMPARED_QUANTITIES: tuple[str, ...] = (
     "fictitious_padding",
@@ -140,13 +140,13 @@ def run(
         "flags"              tuple[str, ...], run-level flags, `BOUND_BINDING` included
         "artefacts"          dict[str, str], the paths written
 
-    Procedure (PLAN sections 4.5 criterion 1, 5; WO-019 card):
+    Procedure (PLAN sections 4.5 criterion 1, 5; task specification):
 
       1. For each level in `ap_levels`, build the recovery configuration and solve
-         `solve_single_enterprise(cfg_level, DPGrid())` once (WO-014). Read off the DP's
+         `solve_single_enterprise(cfg_level, DPGrid())` once. Read off the DP's
          `fictitious_padding`, `mean_effort` and `stationary_rho`.
-      2. Train `seeds_per_level` PPO runs on the same configuration with the WO-018 harness at the
-         WO-017 adapter's fixed hyper-parameters, logging every step to a `Ledger` and writing
+      2. Train `seeds_per_level` PPO runs on the same configuration with the corresponding task harness at the
+         a later task adapter's fixed hyper-parameters, logging every step to a `Ledger` and writing
          `runs/<hash>/manifest.json` (CONTRACT rule 10, reference-PPO version included).
       3. Evaluate each trained policy over the measurement window (`t >= 2`) and compute, per seed:
          mean fictitious padding, mean effort, and the Wasserstein-1 distance between the evaluated
@@ -166,9 +166,9 @@ def run(
     `COMPARED_QUANTITIES` at `MIN_PASSING_SEEDS` of `SEEDS_PER_LEVEL` seeds, at each of the
     `N_AP_LEVELS` levels recorded at G1.
 
-    Realises: PLAN sections 4.5, 5, 12.3 (WO-019), 13, 14. Owning WO: **WO-019**.
+    Realises: PLAN sections 4.5, 5, 12.3, 13, 14. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 4.5 (WO-019) - implemented in WO-019")
+    raise NotImplementedError("PLAN section 4.5")
 
 
 def main() -> int:
@@ -184,9 +184,9 @@ def main() -> int:
     the report, and gate G2 is a written sign-off by the human and the lead on that report together
     with `runs/phase1_gate/report.md` (PLAN section 13).
 
-    Realises: PLAN sections 4.5, 12.3 (WO-019), 13. Owning WO: **WO-019**.
+    Realises: PLAN sections 4.5, 12.3, 13. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 4.5 (WO-019) - implemented in WO-019")
+    raise NotImplementedError("PLAN section 4.5")
 
 
 if __name__ == "__main__":

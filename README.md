@@ -10,38 +10,56 @@ The repository exists to support two claims that are stated, tested and reported
 
 ---
 
-## THIS REPOSITORY IS A SKELETON
+## What is built, and what is not
 
-Every function and method body in `gosplan/`, `spec/`, `ref/` and `tests/` is exactly
+463 of the 657 functions in this repository are implemented; 194 are still
+`raise NotImplementedError`. The split is not arbitrary, and it is worth stating precisely,
+because "a skeleton" undersells it and "an environment" oversells it.
 
-```python
-raise NotImplementedError("<PLAN section> - implemented in WO-###")
-```
+**Implemented and runnable today:**
 
-There is no logic anywhere. The only real content is prose and declarations: the markdown
-documents, `CONTRACT.md`, the parameter registry data in `gosplan/params.py`, the work-order cards
-in `workorders/`, packaging and lint configuration, type aliases, enums, `Protocol` definitions,
-and dataclass field declarations carrying the Phase-1 defaults of PLAN §3.
+| Component | What it is |
+|---|---|
+| `ref/ref_step.py` (41 functions, ~2,100 lines) | A complete, readable, pure-Python reference implementation of the environment: production, planner view, allocation, shipping, audit selection and penalties, bonuses, rewards, observations, target updates, conservation residuals, termination, and the period loop |
+| `ref/gen_golden.py` (14 functions) | Rolls the reference forward and writes deterministic trajectories: 5 configurations x 3 seeds x 2 policies = 30 files |
+| `gosplan/config.py`, `gosplan/params.py` | The configuration dataclasses with their cross-field validation and config hashing, and the parameter registry |
+| `scripts/contract_guard.py` | Mechanised enforcement of ten of the thirteen contract rules, run in CI |
+| `tests/` (~300 real tests) | The assertions are written and live. They skip, naming the symbol they wait on, and activate the moment it lands |
 
-Bodies are filled in one at a time by the work orders in `workorders/`, in the DAG order of
-PLAN §12.2, under the rules of [`CONTRACT.md`](CONTRACT.md). Do not "just implement" something
-because it looks small: an implementer writes only the files its card names, and files an
-AMBIGUITY REPORT instead of inventing (CONTRACT rules 3 and 12).
+`make golden` runs end to end and produces the 30 trajectories. That is a real, deterministic,
+multi-enterprise plan-fulfilment simulation, and it is the executable specification everything
+else is checked against.
+
+**Not implemented:** the vectorised environment in `gosplan/env/` (the port target that
+`ref/` exists to be checked against), the learning and heuristic agents in `gosplan/agents/`,
+the metrics in `gosplan/metrics/`, and the experiment drivers. `spec/spec.py` raises
+throughout by design: it is the frozen interface surface, not an implementation.
+
+So the machinery to *run* the model exists, in reference form. What does not exist is a
+learning agent, and therefore any result about learning.
 
 ## NO RESULT EXISTS YET
 
-Nothing in this repository has been run. There are no trained agents, no runs, no figures, no
-estimates, and no findings. `runs/` is empty. Gates G0-G4 are all unsigned.
+No experiment has been run. There are no trained agents, no figures, no estimates and no
+findings. `runs/` is empty and gates G0-G4 are unsigned. The only things `make golden`
+produces are test fixtures, and `tests/golden/README.md` says in terms that they are a test
+oracle and not evidence about anything.
 
-This is deliberate, not incidental. PLAN §4 pre-registers the phenomena, their operationalisations,
-the estimator settings and the Phase-1 acceptance criteria **before** any learning run, and PLAN §4.2
-locks the mechanism parameters behind the held-out phenomena now. Four phenomena (storming excess,
-hoarding to shortage, blat, hidden reserves) are held out: no plot, table or test of them is
-produced before the Phase-2 acceptance run.
+The two policies that exist are `Random` and `TruthfulMyopic`. Neither learns. The project's
+question is whether reporting pathologies *emerge* from the incentive structure, and nothing
+here can speak to that until agents that optimise against it exist and are trained.
+
+This gap is deliberate, not incidental. PLAN section 4 pre-registers the phenomena, their
+operationalisations, the estimator settings and the Phase-1 acceptance criteria **before** any
+learning run, and section 4.2 locks the mechanism parameters behind the held-out phenomena
+now. Four phenomena (storming excess, hoarding to shortage, blat, hidden reserves) are held
+out: no plot, table or test of them is produced before the Phase-2 acceptance run, and
+`scripts/contract_guard.py` fails CI if a Phase-1 module so much as calls one of them.
 
 Consequently: every number visible in this repository today is either a provisional parameter
-default from PLAN §3 (those marked with a dagger are replaced at gate G1) or a template placeholder
-reading `TBD`. **No number here may be cited as a result, an estimate, or a historical fact.**
+default from PLAN section 3 (those marked with a dagger are replaced at gate G1) or a template
+placeholder reading `TBD`. **No number here may be cited as a result, an estimate, or a
+historical fact.**
 
 ---
 
@@ -126,10 +144,10 @@ gosplan-env/
       phenomena.py            # §4.1 operationalisations
       _fallback.py            # vendored estimator signatures (§7.3)
     experiments/
-      mc_sanity.py            # WO-012
-      regime_map.py           # WO-015
-      dp_vs_ppo.py            # WO-019
-      phase1_gate.py          # WO-020
+      mc_sanity.py            # a later task
+      regime_map.py           # a later task
+      dp_vs_ppo.py            # a later task
+      phase1_gate.py          # a later task
       exploitability.py       # P2
       contrasts.py            # P3
       sobol.py                # P3 optional
@@ -145,26 +163,22 @@ gosplan-env/
     behavioural/              # heuristic-agent behavioural tests incl. no-hardcoded-pathology (frozen)
     golden/                   # generated from ref (frozen)
     acceptance/               # lead-run experiments; NOT in CI; not "tests" in the contract sense
-  workorders/
-    WO-000.md … WO-037.md
-    TEMPLATE.md
-    AMBIGUITY_TEMPLATE.md
   runs/                       # manifests + results, one directory per run hash
 ```
 
-(PLAN §8. Directories exist in the skeleton even where every file in them is still a stub.)
+(PLAN section 8. Directories exist even where every file in them is still a stub.)
 
 ---
 
 ## PLAN.md is the build instruction
 
 `PLAN.md` ("gosplan-env - Build Plan v1.0") is the authoritative design document. Everything in this
-repository is derived from it, and every module docstring, work-order card and test cites the PLAN
+repository is derived from it, and every module docstring, task task and test cites the PLAN
 section it realises.
 
 - It is **deliberately git-ignored** (see `.gitignore`) and is never committed. Do not un-ignore it,
   do not vendor it, do not copy large prose blocks of it into code or docs. Cite section numbers.
-- It **must be present locally at the repository root** for any work order to be executed. Without
+- It **must be present locally at the repository root** for any task to be executed. Without
   it, a session cannot check its work against the spec, and the correct action is to stop rather
   than to reconstruct the missing sections from the code.
 - Where this README and `PLAN.md` disagree, `PLAN.md` wins - except for `CONTRACT.md`, which is
@@ -174,12 +188,12 @@ section it realises.
 
 | File | What it is | Owner |
 |---|---|---|
-| `CONTRACT.md` | PLAN §9 verbatim: the 13 rules that bind every session, human or model | LEAD (WO-001) |
+| `CONTRACT.md` | PLAN §9 verbatim: the 13 rules that bind every session, human or model | LEAD |
 | `README.md` | this file | LEAD |
-| `spec/CHANGELOG.md` | every change to `spec/spec.py` after the v1 freeze: version, reason, affected work orders, approver | LEAD |
-| `docs/params_sources.md` | WO-000 deliverable: sourced range or explicit prior for every provisional parameter | LEAD |
-| `docs/ref_worked_example.md` | WO-002 deliverable: the hand-checked 2-enterprise, 2-sector validation of `ref/ref_step.py` | LEAD |
-| `workorders/` | one card per unit of work, plus `TEMPLATE.md` and `AMBIGUITY_TEMPLATE.md` (PLAN §12.1) | LEAD |
+| `spec/CHANGELOG.md` | every change to `spec/spec.py` after the v1 freeze: version, reason, affected tasks, approver | LEAD |
+| `docs/params_sources.md` | a later task deliverable: sourced range or explicit prior for every provisional parameter | LEAD |
+| `docs/ref_worked_example.md` | a later task deliverable: the hand-checked 2-enterprise, 2-sector validation of `ref/ref_step.py` | LEAD |
+| `ROADMAP.md` | the task list, the gate conditions and the dependency order | maintainer |
 
 ---
 
@@ -198,7 +212,7 @@ make spec-check  # spec/spec.py imports and exposes every PLAN §10 public symbo
 ```
 
 `make test` runs **only** the frozen suites. `tests/acceptance/` holds the lead-run gate experiments
-and is never collected: not by CI, not by an implementer session, not on any work order's must-pass
+and is never collected: not by CI, not by a contributor, not on any task's must-pass
 list (CONTRACT rule 13). `make gate` exists and deliberately refuses - a gate is run by the lead, on
 purpose, and writes its artefacts under `runs/` with the manifest of CONTRACT rule 10.
 
@@ -219,8 +233,8 @@ Lint and line length: `ruff`, `line-length = 100`, `target-version = py312`.
 | Acceptance | `tests/acceptance` | LEAD | n/a | **no** | gates G0-G4; experiments, not tests |
 
 Test ids referenced throughout the docstrings are `T-U#` (unit / property) and `T-B#` (behavioural),
-enumerated in PLAN §11. The first three categories are read-only for implementers: if a test looks
-wrong, file an AMBIGUITY REPORT (CONTRACT rules 2 and 3).
+enumerated in PLAN §11. The first three categories are read-only for contributors: if a test looks
+wrong, file an OPEN QUESTION (CONTRACT rules 2 and 3).
 
 ---
 
@@ -230,18 +244,18 @@ Work proceeds through five gates. A gate is a written sign-off on named artefact
 
 | Gate | After | Pass condition | Artefacts | Sign-off |
 |---|---|---|---|---|
-| **G0** | WO-012 | Full frozen suite green; MC sanity report clean; lead's diff review of `env/` against CONTRACT rule 7 | `runs/mc_sanity/report.md` | LEAD |
-| **G1** | WO-015 | Regime map produced; human selects the P1 provisional values from the interior of the bunching region; three `a·pen` levels and the `b̂_DP` thresholds recorded **before** any training | `runs/G1_decision.md`, `spec` v1.0.0 | Human |
-| **G2** | WO-020 | PLAN §4.5 criteria 1-4 | `runs/dp_vs_ppo/report.md`, `runs/phase1_gate/report.md` | Human + LEAD |
-| **G3** | WO-031 | Held-out phenomena 2, 5, 6, 7 evaluated on the PLAN §4.2 values (pass or reported failure); exploitability below threshold on all arms used; oracle gap recorded; JAX parity | `runs/phase2_acceptance/report.md` | Human + LEAD |
-| **G4** | WO-037 | Contrasts with CIs; estimator-bias curves; LLM study; price sensitivity on every headline table | final report | Human |
+| **G0** | a later task | Full frozen suite green; MC sanity report clean; lead's diff review of `env/` against CONTRACT rule 7 | `runs/mc_sanity/report.md` | LEAD |
+| **G1** | a later task | Regime map produced; human selects the P1 provisional values from the interior of the bunching region; three `a·pen` levels and the `b̂_DP` thresholds recorded **before** any training | `runs/G1_decision.md`, `spec` v1.0.0 | Human |
+| **G2** | a later task | PLAN §4.5 criteria 1-4 | `runs/dp_vs_ppo/report.md`, `runs/phase1_gate/report.md` | Human + LEAD |
+| **G3** | a later task | Held-out phenomena 2, 5, 6, 7 evaluated on the PLAN §4.2 values (pass or reported failure); exploitability below threshold on all arms used; oracle gap recorded; JAX parity | `runs/phase2_acceptance/report.md` | Human + LEAD |
+| **G4** | a later task | Contrasts with CIs; estimator-bias curves; LLM study; price sensitivity on every headline table | final report | Human |
 
-**A gate that fails produces a written failure report.** The next work order is then a lead
+**A gate that fails produces a written failure report.** The next task is then a lead
 diagnosis - never a parameter change made in order to pass the gate. Parameter changes after G1
 create a new, labelled study with its own pre-registration. (PLAN §13.)
 
-The build order between gates is the DAG of PLAN §12.2: WO-000 (parameter sourcing) and WO-001
-(spec v0, contract, registry) and WO-002 (reference dynamics and frozen tests) come first; the
+The build order between gates is the DAG of PLAN §12.2: parameter sourcing and a later task
+(spec v0, contract, registry) and reference dynamics and frozen tests come first; the
 environment modules, step function, heuristics, ledger and MC sanity harness reach G0; the spec
 freeze, DP and regime map reach G1; metrics, the PPO adapter, the training harness and the two
 Phase-1 experiments reach G2.
@@ -254,7 +268,7 @@ Phase-1 experiments reach G2.
 Read it before writing a line. Its rules cover, in order: the frozen spec, the frozen tests, the
 duty to stop and report rather than invent, the exhaustive list of reward terms, planner blindness,
 welfare blindness, the prohibition on hard-coded pathology, bounds as results, RNG discipline, the
-run manifest, parameter-arm classification, work-order scope, and the separation of tests from
+run manifest, parameter-arm classification, task scope, and the separation of tests from
 experiments.
 
 Violations invalidate the session's output. That is the whole point of a skeleton: the shape is

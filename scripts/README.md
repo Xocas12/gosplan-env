@@ -12,8 +12,8 @@ One script lives here.
 
 ### Why it exists
 
-This repository is built by handing out one work-order card at a time. An implementer reads only
-the files on its card's whitelist, writes only the files it names, and nobody reviews every line of
+This repository is built by handing out one task task at a time. An contributor reads only
+the files on its task's whitelist, writes only the files it names, and nobody reviews every line of
 every diff. `CONTRACT.md` is what makes that safe — and a contract nobody mechanises is a contract
 nobody keeps. `contract_guard.py` mechanises the subset of the thirteen rules that is decidable
 from source text, so that a violation is a red build rather than a quiet fact discovered three
@@ -107,7 +107,7 @@ The whitelist has two entries. CONTRACT rule 5 names one, `make_planner_view`, t
 `State -> planner` boundary in the codebase. `deliver` is the documented second: it is the physical
 execution of an allocation already decided from the view, it makes no planner decision, and the
 interface note in `spec/spec.py` records that test T-B4 whitelists it — to be recorded in
-`spec/CHANGELOG.md`, or relocated to `gosplan/env/step.py`, at the v1 freeze (WO-013). The guard
+`spec/CHANGELOG.md`, or relocated to `gosplan/env/step.py`, at the v1 freeze. The guard
 also reads `STATE_ARGUMENT_WHITELIST` out of `tests/behavioural/test_planner_blindness.py` and
 fails if the two lists disagree, so the static guard and the frozen test cannot drift apart.
 Widening the boundary therefore takes an edit to a frozen test *and* an edit to the guard *and* a
@@ -144,8 +144,8 @@ by construction and the step can never fire.
 PLAN §4.1 table are the emergence claims, and they are held out: no plot, table or test of these
 quantities may be produced before the Phase-2 acceptance run — not during Phase 1, and not while
 debugging their own mechanisms. The Monte Carlo sanity harness may assert conservation and
-boundedness on the same mechanisms and **never a direction**. WO-012 and WO-016 are forbidden from
-implementing them; **WO-030 is the only place they may be computed**, in the Phase-2 acceptance
+boundedness on the same mechanisms and **never a direction**. a later task are forbidden from
+implementing them; **a later task is the only place they may be computed**, in the Phase-2 acceptance
 run. Their mechanism parameters are locked in PLAN §4.2 so they cannot drift, and if a held-out
 phenomenon fails to appear, that is reported as a failure rather than tuned away. This is the check
 most likely to be tripped by good intentions — it is genuinely tempting to plot hoarding while
@@ -157,7 +157,7 @@ experiments run before the Phase-2 acceptance run" is a design fact from PLAN §
 something a script should guess. Add to that list when a new Phase-1 experiment lands.
 
 **PLAN leak.** `PLAN.md` is the out-of-band build instruction for this repository. It is not the
-output of any work order, it is deliberately git-ignored, and this repository is public: the guard
+output of any task, it is deliberately git-ignored, and this repository is public: the guard
 asserts that `git ls-files --error-unmatch PLAN.md` **fails**, and without git it falls back to
 asserting that `.gitignore` names it. The second half — no local absolute path in any tracked file
 — is the usual way a path to the out-of-band plan escapes into a committed artefact, and it also
@@ -186,7 +186,7 @@ the point of the design, and `tests/unit/test_contract_guard.py` asserts it dire
 ### The rule-2 exemption
 
 CONTRACT rule 2 makes `tests/unit`, `tests/behavioural` and `tests/golden` read-only **for
-implementers**; the lead may edit them. A script cannot see who opened a pull request, so it cannot
+contributors**; the lead may edit them. A script cannot see who opened a pull request, so it cannot
 apply that condition. The check therefore reports every frozen-test file in the diff at severity
 `review-required` — with one structural carve-out, and two suppressions for genuine lead edits.
 
@@ -200,7 +200,7 @@ FROZEN_TEST_NON_FROZEN_PATHS: frozenset[str] = frozenset({"tests/unit/test_contr
 Rule 2 freezes those three directories because they hold the frozen expectations the environment
 implementation is measured against (PLAN §11). This guard's own test suite sits in `tests/unit/`
 only because that is where pytest looks for it: it makes no claim about environment behaviour, it
-is on no work order's must-pass list, and it is edited by whoever edits `contract_guard.py` — in
+is on no task's must-pass list, and it is edited by whoever edits `contract_guard.py` — in
 the same pull request, or the guard and its test drift apart. It is a **permanent** resident of the
 directory, and the exemption file below is for **temporary** suppressions, so a standing entry
 there would be a permanently disabled rule; the carve-out is structural for that reason, and
@@ -217,7 +217,7 @@ The two suppressions, both of which leave a trace:
    reviewable alongside the change it covers. Example:
 
    ```
-   # WO-013: lead is regenerating the golden matrix at the v1 spec freeze.
+   # a later task: lead is regenerating the golden matrix at the v1 spec freeze.
    tests/golden/
    tests/unit/test_spec_imports.py
    ```
@@ -234,9 +234,9 @@ The two suppressions, both of which leave a trace:
 
    A workflow that sets this unconditionally has disabled rule 2. Do not.
 
-If you are an implementer and a frozen test looks wrong: **do not edit it, do not skip it, and do
-not special-case the implementation to pass it.** File an AMBIGUITY REPORT
-(`workorders/AMBIGUITY_TEMPLATE.md`) and end the session — CONTRACT rule 3.
+If you are an contributor and a frozen test looks wrong: **do not edit it, do not skip it, and do
+not special-case the implementation to pass it.** File an OPEN QUESTION
+(an open question in the issue tracker) and end the session — CONTRACT rule 3.
 
 ### What this script cannot check
 
@@ -244,7 +244,7 @@ Everything below needs a human, and none of it is weakened by the guard passing.
 
 | Not checked | Why not | Who checks it |
 |---|---|---|
-| **Rule 3, STOP AND REPORT** | "When the spec, the work order and the whitelisted files do not determine a choice, emit an AMBIGUITY REPORT." Whether a choice was determined is a judgement about *meaning*; fluent invention looks exactly like competent implementation from the outside, which is the entire reason the rule exists. No static check can see a decision that should have been a question. | The lead, reading the diff against the card |
+| **Rule 3, STOP AND REPORT** | "When the spec, the task and the whitelisted files do not determine a choice, emit an OPEN QUESTION." Whether a choice was determined is a judgement about *meaning*; fluent invention looks exactly like competent implementation from the outside, which is the entire reason the rule exists. No static check can see a decision that should have been a question. | The lead, reading the diff against the task |
 | **Rule 4, in general** | A shaping term written under an innocent name, an extra addend in `enterprise_reward`, or a denylisted wrapper imported under an alias all pass the denylist. | `tests/unit/test_ppo_adapter.py` (inspection of the wrapped object) and test T-B6 (the reward recomputed independently from the five-term formula) |
 | **Rule 5, dynamically** | Whether `make_planner_view` actually *leaks* a true quantity into the view it returns. The guard checks signatures; leakage is behaviour. | Test T-B4's sentinel half |
 | **Rule 6, in general** | A true quantity smuggled into an observation under another name or as a derived function — "no function of `consumer`, no function of another enterprise's `cum_output`". | Test T-B5's sentinel sweep |
@@ -252,7 +252,7 @@ Everything below needs a human, and none of it is weakened by the guard passing.
 | **Rule 8, BOUNDS ARE RESULTS** | Whether a bound was silently widened or narrowed to fix a result is visible only against the pre-registration, and the `BOUND_BINDING` flag is a run-time property of a ledger. | Test T-B8; the run manifest; the lead |
 | **Rule 10, MANIFEST** | Whether every run actually wrote a manifest with every required field is a property of runs, not of source. | `tests/unit/test_ledger.py`; the gate artefacts |
 | **Rule 11, PARAMETER ARMS** | The INFO/INC/SUPPLY/TECH classification in `gosplan/params.py` is a design decision; whether a reassignment was justified is not decidable from the diff. The guard does not even try. | A `spec/CHANGELOG.md` entry and lead sign-off |
-| **Rule 12, WORK ORDERS** | Whether an implementer read only the whitelisted files, wrote only the named files, ran the completion command verbatim and reported in the card's format. A script sees the files that changed, not the files that were read, and reading is half the rule. | The lead, comparing the diff and the session report against the card |
+| **Rule 12, WORK ORDERS** | Whether an contributor read only the whitelisted files, wrote only the named files, ran the completion command verbatim and reported in the task's format. A script sees the files that changed, not the files that were read, and reading is half the rule. | The lead, comparing the diff and the session report against the task |
 | **Rule 1, "only the lead"** | Authorship is pull-request metadata, not source. | Review and branch protection |
 
 ### Testing and extending it
@@ -270,5 +270,5 @@ python -m pytest tests/unit/test_contract_guard.py -q
 To add a check: write one `check_*(root, changed) -> list[Violation]` function, register it in
 `CHECKS` in `CONTRACT.md` order, add its rule id to `RULE_ORDER`, and add a violating tree and a
 clean tree to the test module. Keep every message quoting the rule it enforces and every `fix`
-to one actionable line — the reader is an implementer who has not seen this conversation, does not
+to one actionable line — the reader is an contributor who has not seen this conversation, does not
 have `PLAN.md`, and needs to know what to do next without asking.

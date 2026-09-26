@@ -2,7 +2,7 @@
 
 Realises: PLAN section 2.10 (prices and final demand), PLAN section 7.5 (the standing
 price-sensitivity check) and PLAN section 11 (test architecture, unit/property category). Owning
-work order: **WO-002** (frozen tests; LEAD). Binds the WO-007 must-pass line of PLAN section 12.3,
+task: a later task (frozen tests; LEAD). Binds the corresponding task must-pass line of PLAN section 12.3,
 verbatim - "`tests/unit/test_prices.py` (cost-plus fixed point converges; positive)". Module under
 test: `gosplan/env/prices.py`.
 
@@ -14,13 +14,13 @@ solved as a fixed point over `j` at `t = 0`, with `m = cfg.supply.price_markup` 
 `kappa_labour` is not a configuration parameter: `p` is homogeneous of degree 1 in it and every use
 of `p` in the design is a ratio, so it is fixed at 1.0 as a recorded normalisation. Convergence
 requires `(1 + m) * sum_k a_jk < 1` for every row, which is why `EnvConfig.validate` rejects
-`sum_k a_jk >= 1` (WO-003).
+`sum_k a_jk >= 1`.
 
 Prices are not a modelling nuisance to be tuned: PLAN sections 2.9.4 and 7.5 require every headline
 table to be recomputed under three perturbed price vectors (`p_j * exp(u_j)`, `u ~ N(0, 0.3**2)`,
 fixed seeds), and a sign change in `specification_gap` is reported rather than suppressed.
 
-FROZEN BY CONTRACT RULE 2. SKELETON: every test is `@pytest.mark.skeleton` and skipped until WO-007
+FROZEN BY CONTRACT RULE 2. SKELETON: every test is `@pytest.mark.skeleton` and skipped until a later task
 lands; each docstring states the exact assertion, formula and tolerance.
 """
 
@@ -42,7 +42,7 @@ def test_initial_prices_solve_the_cost_plus_fixed_point(p1_cfg, implemented) -> 
     `(1 + m) * sum_k a_jk < 1`, so the answer is a property of the configuration and not of the
     iteration.
 
-    First half of the WO-007 prices must-pass line.
+    First half of the corresponding task prices must-pass line.
     """
     import dataclasses
 
@@ -71,7 +71,7 @@ def test_every_plan_price_is_strictly_positive(p1_cfg, tiny_cfg, implemented) ->
     `val_measured` and `val_true`, so a zero or negative price would silently corrupt every
     headline metric of PLAN section 2.9.4.
 
-    Second half of the WO-007 prices must-pass line.
+    Second half of the corresponding task prices must-pass line.
     """
     import dataclasses
 

@@ -2,7 +2,7 @@
 
 Realises: PLAN sections 2.2 and 4 (the `StepRecord` columns and the ledger they form), CONTRACT rule
 10 (the manifest) and CONTRACT rule 8 (bounds are results), plus PLAN section 11 (test architecture;
-the unit half of **T-B8**). Owning work order: **WO-002** (frozen tests; LEAD). Binds the WO-011
+the unit half of **T-B8**). Owning task: a later task (frozen tests; LEAD). Binds the corresponding task
 must-pass line of PLAN section 12.3, verbatim - "`tests/unit/test_ledger.py` (round-trip parquet;
 manifest has every rule-10 field; `BOUND_BINDING` logic, T-B8)". Module under test:
 `gosplan/metrics/ledger.py`.
@@ -18,7 +18,7 @@ flag. Never silently widen or narrow a bound to fix a result."
 CONTRACT RULE 6: the ledger holds true quantities and is read by metrics and by lead-run experiments
 only; nothing an agent can read touches it.
 
-FROZEN BY CONTRACT RULE 2. SKELETON: every test is `@pytest.mark.skeleton` and skipped until WO-011
+FROZEN BY CONTRACT RULE 2. SKELETON: every test is `@pytest.mark.skeleton` and skipped until a later task
 lands; each docstring states the exact assertion, formula and tolerance.
 """
 
@@ -94,7 +94,7 @@ def test_parquet_round_trip_preserves_every_column_and_dtype(p1_cfg, tmp_path, i
     """`Ledger.to_parquet` writes a file that reads back identical.
 
     Assertion: build a ledger of `StepRecord`s covering every field (identifiers, the PLAN section
-    2.2 state columns, the WO-011 additions `y, R, rho, S_pre, S_post, audited, S_hat, f, Pen, fill,
+    2.2 state columns, the corresponding task additions `y, R, rho, S_pre, S_post, audited, S_hat, f, Pen, fill,
     deliv, consumer, val_measured, val_true, welfare, at_bound`, and the action and conservation
     columns), write it with `to_parquet(path)`, read it back, and assert: one row per `StepRecord`
     in append order; every column present; every dtype preserved (float columns as float, `audited`
@@ -102,7 +102,7 @@ def test_parquet_round_trip_preserves_every_column_and_dtype(p1_cfg, tmp_path, i
     value equal to the original bit for bit, so a metric computed from the file equals the metric
     computed from memory.
 
-    First bullet of the WO-011 must-pass list. `pyarrow` is the writer and is a runtime dependency
+    First bullet of the corresponding task must-pass list. `pyarrow` is the writer and is a runtime dependency
     of `gosplan/metrics/ledger.py` alone; `spec/spec.py` deliberately does not import it.
     """
     import dataclasses
@@ -201,7 +201,7 @@ def test_bound_binding_is_raised_above_one_percent_of_reports_at_the_bound(
     behavioural counterpart, test T-B8, forces `rho = 10` in more than 1% of reports through a live
     environment and asserts the same flag.
 
-    Third bullet of the WO-011 must-pass list. CONTRACT rule 8: the flag is reported with the
+    Third bullet of the corresponding task must-pass list. CONTRACT rule 8: the flag is reported with the
     result; the bound is never moved to clear it.
     """
     from gosplan.metrics.ledger import (
@@ -262,7 +262,7 @@ def test_manifest_carries_every_contract_rule_10_field(p1_cfg, tmp_path, impleme
     PLAN section 4.5 constants from `gosplan/metrics/phenomena.py`, and `flags` a list carrying
     every flag the run raised.
 
-    Second bullet of the WO-011 must-pass list, and CONTRACT rule 10 verbatim.
+    Second bullet of the corresponding task must-pass list, and CONTRACT rule 10 verbatim.
     """
     import json
 

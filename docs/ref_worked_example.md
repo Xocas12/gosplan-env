@@ -1,11 +1,11 @@
-# Reference dynamics - hand-checked worked example (WO-002)
+# Reference dynamics - hand-checked worked example
 
-> **FILLED. WO-002 step 3 executed 2026-09-07.** Every numeric cell below was derived from the PLAN
+> **FILLED. a later task step 3 executed 2026-09-07.** Every numeric cell below was derived from the PLAN
 > formulas by an independent re-derivation, then compared against `ref/ref_step.py`. Two defects were
 > found and are recorded in section 6: ambiguity **#62** (cold-start deadlock) and ambiguity **#64**
 > (the T-U1 identity does not balance). #64 was found *here* and is fixed in this change.
 
-**Work order.** WO-002 Reference dynamics and frozen tests · P1 · LEAD · Difficulty 5 (PLAN §12.3).
+**Work order.** a later task Reference dynamics and frozen tests · P1 · LEAD · Difficulty 5 (PLAN §12.3).
 **Validate `ref` by hand on a 2-enterprise, 2-sector case - this document is that validation,
 committed.**
 

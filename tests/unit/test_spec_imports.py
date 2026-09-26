@@ -1,23 +1,23 @@
 """The frozen interface exists and exposes the whole PLAN section 10 surface.
 
 Realises: PLAN section 10 (`spec/spec.py` v0 - the interface skeleton) and PLAN section 11 (test
-architecture, unit/property category). Owning work order: **WO-002** (frozen tests; LEAD). Binds:
-the WO-001 must-pass line of PLAN section 12.3, verbatim - "`tests/unit/test_spec_imports.py`
+architecture, unit/property category). Owning task: a later task (frozen tests; LEAD). Binds:
+the corresponding task must-pass line of PLAN section 12.3, verbatim - "`tests/unit/test_spec_imports.py`
 (spec imports; every public symbol in section 10 present)".
 
 THIS MODULE IS THE ONE EXECUTABLE TEST IN THE SKELETON. Every other module in `tests/unit` is a
-placeholder whose tests are skipped until their work order lands (see `tests/conftest.py`). This one
+placeholder whose tests are skipped until their task lands (see `tests/conftest.py`). This one
 runs now and must pass now: it is the only thing standing between a typo in the frozen interface and
-twenty work orders written against it.
+twenty tasks written against it.
 
 CONTRACT RULE 1 is what it guards. `spec/spec.py` is provisional (v0, `SPEC_VERSION` "0.1.0") until
-gate G1 and frozen (v1, "1.0.0") thereafter at WO-013; after v1 only the lead may change it, and
+gate G1 and frozen (v1, "1.0.0") thereafter at a later task; after v1 only the lead may change it, and
 only with a `spec/CHANGELOG.md` entry. So this module asserts the *presence and shape* of the
 section 10 surface and never a version literal: a bump from "0.1.0" to "1.0.0" is a sanctioned
 change, a missing symbol never is.
 
-CONTRACT RULE 2 freezes this file along with the rest of `tests/unit`: implementers do not edit it.
-If a symbol here disagrees with `spec/spec.py`, that is an AMBIGUITY REPORT against the owning work
+CONTRACT RULE 2 freezes this file along with the rest of `tests/unit`: contributors do not edit it.
+If a symbol here disagrees with `spec/spec.py`, that is an OPEN QUESTION against the owning work
 order (CONTRACT rule 3), not an edit to either side.
 
 Loading mechanism. `spec/` is a directory outside the `gosplan` package and is not installable, so
@@ -131,7 +131,7 @@ PLAN_SECTION_10_SYMBOLS: tuple[str, ...] = (
 )
 """Every public symbol the PLAN section 10 code block declares, in its order. This tuple is the
 test's copy of section 10 and the reason the test can fail: a symbol dropped from `spec/spec.py`
-must break WO-001's must-pass line rather than be discovered by whichever work order needed it
+must break a later task's must-pass line rather than be discovered by whichever task needed it
 first. `spec/spec.py` legitimately exports *more* than this - `RegimeLabel`, `Purpose` and `Dist`
 narrow the `str` parameters section 10 types loosely, a narrowing the spec header records for the
 v1 CHANGELOG - so the assertions below are containment, never equality."""
@@ -229,7 +229,7 @@ TECH_CONFIG_FIELDS: frozenset[str] = frozenset(
     }
 )
 """The TECH-arm fields named in the PLAN section 10 `TechConfig` comment. PPO hyper-parameters are
-TECH too but deliberately live with the adapter (WO-017), not in `EnvConfig`, because the
+TECH too but deliberately live with the adapter, not in `EnvConfig`, because the
 environment never reads them."""
 
 ENV_CONFIG_FIELDS: frozenset[str] = frozenset(
@@ -255,7 +255,7 @@ def _load_spec_module():
     Takes: nothing; the path is `SPEC_PATH`. Returns: the executed module. Raises `ImportError` if
     the loader cannot be built (a missing or unreadable file), and propagates whatever
     `spec/spec.py` itself raises at import time - which is the point: "spec imports" is the first
-    half of WO-001's must-pass line.
+    half of a later task's must-pass line.
 
     Mechanism: `importlib.util.spec_from_file_location(SPEC_MODULE_NAME, SPEC_PATH)`, then
     `module_from_spec`, then registration in `sys.modules` before `exec_module` (so that the
@@ -287,14 +287,14 @@ def test_spec_file_exists() -> None:
     """`spec/spec.py` is present at the path PLAN section 8 gives it.
 
     Asserts `SPEC_PATH.is_file()`. A missing interface file is the failure this suite must report
-    first and most loudly: every work order in PLAN section 12.3 reads it, and the loader error of
+    first and most loudly: every task in PLAN section 12.3 reads it, and the loader error of
     the next test would otherwise name an import problem rather than an absent file.
     """
     assert SPEC_PATH.is_file(), f"frozen interface missing: {SPEC_PATH}"
 
 
 def test_spec_module_imports(spec_module) -> None:
-    """The frozen interface imports cleanly - the first half of WO-001's must-pass line.
+    """The frozen interface imports cleanly - the first half of a later task's must-pass line.
 
     Asserts the module object exists and that its `__file__` resolves to `SPEC_PATH`, i.e. the
     module under test is the repository's own `spec/spec.py` and not a same-named module picked up
@@ -310,7 +310,7 @@ def test_spec_version_is_a_string(spec_module) -> None:
     """`SPEC_VERSION` is a non-empty dotted version string (PLAN section 10, CONTRACT rule 1).
 
     Asserts `isinstance(spec_module.SPEC_VERSION, str)`, that it is non-empty, and that it is
-    dot-separated digits (v0 is "0.1.0"; WO-013 bumps it to "1.0.0" at the v1 freeze). The literal
+    dot-separated digits (v0 is "0.1.0"; a later task bumps it to "1.0.0" at the v1 freeze). The literal
     value is deliberately NOT asserted: bumping it is the sanctioned change of CONTRACT rule 1,
     recorded in `spec/CHANGELOG.md`, and a frozen test that pinned the literal would turn a
     sanctioned bump into a test failure. It is written into every run manifest (CONTRACT rule 10),
@@ -328,7 +328,7 @@ def test_array_alias_is_the_numpy_array_type(spec_module) -> None:
     """`Array` is `numpy.ndarray` (PLAN section 10).
 
     Asserts `spec_module.Array is np.ndarray`. Every numeric signature in the interface is typed
-    with this alias, and the Phase-2 JAX port (WO-029) substitutes its own array type behind the
+    with this alias, and the Phase-2 JAX port substitutes its own array type behind the
     same name - which is only mechanical if the alias is exactly the array type and never a
     subclass, a `TypeAlias` wrapper or a string.
     """
@@ -339,7 +339,7 @@ def test_plan_section_10_symbols_are_present(spec_module) -> None:
     """Every public symbol of PLAN section 10 exists in the frozen interface.
 
     Asserts `hasattr(spec_module, name)` for every name in `PLAN_SECTION_10_SYMBOLS` - the second
-    half of WO-001's must-pass line, "every public symbol in section 10 present" - and reports the
+    half of a later task's must-pass line, "every public symbol in section 10 present" - and reports the
     complete set of missing names in one failure rather than stopping at the first, so a spec
     session sees the whole gap at once.
     """
@@ -367,7 +367,7 @@ def test_every_exported_name_resolves(spec_module) -> None:
     """Nothing in `__all__` is a dangling name.
 
     Asserts `hasattr(spec_module, name)` for every entry of `spec_module.__all__`. A name exported
-    but never defined would break `from spec.spec import *` and, worse, would let a work order cite
+    but never defined would break `from spec.spec import *` and, worse, would let a task cite
     a symbol that does not exist; the check is the mirror image of the previous test.
     """
     dangling = [name for name in spec_module.__all__ if not hasattr(spec_module, name)]
@@ -388,8 +388,7 @@ def test_config_dataclass_fields_match_plan_section_10(
     every parameter to carry an arm assignment and a registry row in `gosplan/params.py`, so it may
     not appear here unannounced.
 
-    Declaration order is not asserted; membership is. `EnvConfig.hash()` sorts keys before hashing
-    (WO-003), so a reordering is invisible to every run directory and manifest.
+    Declaration order is not asserted; membership is. `EnvConfig.hash()` sorts keys before hashing, so a reordering is invisible to every run directory and manifest.
     """
     cls = getattr(spec_module, class_name)
     assert dataclasses.is_dataclass(cls), f"{class_name} is not a dataclass"
@@ -401,9 +400,9 @@ def test_env_config_exposes_validate_and_hash(spec_module) -> None:
     """`EnvConfig` carries the two methods PLAN section 10 gives it.
 
     Asserts `EnvConfig.validate` and `EnvConfig.hash` exist and are callable. `validate` is the
-    cross-field gate of PLAN section 3 (WO-003); `hash` is the SHA-256 of the canonical JSON
+    cross-field gate of PLAN section 3; `hash` is the SHA-256 of the canonical JSON
     encoding that names `runs/<hash>/` and appears in every manifest (CONTRACT rule 10). Neither is
-    called here - both raise `NotImplementedError` until WO-003 lands.
+    called here - both raise `NotImplementedError` until a later task lands.
     """
     cfg_cls = spec_module.EnvConfig
     assert callable(cfg_cls.validate)

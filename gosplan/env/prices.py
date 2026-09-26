@@ -1,8 +1,8 @@
 """Plan prices: the cost-plus fixed point, and the price-vector sensitivity perturbation.
 
 Realises: PLAN section 2.10 (plan prices and final demand), plus the standing robustness check of
-PLAN sections 2.9.4 and 7.5. Owning work order: **WO-007** (reporting and reward; MID-strong),
-with the sensitivity harness itself in `gosplan/experiments/price_sensitivity.py` (WO-036).
+PLAN sections 2.9.4 and 7.5. Owning task: a later task (reporting and reward; MID-strong),
+with the sensitivity harness itself in `gosplan/experiments/price_sensitivity.py`.
 
 Prices are a *measurement* instrument in this design, not a market. Nothing an agent does moves
 them, and no agent observes them: they enter only the planner-side aggregate `val_measured`, the
@@ -29,7 +29,7 @@ are swept only in the price-sensitivity check of PLAN section 7.5, never in a tr
 
 Dimensions: `J = cfg.supply.n_sectors`. One good per sector, so a price vector is `(J,)`.
 
-Cross-module bindings. `EnvConfig` is the runtime dataclass of `gosplan/config.py` (WO-003) and
+Cross-module bindings. `EnvConfig` is the runtime dataclass of `gosplan/config.py` and
 must stay field-for-field identical to its `spec/spec.py` declaration, which is not importable as
 a package. It is imported under `TYPE_CHECKING` so this module stays importable while its siblings
 are still skeletons.
@@ -87,7 +87,7 @@ def initial_prices(cfg: EnvConfig) -> Array:
     only for convergence and positivity.
 
     Convergence requires every row of `a` to satisfy `(1 + m) * sum_k a_jk < 1`, which is exactly
-    why `EnvConfig.validate` rejects `sum_k a_jk >= 1` (WO-003). At the Phase-1 `io_matrix` every
+    why `EnvConfig.validate` rejects `sum_k a_jk >= 1`. At the Phase-1 `io_matrix` every
     row sums to 0.4, so `(1 + m) * 0.4 = 0.44 < 1` and the spectral radius is comfortably inside
     the unit circle. A configuration that fails the condition must raise rather than return a
     diverged vector.
@@ -101,10 +101,10 @@ def initial_prices(cfg: EnvConfig) -> Array:
     every headline table to be recomputed under the perturbed vectors of `perturbed_price_vectors`,
     and a sign change in `specification_gap` is reported rather than suppressed.
 
-    Binds: `tests/unit/test_prices.py` (the WO-007 must-pass list) - the fixed point converges and
-    every price is strictly positive. Owning WO: **WO-007**.
+    Binds: `tests/unit/test_prices.py` (the corresponding task must-pass list) - the fixed point converges and
+    every price is strictly positive. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.10 - implemented in WO-007")
+    raise NotImplementedError("PLAN section 2.10")
 
 
 def recompute_prices(planner_io: Array, cfg: EnvConfig) -> Array:
@@ -126,15 +126,15 @@ def recompute_prices(planner_io: Array, cfg: EnvConfig) -> Array:
     do with anybody's report. Reading `cfg.supply.io_matrix` here would destroy that channel.
 
     The *schedule* - recomputation every `cfg.supply.price_lag` periods - is applied by the step
-    machine (`gosplan/env/step.py`, WO-009), not here; this function is the solver alone, so it
+    machine (`gosplan/env/step.py`, a later task), not here; this function is the solver alone, so it
     stays a pure function of `(planner_io, cfg)`. The exact trigger predicate and the treatment of
     a non-integer `price_lag` are frozen at the Phase-2 spec revision (PLAN section 0).
 
     Binds: `tests/unit/test_prices.py` - agrees with `initial_prices` to 1e-12 when `planner_io`
-    equals `cfg.supply.io_matrix`, which is the Phase-1 state at every `t`. Owning WO: **WO-007**
-    (solver), Phase-2 activation with WO-022/WO-023.
+    equals `cfg.supply.io_matrix`, which is the Phase-1 state at every `t`. Owning WO: a later task
+    (solver), Phase-2 activation with a later task/a later task.
     """
-    raise NotImplementedError("PLAN section 2.10 - implemented in WO-007")
+    raise NotImplementedError("PLAN section 2.10")
 
 
 def perturbed_price_vectors(prices: Array, seeds: tuple[int, ...]) -> tuple[Array, ...]:
@@ -155,26 +155,26 @@ def perturbed_price_vectors(prices: Array, seeds: tuple[int, ...]) -> tuple[Arra
     The chosen triple is recorded in the run manifest (CONTRACT rule 10) and never re-rolled to
     change a table; re-rolling it is the exact move CONTRACT rule 8's spirit forbids.
 
-    Use: `gosplan/experiments/price_sensitivity.py` (WO-036) recomputes `padding_index`,
+    Use: `gosplan/experiments/price_sensitivity.py` recomputes `padding_index`,
     `welfare_ratio` and `specification_gap` (PLAN section 2.9.4) under each returned vector and
     reports them beside the baseline. A sign change in `specification_gap` is reported, not
     suppressed (PLAN section 7.5). The perturbation is post-hoc: it re-values a ledger that has
     already been produced, so it never enters an episode, an observation or a reward, and
     `State.plan_prices` is not touched by it.
 
-    Randomness - an open item for the v1 freeze (WO-013). CONTRACT rule 9 requires every draw made
+    Randomness - an open item for the v1 freeze. CONTRACT rule 9 requires every draw made
     under `gosplan/env/` to go through `gosplan.rng.draw(seed_env, purpose, *indices)`, and the
     `Purpose` enumeration of PLAN section 2.15 has no value for a price perturbation. Two
     resolutions are admissible and the lead must record one in `spec/CHANGELOG.md`: (i) add a
     purpose (for example `pricepert`) to `Purpose` at the v1 freeze and draw
     `dist="normal", mean=0.0, sigma=PRICE_PERTURBATION_SIGMA` with `shape=(J,)` keyed by each seed;
     or (ii) move this helper to `gosplan/experiments/price_sensitivity.py`, which is outside
-    `gosplan/env/` and therefore outside rule 9. Until that is recorded, the implementer must not
+    `gosplan/env/` and therefore outside rule 9. Until that is recorded, the contributor must not
     pick one silently and must not call `numpy.random` here.
 
     Binds: `tests/unit/test_prices.py` - `len(result) == len(seeds)`; every vector is strictly
     positive; the result is deterministic in `(prices, seeds)` and independent of call order;
-    the vectors differ from the baseline and from each other. Owning WO: **WO-007** (helper),
-    **WO-036** (the tables it feeds).
+    the vectors differ from the baseline and from each other. Owning WO: a later task (helper),
+    a later task (the tables it feeds).
     """
-    raise NotImplementedError("PLAN sections 2.9.4, 7.5 - implemented in WO-007")
+    raise NotImplementedError("PLAN sections 2.9.4, 7.5")

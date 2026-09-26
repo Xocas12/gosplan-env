@@ -2,7 +2,7 @@
 
 Realises: PLAN section 2.4 (the enumerated observation and the information invariants) and PLAN
 section 11 (test architecture, unit/property category; the unit half of **T-B5**). Owning work
-order: **WO-002** (frozen tests; LEAD). Binds the WO-008 must-pass line of PLAN section 12.3,
+order: a later task (frozen tests; LEAD). Binds the corresponding task must-pass line of PLAN section 12.3,
 verbatim -
 "`tests/unit/test_obs.py` (layout equals `obs_spec`; dimension `12 + 3J` at P1; masks by phase)".
 Module under test: `gosplan/env/obs.py`.
@@ -25,7 +25,7 @@ selection for the current period, and periods remaining under geometric terminat
 2.4, 2.12) - the tuple `gosplan.env.obs.NEVER_OBSERVED`, held as data so the behavioural test T-B5
 can plant a sentinel in each and assert it appears in no observation.
 
-FROZEN BY CONTRACT RULE 2. SKELETON: every test is `@pytest.mark.skeleton` and skipped until WO-008
+FROZEN BY CONTRACT RULE 2. SKELETON: every test is `@pytest.mark.skeleton` and skipped until a later task
 lands; each docstring states the exact assertion, formula and tolerance.
 """
 
@@ -38,7 +38,7 @@ import pytest
 def _state(cfg, *, inputs=None, effort_step=0, phase="produce", cum_output=None, inv_output=None):
     """A `State` built directly from `cfg`, for a step-level test.
 
-    `initial_state` belongs to WO-009; a production- or observation-level assertion should not wait
+    `initial_state` belongs to a later task; a production- or observation-level assertion should not wait
     on the environment, so the dataclass is constructed here. Fields follow PLAN section 2.2.
     """
     from gosplan.env.state import State
@@ -108,9 +108,9 @@ def test_obs_spec_equals_the_plan_section_2_4_layout(p1_cfg, implemented) -> Non
     verbatim as data) must agree with `SCALAR_FIELDS` and `PER_GOOD_BLOCKS`, which the same test
     checks so the human-readable and machine-usable copies cannot drift.
 
-    First bullet of the WO-008 must-pass list. The answer must be a pure function of the
+    First bullet of the corresponding task must-pass list. The answer must be a pure function of the
     configuration and must not change within a run: the PPO adapter fixes its input dimension from
-    it once, at construction (WO-017).
+    it once, at construction.
     """
     from gosplan.env.obs import PER_GOOD_BLOCKS, SCALAR_FIELDS, obs_spec
 
@@ -132,7 +132,7 @@ def test_observation_dimension_is_twelve_plus_three_j(p1_cfg, tiny_cfg, implemen
     absent while that parameter is 0, which is exactly why the Phase-1 dimension is `12 + 3J` and
     not more.
 
-    Second bullet of the WO-008 must-pass list.
+    Second bullet of the corresponding task must-pass list.
     """
     from gosplan.env.obs import (
         N_PER_GOOD_BLOCKS,
@@ -195,7 +195,7 @@ def test_coverage_fields_are_one_where_need_is_zero(p1_cfg, implemented) -> None
     and when `sum_j need[i, j] == 0` the total field 11 is exactly 1.0. No NaN and no warning
     appears anywhere in the observation. This is the same convention `coverage` uses in
     `gosplan/env/production.py` (a good that is not needed is fully covered by definition), stated
-    as a card requirement in WO-008.
+    as a task requirement in a later task.
     """
     from gosplan.env.obs import build_observation
 
@@ -224,8 +224,8 @@ def test_phase_mask_has_the_layout_length_and_is_all_ones_in_phase_1(p1_cfg, imp
     components 0 and 1 as values, not by the mask. Where the mask is 0.0, `build_observation` must
     write exactly 0.0 rather than a stale value.
 
-    Third bullet of the WO-008 must-pass list. If this expectation and the implementation disagree,
-    the implementer files an AMBIGUITY REPORT (CONTRACT rules 2 and 3) rather than editing either
+    Third bullet of the corresponding task must-pass list. If this expectation and the implementation disagree,
+    the contributor files an OPEN QUESTION (CONTRACT rules 2 and 3) rather than editing either
     side.
     """
     from gosplan.env.obs import obs_spec, phase_mask

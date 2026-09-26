@@ -1,13 +1,13 @@
 """Gate G0 - Monte-Carlo sanity and the rule-7 diff review. **An experiment, not a test.**
 
-Realises: PLAN section 13 (gate G0), read against PLAN sections 12.3 (WO-012, the harness this
+Realises: PLAN section 13 (gate G0), read against PLAN sections 12.3 (a later task, the harness this
 gate drives), 4.1 (the held-out phenomena the harness may not touch), 11 (the frozen suite that
 must be green) and CONTRACT rules 7, 8, 10 and 13. Run by: the **LEAD**, deliberately, after
-WO-012. Implemented by no work order: the experiment it drives is `gosplan.experiments.mc_sanity`
-(**WO-012**), and this module is the lead's entry point around it.
+a later task. Implemented by no task: the experiment it drives is `gosplan.experiments.mc_sanity`
+(a later task), and this module is the lead's entry point around it.
 
-CONTRACT rule 13: nothing here is a unit test, nothing here is on any work order's must-pass list,
-and no implementer session runs it. The file is named `gate_*.py` so pytest never collects it, and
+CONTRACT rule 13: nothing here is a unit test, nothing here is on any task's must-pass list,
+and no contributor runs it. The file is named `gate_*.py` so pytest never collects it, and
 `tests/acceptance/` is excluded from `testpaths` in `pyproject.toml`.
 
 PASS CONDITION (PLAN section 13, verbatim): *full frozen suite green; MC sanity report clean;
@@ -40,7 +40,7 @@ plot the within-period effort Gini, request inflation, input-stock correlations,
 The four are computed for the first time at gate G3.
 
 IF THIS GATE FAILS (PLAN section 13): write the failure report - which condition failed, on which
-configuration and seed, with the manifest - and stop. The next work order is a **lead diagnosis**,
+configuration and seed, with the manifest - and stop. The next task is a **lead diagnosis**,
 never a parameter change to make the gate pass.
 """
 
@@ -50,7 +50,7 @@ from __future__ import annotations
 def main() -> int:
     """Run gate G0 and write its sign-off record.
 
-    Takes: nothing; G0's inputs are fixed by the WO-012 card (`p1_default_config()`, `AGENTS`,
+    Takes: nothing; G0's inputs are fixed by its task specification (`p1_default_config()`, `AGENTS`,
     `N_EPISODES`, `N_SUPPLY_PERTURBATIONS`) and by PLAN section 13. Returns: a process exit code -
     0 when the experiment completed and its artefacts were written, non-zero when it could not
     complete. **The exit code never encodes the gate's verdict**: pass and fail are lines in
@@ -68,9 +68,9 @@ def main() -> int:
       5. write the sign-off record under `runs/` and return.
 
     Owning WO: none - this is a lead-run gate harness (CONTRACT rule 13); the experiment it drives
-    is implemented in **WO-012**.
+    is implemented in a later task.
     """
-    raise NotImplementedError("PLAN section 13 (gate G0) - lead-run; experiment in WO-012")
+    raise NotImplementedError("PLAN section 13 (gate G0) - lead-run; experiment in a later task")
 
 
 if __name__ == "__main__":

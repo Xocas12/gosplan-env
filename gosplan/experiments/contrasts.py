@@ -1,7 +1,7 @@
-"""Contrast harness (Claim B) - PLAN sections 4.3, 7.1, 12.5 (WO-032), 13 (gate G4) and 14.
+"""Contrast harness (Claim B) - PLAN sections 4.3, 7.1, 12.5, 13 (gate G4) and 14.
 
 Realises: the contrast design of PLAN section 4.3, referenced by PLAN section 7.1. Owning work
-order: **WO-032** (MID-strong, Phase 3). Gate: **G4** - the final report needs the contrasts with
+order: a later task (MID-strong, Phase 3). Gate: **G4** - the final report needs the contrasts with
 their CIs, alongside the estimator-bias curves, the LLM study and the price sensitivity on every
 headline table (PLAN section 13).
 
@@ -30,7 +30,7 @@ and the OGAS conclusion is the sign and magnitude of `Delta_OGAS` relative to `D
 
 Inputs
     The post-G3 Phase-2 full configuration as C0 (PLAN section 4.3), plus the overrides in
-    `CONTRASTS`; `gosplan.agents.ppo.train` (WO-018, JAX path after WO-029) at `N_SEEDS` seeds under
+    `CONTRASTS`; `gosplan.agents.ppo.train` (a later task, JAX path after a later task) at `N_SEEDS` seeds under
     common random numbers; `gosplan.metrics` for the three outcomes; `rliable` (the `stats` extra)
     for the IQM and the stratified bootstrap.
 
@@ -41,8 +41,8 @@ Outputs
                                     reporting rules restated verbatim above the table
     `runs/<config-hash>/`           per-run directories with `manifest.json` (CONTRACT rule 10)
 
-    PLAN section 12.5 does not name artefact paths for WO-032; these follow the
-    `runs/<experiment>/` convention of the Phase-1 cards.
+    PLAN section 12.5 does not name artefact paths for a later task; these follow the
+    `runs/<experiment>/` convention of the Phase-1 tasks.
 
 Cost (PLAN section 14): 5 contrasts x 30 seeds, on the JAX path - hours.
 
@@ -173,7 +173,7 @@ CIs, as implemented by `rliable`. The number of bootstrap resamples and the `rli
 recorded in the manifest (CONTRACT rule 10) rather than fixed here."""
 
 OUT_DIR = Path("runs/contrasts")
-"""Artefact directory, relative to the repository root; a WO-032 convention."""
+"""Artefact directory, relative to the repository root; a a later task convention."""
 
 TABLE_PATH = OUT_DIR / "table.parquet"
 """Per-(contrast, seed, outcome) rows plus the aggregate IQM/CI rows."""
@@ -236,9 +236,9 @@ def run(
 
     Binds: gate G4 of PLAN section 13 - "contrasts with CIs" - and the design of PLAN section 4.3.
 
-    Realises: PLAN sections 4.3, 7.1, 12.5 (WO-032), 13, 14. Owning WO: **WO-032**.
+    Realises: PLAN sections 4.3, 7.1, 12.5, 13, 14. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 4.3 (WO-032) - implemented in WO-032")
+    raise NotImplementedError("PLAN section 4.3")
 
 
 def main() -> int:
@@ -253,9 +253,9 @@ def main() -> int:
     `Delta_INC` and `I` are read off the report with their intervals, and gate G4 is the human's
     sign-off on the final report (PLAN section 13).
 
-    Realises: PLAN sections 4.3, 12.5 (WO-032), 13. Owning WO: **WO-032**.
+    Realises: PLAN sections 4.3, 12.5, 13. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 4.3 (WO-032) - implemented in WO-032")
+    raise NotImplementedError("PLAN section 4.3")
 
 
 if __name__ == "__main__":

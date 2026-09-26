@@ -1,10 +1,10 @@
 """Tests for `scripts/contract_guard.py` - the static CONTRACT checker.
 
 NOT PART OF THE FROZEN SURFACE. CONTRACT rule 2 makes `tests/unit`, `tests/behavioural` and
-`tests/golden` read-only for implementers, because those directories hold the frozen expectations
+`tests/golden` read-only for contributors, because those directories hold the frozen expectations
 that the environment implementation is measured against (PLAN section 11). This file is not one of
 them: it is the unit test of a CI script, it makes no claim about environment behaviour, it is on
-no work order's must-pass list, and it may be edited by whoever edits `scripts/contract_guard.py`
+no task's must-pass list, and it may be edited by whoever edits `scripts/contract_guard.py`
 - in the same pull request, or the guard and its test drift apart. The guard therefore carves this
 one path out STRUCTURALLY, in `FROZEN_TEST_NON_FROZEN_PATHS`, rather than by a standing entry in
 `.github/FROZEN_TEST_EXEMPTION`: that file is for temporary, reviewable suppressions of genuine
@@ -152,7 +152,7 @@ def test_rule_1_without_a_main_ref_skips_rather_than_firing(
     correct outcome is to skip the new-heading half with the notice - the old `HEAD` fallback made
     the baseline equal to the file under test and reported rule 1 against a clean change.
     """
-    changelog = "# CHANGELOG\n\n## 0.2.0 - 2026-02-01\n\nSpec v1 freeze at gate G1 (WO-013).\n"
+    changelog = "# CHANGELOG\n\n## 0.2.0 - 2026-02-01\n\nSpec v1 freeze at gate G1.\n"
     write(tree, "spec/spec.py", "SPEC_VERSION = '0.2.0'\n")
     write(tree, "spec/CHANGELOG.md", changelog)
 
@@ -177,7 +177,7 @@ def test_rule_2_frozen_test_edit_is_review_required(tree: Path, monkeypatch) -> 
     found = guard.check_frozen_tests(tree, {"tests/behavioural/test_planner_blindness.py"})
     assert rules(found) == ["2"]
     assert found[0].severity == "review-required"
-    assert "AMBIGUITY REPORT" in found[0].fix
+    assert "OPEN QUESTION" in found[0].fix
     assert guard.FROZEN_TEST_EXEMPTION_PATH in found[0].fix
 
 
@@ -206,7 +206,7 @@ def test_rule_2_exemption_file_suppresses_named_paths(tree: Path, monkeypatch) -
     write(
         tree,
         guard.FROZEN_TEST_EXEMPTION_PATH,
-        "# lead is editing the frozen suite for the v1 freeze (WO-013)\n"
+        "# lead is editing the frozen suite for the v1 freeze\n"
         "tests/unit/test_spec_imports.py\n"
         "tests/golden/\n",
     )
@@ -806,7 +806,7 @@ PHENOMENA_SKELETON = (
 
 
 def test_held_out_call_from_a_phase1_experiment_fires(tree: Path) -> None:
-    """The MC sanity harness may not compute a held-out row - WO-012's card forbids it in words."""
+    """The MC sanity harness may not compute a held-out row - that task's specification forbids it in words."""
     write(
         tree,
         "gosplan/experiments/mc_sanity.py",
@@ -817,7 +817,7 @@ def test_held_out_call_from_a_phase1_experiment_fires(tree: Path) -> None:
     )
     found = guard.check_held_out_phenomena(tree, None)
     assert rules(found) == ["HELD-OUT"]
-    assert "WO-030" in found[0].message
+    assert "a later task" in found[0].message
     assert "phenomenon_hoarding" in found[0].message
 
 
@@ -837,7 +837,7 @@ def test_held_out_call_from_the_phase1_section_of_phenomena_fires(tree: Path) ->
 
 
 def test_held_out_definitions_and_phase2_cross_references_do_not_fire(tree: Path) -> None:
-    """Defining the held-out rows is WO-030's job; only calls from Phase-1 code are violations."""
+    """Defining the held-out rows is a separate task; only calls from Phase-1 code are violations."""
     write(
         tree,
         "gosplan/metrics/phenomena.py",

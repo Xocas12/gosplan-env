@@ -3,14 +3,14 @@
 Realises: PLAN section 2.5 (period schedule, driven through `gosplan/env/step.py`), PLAN section 2.3
 (action space and the active-dimension rule), PLAN section 2.4 (the observation the wrapper returns,
 built by `gosplan/env/obs.py`), PLAN section 2.10 (the plan prices precomputed at construction) and
-PLAN section 2.12 (the geometric termination flag). Owning work order: **WO-009** (Step function and
+PLAN section 2.12 (the geometric termination flag). Owning task: a later task (Step function and
 env wrapper) - a **LEAD**-owned unit (PLAN sections 12.3, 1.3 finding F14).
 
 This is the `env.py` row of the PLAN section 8 layout: "reset/step wrapper, specs, info/ledger
 hookup". It holds no economics. The schedule is `gosplan/env/step.py`; the arithmetic is
 `production.py`, `planner.py`, `reporting.py`, `reward.py`, `prices.py` and `obs.py`. `action_spec`
-and `active_action_dims` live here because they are WO-009-owned in `spec/spec.py` and because the
-PPO adapter (WO-017) reads them from the environment rather than from the spec file.
+and `active_action_dims` live here because they are a later task-owned in `spec/spec.py` and because the
+PPO adapter reads them from the environment rather than from the spec file.
 
 Three invariants this wrapper is responsible for.
 
@@ -21,7 +21,7 @@ conservation identity and the forensic estimators of PLAN section 7.3 have somet
 against. It is written by the environment and read by `gosplan/metrics/ledger.py` and by lead-run
 experiments only. No agent, no policy, no reward term and no observation may read it: `Agent.act`
 takes `obs`, `phase` and an RNG and nothing else, the PPO adapter's forward pass takes `obs` only,
-and the WO-010 forbidden list names "any agent reading `StepInfo`" explicitly. Test T-B5 plants
+and the forbidden list names "any agent reading `StepInfo`" explicitly. Test T-B5 plants
 sentinel values in `welfare`, in other enterprises' `y`, and in periods-remaining, and asserts none
 of them appears in any observation.
 
@@ -39,7 +39,7 @@ flag, there is no truncation signal distinct from it in Phase 1, and **no observ
 periods remaining** - the agent learns the episode ended only when it has (finding F4). Tenure is an
 economic parameter (INC arm), distinct from the PPO discount `gamma` that lives with the adapter.
 
-Binding tests (PLAN section 11, WO-009 must-pass list): `tests/unit/test_conservation.py` (T-U1, the
+Binding tests (PLAN section 11, a later task must-pass list): `tests/unit/test_conservation.py` (T-U1, the
 per-period per-good identity to 1e-9 over trajectories driven through `step`), `tests/golden/*`
 (T-B7, agreement with `ref/ref_step.py` to 1e-9 on seeded trajectories with `Random` and
 `TruthfulMyopic`), `tests/behavioural/test_termination.py` (T-B9, empirical continuation equals
@@ -53,7 +53,7 @@ those of `gosplan/metrics/ledger.py`, and `EnvConfig` that of `gosplan/config.py
 field-for-field and name-for-name identical to `spec/spec.py`, which is not importable as a package;
 `tests/unit/test_spec_imports.py` enforces the surface and `tests/unit/test_env_api.py` the fields.
 Those imports are type-only here so this skeleton imports cleanly before the modules that own them
-land; the implementer promotes the ones it calls at runtime. `advance` is imported at runtime
+land; the contributor promotes the ones it calls at runtime. `advance` is imported at runtime
 because `step` calls it.
 """
 
@@ -71,7 +71,7 @@ if TYPE_CHECKING:  # type-only: see the cross-module bindings note in the module
     from gosplan.metrics.ledger import Ledger
 
 Array = np.ndarray
-"""Alias for every numeric array in this module (PLAN section 10). The Phase-2 JAX port (WO-029)
+"""Alias for every numeric array in this module (PLAN section 10). The Phase-2 JAX port
 substitutes its own array type behind the same name."""
 
 __all__ = ["GosplanEnv", "action_spec", "active_action_dims", "advance"]
@@ -96,17 +96,17 @@ def action_spec(cfg: EnvConfig) -> dict[str, tuple[tuple[int, ...], float, float
 
     `input_request` is expressed as a multiple of need because the true bound of PLAN section 2.3 is
     `r_max * need_ij` and `need_ij` is state-dependent; the environment rescales and clips it
-    against the current need when it reads the action (`process_reports`, WO-007).
+    against the current need when it reads the action (`process_reports`, a later task).
 
     The report bound is a result, not a nuisance: CONTRACT rule 8 forbids widening or narrowing it
     to fix an outcome, the fraction of reports at the bound is logged, and above 1% the run manifest
     is flagged `BOUND_BINDING` (test T-B8).
 
     Binds: `tests/unit/test_env_api.py` (all six keys present with these shapes and bounds; bounds
-    track `cfg`) and `tests/unit/test_ppo_adapter.py` (WO-017 builds heads inside these bounds).
-    Owning WO: **WO-009**.
+    track `cfg`) and `tests/unit/test_ppo_adapter.py` (a later task builds heads inside these bounds).
+    Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.3 - implemented in WO-009")
+    raise NotImplementedError("PLAN section 2.3")
 
 
 def active_action_dims(cfg: EnvConfig) -> list[str]:
@@ -119,13 +119,13 @@ def active_action_dims(cfg: EnvConfig) -> list[str]:
     switched on (`supply.quality_matters`, non-zero investment/`supply.capital_dep`,
     `information.horizontal_visibility > 0`).
 
-    The PPO adapter builds Gaussian heads only for these names (PLAN section 6.1, WO-017), which is
+    The PPO adapter builds Gaussian heads only for these names (PLAN section 6.1, a later task), which is
     why the answer must be a pure function of the configuration and must not change within a run.
 
     Binds: `tests/unit/test_env_api.py` (the Phase-1 list above; each Phase-2 toggle adds exactly
-    its own dimension) and `tests/unit/test_ppo_adapter.py`. Owning WO: **WO-009**.
+    its own dimension) and `tests/unit/test_ppo_adapter.py`. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.3 - implemented in WO-009")
+    raise NotImplementedError("PLAN section 2.3")
 
 
 class GosplanEnv:
@@ -152,12 +152,12 @@ class GosplanEnv:
     the precomputed per-run constants, the observation call and the ledger hookup. It is not a
     Gym/Gymnasium subclass: the reset/step signatures below are the frozen ones of `spec/spec.py`
     (`reset` takes both seeds explicitly and returns `(obs, info)`; `step` returns a `(N,)` reward
-    and one episode-level `done`), and the PPO adapter of WO-017 wraps this surface rather than the
+    and one episode-level `done`), and the PPO adapter of a later task wraps this surface rather than the
     reverse.
 
     Binds: `tests/golden/*` (T-B7), `tests/unit/test_conservation.py` (T-U1),
     `tests/unit/test_env_api.py`, and `tests/behavioural/test_termination.py` (T-B9). Owning WO:
-    **WO-009** (LEAD).
+    a later task (LEAD).
     """
 
     cfg: EnvConfig
@@ -188,9 +188,9 @@ class GosplanEnv:
         Phase 1 (`supply.price_lag = inf`, PLAN section 2.10) and keeps `reward_scale` analytic and
         constant, which CONTRACT rule 4 requires.
 
-        Realises: PLAN sections 2.5, 2.10. Owning WO: **WO-009**.
+        Realises: PLAN sections 2.5, 2.10. Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+        raise NotImplementedError("PLAN section 2.5")
 
     def reset(self, seed_env: int, seed_policy: int) -> tuple[Array, StepInfo]:
         """Start a new episode.
@@ -210,9 +210,9 @@ class GosplanEnv:
         The opening `StepInfo` carries the initial `StepRecord`s and zeroed period-level metrics; it
         is for the ledger, not for the agent (CONTRACT rule 6).
 
-        Owning WO: **WO-009**.
+        Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+        raise NotImplementedError("PLAN section 2.5")
 
     def step(self, action: EnterpriseAction) -> tuple[Array, Array, bool, StepInfo]:
         """Advance one agent-step through the schedule above.
@@ -247,9 +247,9 @@ class GosplanEnv:
 
         Binds: T-B7 (golden parity with `ref/`), T-U1 (conservation), T-B9 (empirical continuation
         equals `tenure`; no observation field correlates with periods remaining). Owning WO:
-        **WO-009** (LEAD).
+        a later task (LEAD).
         """
-        raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+        raise NotImplementedError("PLAN section 2.5")
 
     def phase(self) -> Phase:
         """Return the phase the next call to `step` will execute.
@@ -259,27 +259,26 @@ class GosplanEnv:
         inactive action dimensions; the environment never trusts an agent to have masked correctly
         and ignores whatever the inactive dimensions contain.
 
-        Owning WO: **WO-009**.
+        Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+        raise NotImplementedError("PLAN section 2.5")
 
     def obs_spec(self) -> list[str]:
         """Return the ordered names of this environment's observation components (PLAN section 2.4).
 
-        Takes: nothing beyond `self`. Returns: `obs_spec(self.cfg)` from `gosplan/env/obs.py`
-        (WO-008) - a `list[str]` of length `12 + 3J` in Phase 1, in the canonical order of PLAN
+        Takes: nothing beyond `self`. Returns: `obs_spec(self.cfg)` from `gosplan/env/obs.py` - a `list[str]` of length `12 + 3J` in Phase 1, in the canonical order of PLAN
         section 2.4, whose length equals `step`'s and `reset`'s observation width.
 
-        An accessor, not a second definition: the layout has exactly one owner (WO-008) so a
+        An accessor, not a second definition: the layout has exactly one owner so a
         disagreement between the vector and its names is impossible. Never present in that list, in
         any phase: `welfare_true`, `val_measured`, any other enterprise's `y`, `S` or `X`, the audit
         selection for the current period, and periods remaining under geometric termination
         (CONTRACT rule 6, test T-B5).
 
         Binds: `tests/unit/test_env_api.py` - `len(env.obs_spec()) == env.reset(...)[0].shape[1]`.
-        Owning WO: **WO-009**.
+        Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 2.4 - implemented in WO-009")
+        raise NotImplementedError("PLAN section 2.4")
 
     def action_spec(self) -> dict[str, tuple[tuple[int, ...], float, float]]:
         """Return this environment's action shapes and box bounds (PLAN section 2.3).
@@ -287,11 +286,11 @@ class GosplanEnv:
         Takes: nothing beyond `self`. Returns: `action_spec(self.cfg)`, the module-level function
         above - all six dimensions as `name -> (shape, lo, hi)`, whether or not they are active.
 
-        An accessor, so the PPO adapter (WO-017) and the heuristic agents (WO-010) read bounds from
+        An accessor, so the PPO adapter and the heuristic agents read bounds from
         the environment they are attached to rather than re-deriving them from a configuration they
-        might not share. Owning WO: **WO-009**.
+        might not share. Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 2.3 - implemented in WO-009")
+        raise NotImplementedError("PLAN section 2.3")
 
     def active_action_dims(self) -> list[str]:
         """Return the action dimensions this environment actually reads (PLAN section 2.3).
@@ -300,15 +299,15 @@ class GosplanEnv:
         `p1_default_config()`, `["effort", "report_ratio", "input_request"]`.
 
         An accessor. The answer is a pure function of the configuration and does not change within a
-        run, which is what lets WO-017 build its policy heads once at construction. Owning WO:
-        **WO-009**.
+        run, which is what lets a later task build its policy heads once at construction. Owning WO:
+        a later task.
         """
-        raise NotImplementedError("PLAN section 2.3 - implemented in WO-009")
+        raise NotImplementedError("PLAN section 2.3")
 
     def attach_ledger(self, ledger: Ledger) -> None:
         """Attach a ledger so every subsequent step is recorded.
 
-        Takes: `ledger`, a `Ledger` from `gosplan/metrics/ledger.py` (WO-011). Returns: `None`.
+        Takes: `ledger`, a `Ledger` from `gosplan/metrics/ledger.py`. Returns: `None`.
         Stores it on `self.ledger`; from the next `step` (and from the next `reset`) onward, each
         `StepInfo` is appended as one `StepRecord` per enterprise per agent-step.
 
@@ -318,9 +317,9 @@ class GosplanEnv:
         must not change a single trajectory - `tests/unit/test_env_api.py` runs the same seeded
         episode with and without one and compares the observations and rewards exactly.
 
-        Owning WO: **WO-009**; the ledger itself is **WO-011**.
+        Owning WO: a later task; the ledger itself is a later task.
         """
-        raise NotImplementedError("PLAN section 4 - implemented in WO-009")
+        raise NotImplementedError("PLAN section 4")
 
     def record_step(self, info: StepInfo) -> None:
         """Append one agent-step's `StepInfo` to the attached ledger, if any.
@@ -333,12 +332,12 @@ class GosplanEnv:
 
         This method is the **only** consumer of `StepInfo` inside the environment. `StepInfo`
         carries the true quantities of PLAN section 2.2 plus the period-level `val_measured`,
-        `val_true` and `welfare` of PLAN section 2.9.3; CONTRACT rule 6 and the WO-010 forbidden
+        `val_true` and `welfare` of PLAN section 2.9.3; CONTRACT rule 6 and the corresponding task forbidden
         list ("any agent reading `StepInfo`") make it unreachable from any agent-facing path. It is
         never used to build an observation, never used to compute a reward, and never fed back into
         a planner rule.
 
         Binds: `tests/unit/test_ledger.py` (one record per enterprise per agent-step; every rule-10
-        field present) and T-B8. Owning WO: **WO-009**; the ledger itself is **WO-011**.
+        field present) and T-B8. Owning WO: a later task; the ledger itself is a later task.
         """
-        raise NotImplementedError("PLAN section 4 - implemented in WO-009")
+        raise NotImplementedError("PLAN section 4")

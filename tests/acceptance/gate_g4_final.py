@@ -3,14 +3,14 @@
 **An experiment, not a test.**
 
 Realises: PLAN section 13 (gate G4), read against PLAN sections 4.3 (the contrast design and its
-reporting rules), 7.1-7.5 (the four studies), 12.5 (WO-032..WO-037, the harnesses this gate drives),
+reporting rules), 7.1-7.5 (the four studies), 12.5 (a later task..a later task, the harnesses this gate drives),
 2.9.4 (the headline metrics) and CONTRACT rules 10 and 13. Run by: the **LEAD**; signed off by the
-**Human**. Implemented by no work order: the harnesses it drives are
-`gosplan.experiments.contrasts` (**WO-032**), `sobol` (**WO-033**, optional),
-`estimator_bias` (**WO-034**), `llm_study` (**WO-035**), `price_sensitivity` (**WO-036**) and the
-report roll-up of **WO-037**.
+**Human**. Implemented by no task: the harnesses it drives are
+`gosplan.experiments.contrasts` (a later task), `sobol` (a later task, optional),
+`estimator_bias` (a later task), `llm_study` (a later task), `price_sensitivity` (a later task) and the
+report roll-up of a later task.
 
-CONTRACT rule 13: not a test, not on any must-pass list, never run by an implementer session.
+CONTRACT rule 13: not a test, not on any must-pass list, never run by a contributor.
 
 PASS CONDITION (PLAN section 13, verbatim): *contrasts with CIs; estimator-bias curves; LLM study;
 price sensitivity on every headline table.* Four deliverables:
@@ -43,11 +43,10 @@ price sensitivity on every headline table.* Four deliverables:
      change in `specification_gap` is **reported, not suppressed** - the price vector is not a
      modelling nuisance to be tuned.
 
-  Optional (PLAN section 4.3): the Saltelli/Sobol design over the 13 swept INFO+INC parameters
-  (WO-033), whose table must state the PLAN section 3 sweep ranges as an assumption in the same
+  Optional (PLAN section 4.3): the Saltelli/Sobol design over the 13 swept INFO+INC parameters, whose table must state the PLAN section 3 sweep ranges as an assumption in the same
   table. Optional means a non-zero exit blocks nothing.
 
-ARTEFACTS (PLAN section 13): the final report, assembled by WO-037 from
+ARTEFACTS (PLAN section 13): the final report, assembled by a later task from
 `runs/contrasts/`, `runs/estimator_bias/`, `runs/llm_study/`, `runs/price_sensitivity/` and
 (optionally) `runs/sobol/`, each carrying the manifest of CONTRACT rule 10 - config hash, spec
 version, git hash, seeds, reference-PPO version, estimator version and backend, LLM model ids and
@@ -74,7 +73,7 @@ def main() -> int:
 
     Takes: nothing; C0 is the post-G3 Phase-2 full configuration, the contrasts are the overrides
     of PLAN section 4.3, the seed count is 30 with common random numbers, and the prompts and model
-    ids for the LLM study come from the lead's WO-035 record. Returns: a process exit code - 0 when
+    ids for the LLM study come from the lead's a later task record. Returns: a process exit code - 0 when
     every required study completed and the report was assembled, non-zero when one could not run.
     **The exit code encodes nothing about the conclusion**: `Delta_OGAS`, `Delta_INC` and `I` are
     read off the report with their intervals, and the gate is the human's sign-off.
@@ -93,14 +92,14 @@ def main() -> int:
       5. run `gosplan.experiments.price_sensitivity.run` over **every** headline table produced
          above, and carry any sign change in `specification_gap` into the report verbatim;
       6. optionally run `gosplan.experiments.sobol.run`; a failure here blocks nothing;
-      7. hand the artefacts to the WO-037 roll-up and assemble the sign-off record: one line per
+      7. hand the artefacts to the corresponding task roll-up and assemble the sign-off record: one line per
          deliverable, the two reporting rules restated, the manifest roll-up, and the scope
          statement of PLAN section 1.2.
 
     Owning WO: none - this is a lead-run gate harness (CONTRACT rule 13); the experiments it drives
-    are implemented in **WO-032**..**WO-037**.
+    are implemented in a later task.
     """
-    raise NotImplementedError("PLAN section 13 (gate G4) - lead-run; experiments in WO-032..WO-037")
+    raise NotImplementedError("PLAN section 13 (gate G4) - lead-run; experiments in a later task..a later task")
 
 
 if __name__ == "__main__":

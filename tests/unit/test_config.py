@@ -1,18 +1,18 @@
 """Configuration validation, hashing and the Phase-1 registry (PLAN section 3).
 
 Realises: PLAN section 3 (parameter registry, ranges and the P1 column) and PLAN section 11 (test
-architecture, unit/property category). Owning work order: **WO-002** (frozen tests; LEAD). Binds the
-WO-003 must-pass line of PLAN section 12.3, verbatim - "`tests/unit/test_config.py` (validation
+architecture, unit/property category). Owning task: a later task (frozen tests; LEAD). Binds the
+a later task must-pass line of PLAN section 12.3, verbatim - "`tests/unit/test_config.py` (validation
 rejects: `rho_cap < 1`, `w < 0`, `theta < 1`, `sum_k a_jk >= 1`, negative caps; hash stable under
 field order; `p1_default_config()` matches `params.py`)". Module under test: `gosplan/config.py`.
 
 FROZEN BY CONTRACT RULE 2. Implementers do not edit, skip or special-case these tests; a test that
-looks wrong is an AMBIGUITY REPORT (CONTRACT rule 3).
+looks wrong is an OPEN QUESTION (CONTRACT rule 3).
 
 SKELETON. Every test below carries `@pytest.mark.skeleton` and is skipped while `gosplan/config.py`
 is a skeleton whose bodies raise `NotImplementedError`. Each docstring states the exact assertion
 the eventual test must make, with the PLAN formula and tolerance it comes from; the skip lifts when
-WO-003 lands, and the assertion itself is already frozen.
+a later task lands, and the assertion itself is already frozen.
 
 CONTRACT RULE 11 stands behind the registry test: the INFO/INC/SUPPLY/TECH classification in
 `gosplan/params.py` is a design decision, and a parameter that drifts between the registry and the
@@ -51,7 +51,7 @@ def test_validate_rejects_overfulfilment_cap_below_one(p1_cfg, implemented) -> N
     make `clip(., 0, rho_cap - 1)` clip to a negative upper bound and invert the schedule. The
     legitimate grid is {1.1, 1.2, inf}, and `inf` (no cap, hence no kink) must still validate.
 
-    First bullet of the WO-003 must-pass list.
+    First bullet of the corresponding task must-pass list.
     """
     bad = dataclasses.replace(
         p1_cfg, incentive=dataclasses.replace(p1_cfg.incentive, overfulfilment_cap=0.9)
@@ -72,7 +72,7 @@ def test_validate_rejects_negative_notch_width(p1_cfg, implemented) -> None:
     T-U3 monotonicity. `w = 0` is the Phase-1 value and must validate; so must the smooth arm's
     `w = 0.25`.
 
-    Second bullet of the WO-003 must-pass list.
+    Second bullet of the corresponding task must-pass list.
     """
     bad = dataclasses.replace(
         p1_cfg, incentive=dataclasses.replace(p1_cfg.incentive, notch_width=-0.1)
@@ -93,7 +93,7 @@ def test_validate_rejects_input_complementarity_below_one(p1_cfg, implemented) -
     for `theta >= 1`, where `theta = 1` is the weighted harmonic mean and `theta = inf` the
     Leontief `min` (T-U7). The legitimate grid is {2, 8, inf}, all of which must validate.
 
-    Third bullet of the WO-003 must-pass list.
+    Third bullet of the corresponding task must-pass list.
     """
     bad = dataclasses.replace(
         p1_cfg, supply=dataclasses.replace(p1_cfg.supply, input_complementarity=0.5)
@@ -114,7 +114,7 @@ def test_validate_rejects_io_row_summing_to_one_or_more(p1_cfg, implemented) -> 
     `p_j = (1 + m) * (kappa_labour + sum_k a_jk * p_k)` converges only while
     `(1 + m) * sum_k a_jk < 1` (PLAN section 2.10, `initial_prices`).
 
-    Fourth bullet of the WO-003 must-pass list.
+    Fourth bullet of the corresponding task must-pass list.
     """
     rows = [list(r) for r in p1_cfg.supply.io_matrix]
     total = sum(rows[1])
@@ -144,7 +144,7 @@ def test_validate_rejects_negative_ratchet_caps(p1_cfg, implemented) -> None:
     `overfulfilment_slope`, every `yield_sigma` entry - each of which `validate` must also reject
     when negative.
 
-    Fifth bullet of the WO-003 must-pass list ("negative caps").
+    Fifth bullet of the corresponding task must-pass list ("negative caps").
     """
     for field in ("ratchet_cap_up", "ratchet_cap_dn"):
         bad = dataclasses.replace(
@@ -195,7 +195,7 @@ def test_hash_is_stable_under_field_order(p1_cfg, implemented) -> None:
     Assertion: two `EnvConfig` values built with the same parameters but constructed with their
     keyword arguments in different orders (and with the four arm dataclasses themselves constructed
     in different orders) produce byte-identical `hash()` strings, and the hash is stable across
-    processes - re-running the same construction yields the same digest. Mechanism (WO-003 notes):
+    processes - re-running the same construction yields the same digest. Mechanism (a later task notes):
     the digest is the SHA-256 hex digest of the canonical JSON encoding of the configuration, keys
     sorted, floats formatted with `repr`, tuples encoded as JSON arrays.
 
@@ -203,7 +203,7 @@ def test_hash_is_stable_under_field_order(p1_cfg, implemented) -> None:
     manifest (CONTRACT rule 10), so an order-sensitive hash would scatter one configuration's runs
     across directories and break every provenance claim in PLAN section 4.
 
-    Sixth bullet of the WO-003 must-pass list.
+    Sixth bullet of the corresponding task must-pass list.
     """
     twin = dataclasses.replace(
         p1_cfg,
@@ -246,7 +246,7 @@ def test_hash_differs_when_any_single_parameter_differs(p1_cfg, implemented) -> 
 
 @pytest.mark.skeleton
 def test_hash_serialises_infinite_values_as_the_string_inf(p1_cfg, implemented) -> None:
-    """`float("inf")` is encoded as the string `"inf"` in the hashed JSON (WO-003 notes).
+    """`float("inf")` is encoded as the string `"inf"` in the hashed JSON (a later task notes).
 
     Assertion: a configuration with `supply.price_lag = float("inf")` (the Phase-1 default) and one
     with `incentive.overfulfilment_cap = float("inf")` (the smooth counterfactual of PLAN section
@@ -287,7 +287,7 @@ def test_p1_default_config_matches_the_params_registry(implemented) -> None:
     values in `runs/G1_decision.md`; this test asserts agreement between the two sources, never a
     particular provisional level.
 
-    Seventh bullet of the WO-003 must-pass list.
+    Seventh bullet of the corresponding task must-pass list.
     """
     from gosplan import params
     from gosplan.config import p1_default_config

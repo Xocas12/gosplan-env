@@ -2,7 +2,7 @@
 
 Realises: PLAN section 11 (test architecture - the golden category and the reference
 implementation), with the rollouts themselves running PLAN sections 2.5-2.11 through
-`ref/ref_step.py`. Owning work order: **WO-002** (Reference dynamics and frozen tests; LEAD; PLAN
+`ref/ref_step.py`. Owning task: a later task (Reference dynamics and frozen tests; LEAD; PLAN
 section 12.3).
 
 What it produces. PLAN section 11 fixes the golden matrix exactly: **5 configurations x 3 seeds x
@@ -24,16 +24,16 @@ re-blessed.
 
 **Regeneration policy (CONTRACT rules 1 and 2).** `tests/golden/*.json` is git-ignored (see
 `.gitignore`) and is produced by `make golden`, so a fresh checkout regenerates it. Golden files are
-**frozen for implementers**: an implementer never edits, deletes or regenerates one, and a golden
-file that looks wrong is an AMBIGUITY REPORT (`workorders/AMBIGUITY_TEMPLATE.md`), not a
+**frozen for contributors**: an contributor never edits, deletes or regenerates one, and a golden
+file that looks wrong is an OPEN QUESTION (an open question in the issue tracker), not a
 regeneration. Only the lead regenerates them, and only with a `spec/CHANGELOG.md` entry naming the
-version, the reason and the affected work orders (WO-013); the entry's "Golden files" field records
+version, the reason and the affected tasks; the entry's "Golden files" field records
 that they were regenerated and why. Any change to `spec/spec.py` semantics, to `ref/ref_step.py`,
 to `GOLDEN_SCHEMA` or to the digest rendering of `ref_state_digest` invalidates every existing
 file.
 
 Independence. Like `ref/ref_step.py`, this module **must not import anything from `gosplan/`**
-(WO-002 "Forbidden"). Two consequences that look like duplication and are not:
+(a later task "Forbidden"). Two consequences that look like duplication and are not:
 
   * `golden_configs()` builds the five configurations as literal plain-Python documents rather than
     by calling `gosplan.config.p1_default_config()` or `load_config`; and
@@ -65,7 +65,7 @@ namespace package (PEP 420 - there is no `ref/__init__.py`):
 
 `argparse` is the intended parser and the usage above is its contract; **the parsing is not
 implemented here** - `main()` is a stub like every other body in this skeleton (PLAN section 12.3,
-WO-002). The `make golden` target invokes exactly `python -m ref.gen_golden` with no arguments.
+a later task). The `make golden` target invokes exactly `python -m ref.gen_golden` with no arguments.
 """
 
 from __future__ import annotations
@@ -108,7 +108,7 @@ values; they are recorded here so the set is reproducible from a fresh checkout,
 is the `TechConfig.seed_env` default of PLAN section 3. `seed_policy` is set equal to `seed_env` for
 each cell - the two streams are separate by construction (PLAN section 2.15, CONTRACT rule 9), so
 sharing the integer costs nothing and keeps a cell identified by one number. Changing these values
-regenerates every golden file and is a WO-013 change with a `spec/CHANGELOG.md` entry."""
+regenerates every golden file and is a a later task change with a `spec/CHANGELOG.md` entry."""
 
 GOLDEN_N_STEPS: Final[int] = 30
 """Agent-steps per rollout (PLAN section 11). With the Phase-1 `steps_per_period = 4`, that is
@@ -185,7 +185,7 @@ def _base(n_enterprises: int, n_sectors: int, io_matrix, **over) -> Config:
 
     Every field name and every unstated default is the one declared on `SupplyConfig`,
     `IncentiveConfig`, `InformationConfig` and `TechConfig` in `spec/spec.py`. The document is
-    written literally here because `ref/` may not import `gosplan/` (WO-002 Forbidden); the
+    written literally here because `ref/` may not import `gosplan/` (a later task Forbidden); the
     duplication IS the cross-check, since the parity test rebuilds an `EnvConfig` from it and
     asserts the two hashes agree.
     """
@@ -275,7 +275,7 @@ def _base(n_enterprises: int, n_sectors: int, io_matrix, **over) -> Config:
 def _obs_names(n_goods: int) -> list[str]:
     """The PLAN section 2.4 layout, in order - the same list `spec.obs_spec(cfg)` returns.
 
-    Rebuilt here rather than imported: `ref/` may not import `gosplan/` (WO-002 Forbidden), and the
+    Rebuilt here rather than imported: `ref/` may not import `gosplan/` (a later task Forbidden), and the
     parity test asserts the two agree before comparing any number.
     """
     scalars = [
@@ -313,7 +313,7 @@ def golden_configs() -> list[tuple[str, Config]]:
     string `"inf"`.
 
     The documents are written literally here rather than built from `gosplan.config`: `ref/` may
-    not import `gosplan/` (WO-002 "Forbidden"), and the duplication is the cross-check - the parity
+    not import `gosplan/` (a later task "Forbidden"), and the duplication is the cross-check - the parity
     test rebuilds an `EnvConfig` from `config` and asserts that its `hash()` equals the file's
     `config_hash`.
 
@@ -321,7 +321,7 @@ def golden_configs() -> list[tuple[str, Config]]:
     are 2- to 4-enterprise, 2- to 4-sector cut-downs of the Phase-1 registry, not the `N = 20`,
     `J = 5` production configuration. `sector_of`, `io_matrix`, `final_demand_share`,
     `productivity`, `yield_sigma` and `ces_alpha` are resized accordingly, and every `io_matrix`
-    row must still satisfy `sum_k a_jk < 1` (`EnvConfig.validate`, WO-003).
+    row must still satisfy `sum_k a_jk < 1` (`EnvConfig.validate`, a later task).
 
     Coverage the five configurations must jointly provide, so that a golden mismatch localises:
       - the three named bonus configurations of PLAN section 2.8 - notched (`w = 0`,
@@ -337,9 +337,9 @@ def golden_configs() -> list[tuple[str, Config]]:
 
     **UNDER-SPECIFIED - resolve before generating.** PLAN section 11 fixes the count (5) and the
     coverage above is implied by the property tests, but the exact five documents are not written
-    anywhere in PLAN.md. WO-002 does not invent them silently: the lead records the chosen five in
+    anywhere in PLAN.md. a later task does not invent them silently: the lead records the chosen five in
     `spec/CHANGELOG.md` together with which coverage requirement each one carries, or files an
-    AMBIGUITY REPORT (CONTRACT rule 3) if the requirements above cannot be met in five
+    OPEN QUESTION (CONTRACT rule 3) if the requirements above cannot be met in five
     configurations. Choosing "the reasonable default" without recording it is a contract violation.
 
     Binds: T-B7 (every golden file), and `tests/golden/test_golden_parity.py`, which asserts that
@@ -407,7 +407,7 @@ def config_hash(config: Config) -> str:
         - tuples encoded as JSON arrays;
         - the encoding UTF-8 bytes, hashed with `hashlib.sha256`, rendered lowercase hex.
 
-        Pinned byte-for-byte by ambiguity report #51, because this function is deliberately an
+        Pinned byte-for-byte by open question #51, because this function is deliberately an
         INDEPENDENT re-derivation of `EnvConfig.hash` and `tests/golden/` asserts the two digests
         agree:
 
@@ -417,7 +417,7 @@ def config_hash(config: Config) -> str:
         "inf", tuples as JSON arrays, no trailing newline, UTF-8, `hashlib.sha256`, lowercase hex.
 
 
-    Re-implemented here rather than imported, because `ref/` may not import `gosplan/` (WO-002
+    Re-implemented here rather than imported, because `ref/` may not import `gosplan/` (a later task
     "Forbidden"). That is the point: `tests/golden/test_golden_parity.py` asserts
     `config_hash(document) == EnvConfig(**document).hash()`, so an encoder bug on either side is
     caught instead of cancelling out.
@@ -436,7 +436,7 @@ def read_spec_version(spec_path: Path) -> str:
     """Read `SPEC_VERSION` out of `spec/spec.py` without importing it.
 
     Takes: `spec_path`, the path to `spec/spec.py`. Returns: the version string assigned to the
-    module-level `SPEC_VERSION` literal (v0 is `"0.1.0"`; WO-013 sets `"1.0.0"` at the G1 freeze).
+    module-level `SPEC_VERSION` literal (v0 is `"0.1.0"`; a later task sets `"1.0.0"` at the G1 freeze).
 
     It is a text scan - find the single line matching `SPEC_VERSION = "<value>"` at column 0 and
     return `<value>` - and not an import, for two reasons: `spec/` is not an installable package
@@ -447,7 +447,7 @@ def read_spec_version(spec_path: Path) -> str:
 
     Binds: `tests/golden/test_golden_parity.py`, which asserts that every golden file's
     `spec_version` equals the current `spec.SPEC_VERSION` and skips - loudly - if it does not,
-    because a stale golden set is regenerated by the lead (WO-013), never silently accepted.
+    because a stale golden set is regenerated by the lead, never silently accepted.
     """
     text = spec_path.read_text(encoding="utf-8")
     match = re.search(r'^SPEC_VERSION\s*=\s*"([^"]+)"', text, re.MULTILINE)
@@ -479,7 +479,7 @@ def ref_random_policy(obs: Mat, phase: Phase, rng: np.random.Generator) -> RefAc
     CONTRACT rule 8 is exercised by test T-B8, which drives the report there deliberately.
 
     Defined here rather than imported from `gosplan.agents.heuristic`: `ref/` may not import
-    `gosplan/` (WO-002 "Forbidden"), and `tests/golden/` drives `GosplanEnv` with the production
+    `gosplan/` (a later task "Forbidden"), and `tests/golden/` drives `GosplanEnv` with the production
     `Random` under the same `seed_policy`, so the two must draw in the same order from the same
     generator. That ordering is part of the golden contract and is stated here: `effort` first,
     then `report_ratio`, then `input_request`, one `rng` call per dimension over all enterprises.
@@ -554,7 +554,7 @@ def make_policy(name: str, config: Config) -> Policy:
     `agent` field does not describe the policy that produced it is unfalsifiable.
 
     Binds: `tests/golden/test_golden_parity.py`, which maps the same names onto the production
-    agents of `gosplan/agents/heuristic.py` (WO-010).
+    agents of `gosplan/agents/heuristic.py`.
     """
     if name == "Random":
         return ref_random_policy
@@ -659,7 +659,7 @@ def write_golden_file(document: dict[str, object], path: Path) -> None:
     implementation under test, not for the file format.
 
     Creates the parent directory if it does not exist. Overwrites unconditionally: regeneration is
-    a lead action under WO-013 with a `spec/CHANGELOG.md` entry (CONTRACT rule 1), and the guard
+    a lead action under a later task with a `spec/CHANGELOG.md` entry (CONTRACT rule 1), and the guard
     against an accidental regeneration is that policy plus `--check`, not a read-only file.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -731,7 +731,7 @@ def check_all(
 
     This is what `--check` runs. It answers one question: are the golden files on disk still the
     output of the current `ref/ref_step.py`? A non-empty result means either the reference changed
-    (regeneration is due, under WO-013 with a `spec/CHANGELOG.md` entry) or a file was edited by
+    (regeneration is due, under a later task with a `spec/CHANGELOG.md` entry) or a file was edited by
     hand (a CONTRACT rule 2 violation - golden files are frozen and are never hand-edited). The
     report says which files differ and in which key; it does not repair anything.
 
@@ -775,9 +775,9 @@ def main(argv: list[str] | None = None) -> int:
       4. dispatch to `check_all` when `--check` is given, otherwise to `generate_all`;
       5. print one line per file written or per difference found, and return the exit code.
 
-    It prints a reminder on every successful generation: golden files are frozen for implementers
+    It prints a reminder on every successful generation: golden files are frozen for contributors
     (CONTRACT rule 2), `tests/golden/*.json` is git-ignored, and a regeneration needs a
-    `spec/CHANGELOG.md` entry (CONTRACT rule 1, WO-013). It does **not** run the test suite, commit
+    `spec/CHANGELOG.md` entry (CONTRACT rule 1, a later task). It does **not** run the test suite, commit
     anything, or touch `spec/CHANGELOG.md` itself: those are lead decisions, and a generator that
     quietly writes the changelog entry for you defeats the rule.
     """

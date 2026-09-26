@@ -8,15 +8,15 @@ This file exists because of **CONTRACT rule 1 (FROZEN SPEC)**:
 
 `spec/spec.py` is the single source of truth for every type, signature, enum and `Protocol` in the
 repository. Implementers code against it and never edit it; if it is wrong or silent, the response
-is an AMBIGUITY REPORT (CONTRACT rule 3), not a local fix.
+is an OPEN QUESTION (CONTRACT rule 3), not a local fix.
 
 ## Versioning policy
 
 | Version range | State | Who may change it | Requirement |
 |---|---|---|---|
 | `0.y.z` | **provisional (v0)** - the interface skeleton of PLAN §10, before gate G1 | LEAD only | an entry here; no downstream re-run obligation while the suite is still red |
-| `1.0.0` | **frozen (v1)** - set by WO-013 at gate G1 (`SPEC_VERSION = "1.0.0"`) | LEAD only | full entry below, and the freeze recorded as a G1 artefact (PLAN §13) |
-| `> 1.0.0` | post-freeze amendment | LEAD only | full entry below, signed off before any dependent work order is reissued |
+| `1.0.0` | **frozen (v1)** - set by a later task at gate G1 (`SPEC_VERSION = "1.0.0"`) | LEAD only | full entry below, and the freeze recorded as a G1 artefact (PLAN §13) |
+| `> 1.0.0` | post-freeze amendment | LEAD only | full entry below, signed off before any dependent task is reissued |
 
 Semantics after the freeze: **patch** = docstring, comment or type-alias clarification with no
 signature change; **minor** = additive (a new symbol, a new optional field with a default) that
@@ -37,12 +37,12 @@ change, and the change is reverted rather than documented after the fact.
 ## <version> - <YYYY-MM-DD>
 
 **Reason.** Why the spec had to move. Cite the PLAN section and, where the change originates in an
-ambiguity report or a gate finding, the WO-### / gate that raised it.
+open question or a gate finding, the WO-### / gate that raised it.
 
 **Change.** Exactly what moved: symbols added, removed or re-signed, with before -> after.
 
-**Affected work orders.** WO-### … - every card whose whitelist, "write only" list or must-pass
-tests are touched, including cards already completed that must be reissued.
+**Affected tasks.** WO-### … - every task whose whitelist, "write only" list or must-pass
+tests are touched, including tasks already completed that must be reissued.
 
 **Golden files.** Regenerated / not regenerated, and why.
 
@@ -66,7 +66,7 @@ version is bumped in `spec/spec.py`.
 ## 0.1.0 - 2026-09-05
 
 **Reason.** Initial skeleton of the repository. Establishes the frozen shape - types, signatures,
-contract text, parameter registry and work-order cards - before any behaviour exists, so that the
+contract text, parameter registry and task tasks - before any behaviour exists, so that the
 implementation cannot quietly redefine the question (PLAN §0, §12).
 
 **Change.** First version. `spec/spec.py` v0 written as the full expansion of PLAN §10: enums,
@@ -75,24 +75,24 @@ production, planner, reporting, reward, environment, agent, DP, ledger and metri
 the P2 sketch signatures whose behaviour is deliberately under-specified until the Phase-2 spec
 revision. Every body is `raise NotImplementedError(...)`. Alongside it: `CONTRACT.md` (PLAN §9,
 verbatim), `gosplan/params.py` (PLAN §3 as data, with `arm`, `phase`, `default`, `range`, `source`),
-the work-order cards and templates in `workorders/`, the packaging and lint configuration, and the
+the task tasks and templates in `ROADMAP.md`, the packaging and lint configuration, and the
 prose documents listed in `README.md`.
 
-**Affected work orders.** All of them - this version is the baseline every card is written against.
-Directly: WO-001 (spec v0, CONTRACT, registry) and WO-002 (reference dynamics and frozen tests).
+**Affected tasks.** All of them - this version is the baseline every task is written against.
+Directly: spec v0, CONTRACT, registry and reference dynamics and frozen tests.
 
 **Golden files.** None generated. `ref/ref_step.py` is a skeleton; golden files are first produced
-by WO-002 once the reference dynamics exist.
+by a later task once the reference dynamics exist.
 
 **Suite.** Not run to green. The frozen suites collect and fail at `NotImplementedError`, which is
 the expected state of a skeleton (PLAN §11; `README.md`).
 
-**Approver.** LEAD. Not a frozen version: `spec/spec.py` stays provisional until WO-013 bumps it to
+**Approver.** LEAD. Not a frozen version: `spec/spec.py` stays provisional until a later task bumps it to
 `1.0.0` at gate G1.
 
 ## 0.1.1 - 2026-09-07
 
-**Change.** Four under-determined points pinned, each raised as an ambiguity report against a card
+**Change.** Four under-determined points pinned, each raised as an open question against a task
 that could not be executed without the answer. No signature, field, default or range changed; every
 edit is to a docstring that is the specification of a behaviour not yet implemented.
 
@@ -104,10 +104,10 @@ edit is to a docstring that is the specification of a behaviour not yet implemen
   per-section object, no trailing newline, UTF-8. Recorded in `spec/spec.py`, `gosplan/config.py`
   and `ref/gen_golden.py` so each side is pinned inside its own whitelist.
 - **#52 - the generator call for `bernoulli` and `categorical`.** These were pinned only in
-  `ref/ref_step.py`, which is not on WO-004's exhaustive whitelist, so the card was not executable
+  `ref/ref_step.py`, which is not on a later task's exhaustive whitelist, so the task was not executable
   under CONTRACT rule 12. The exact calls now appear in `gosplan/rng.py`'s own docstring.
   `gen.random(size=shape) < p` and `gen.binomial(1, p, shape)` agree in distribution but consume
-  the generator differently, so the substitution would have surfaced at WO-009 as an unexplained
+  the generator differently, so the substitution would have surfaced at a later task as an unexplained
   golden-parity break.
 - **#53 - the `selfobs` key.** `gosplan/env/obs.py` put the enterprise index `i` in the key while
   `gosplan/rng.py` states twice that the trailing index is vectorised through `shape`. Resolved in
@@ -122,15 +122,15 @@ edit is to a docstring that is the specification of a behaviour not yet implemen
   predicate: `append` maintains no flag, and `BOUND_BINDING` is evaluated once when the manifest is
   written.
 
-**Affected work orders.** WO-002 (writes the frozen tests for all four), WO-003 (`hash`),
-WO-004 (`draw`), WO-008 (`build_observation`), WO-011 (ledger and manifest).
+**Affected tasks.** writes the frozen tests for all four, `hash`,
+`draw`, `build_observation`, ledger and manifest.
 
 **Golden files.** None yet; `ref/ref_step.py` is still a skeleton. All four decisions land before
 the first golden file is generated, which is the point of resolving them now.
 
 **Suite.** 93 passed, 233 skipped - unchanged. Every edit is to a docstring.
 
-**Approver.** LEAD. `spec/spec.py` remains provisional until WO-013 bumps it to `1.0.0` at gate G1.
+**Approver.** LEAD. `spec/spec.py` remains provisional until a later task bumps it to `1.0.0` at gate G1.
 
 ## 0.1.2 - 2026-09-07
 
@@ -149,7 +149,7 @@ signature, field, default or range changed.
   where the documented `need_ij == 0` convention would report FULL input coverage to an enterprise
   holding no inputs at all, inverting the field's meaning exactly where it matters most.
 
-  The report was filed by WO-002 at the instruction of its own `ref_observation` docstring, which
+  The report was filed by a later task at the instruction of its own `ref_observation` docstring, which
   forbids generating any golden file until this is settled.
 
 - **Which I-O matrix.** The denominator uses the enterprise's TRUE row `a_{s(i)j}`, not the
@@ -160,19 +160,19 @@ signature, field, default or range changed.
   policy input. `gosplan/env/obs.py` already stated it this way; `ref/ref_step.py` now agrees, so
   the oracle and the implementation cannot drift on it.
 
-**Affected work orders.** WO-002 (generates the golden files), WO-008 (`build_observation`),
-WO-009 (supplies `need` to the observation builder).
+**Affected tasks.** generates the golden files, `build_observation`,
+supplies `need` to the observation builder.
 
 **Golden files.** Still none. This decision is a precondition for the first one.
 
 **Suite.** 93 passed, 233 skipped - unchanged.
 
-**Approver.** LEAD. `spec/spec.py` remains provisional until WO-013 bumps it to `1.0.0` at gate G1.
+**Approver.** LEAD. `spec/spec.py` remains provisional until a later task bumps it to `1.0.0` at gate G1.
 
 ## 0.1.3 - 2026-09-07
 
 **Change.** The T-U1 conservation identity is corrected, and `ref_conservation_residual` gains the
-two arguments the correct identity needs. Found by the WO-002 hand-checked worked example.
+two arguments the correct identity needs. Found by the corresponding task hand-checked worked example.
 
 - **#64 (AMB-009) - the stated T-U1 identity does not balance.** PLAN section 11 states
 
@@ -202,14 +202,14 @@ passed only in two degenerate cases: an economy with no I-O links, and the cold-
 #62 where every quantity is zero - **zeros conserve**. Those are exactly the two situations
 reachable before this worked example existed, which is why the defect survived step 2.
 
-**Affected work orders.** WO-002 (writes T-U1 in `tests/unit/test_conservation.py`), WO-009 (the
-production step function must satisfy the same identity).
+**Affected tasks.** writes T-U1 in `tests/unit/test_conservation.py`, the
+production step function must satisfy the same identity.
 
 **Golden files.** Still none, and still blocked on #62.
 
 **Suite.** 93 passed, 233 skipped - unchanged.
 
-**Approver.** LEAD. `spec/spec.py` remains provisional until WO-013 bumps it to `1.0.0` at gate G1.
+**Approver.** LEAD. `spec/spec.py` remains provisional until a later task bumps it to `1.0.0` at gate G1.
 
 ## 0.1.4 - 2026-09-07
 
@@ -232,28 +232,28 @@ One is a behavioural change to the reference dynamics; two are ownership and nam
   Verified: a 30-step rollout that previously reported `val_true = 0.000000` in every period now
   reports 1.698735 in period 0.
 
-- **#48 (AMB-001) - `tests/acceptance/` was authored by no work order.** PLAN section 11 assigns the
-  Acceptance category to LEAD but section 12 issued no card, so CONTRACT rule 12's invariant that
-  every file has an owning card did not hold. The five gate harnesses and their README are added to
-  **WO-013**'s Write-only list: that card is LEAD and already re-runs the full suite at the freeze.
+- **#48 (AMB-001) - `tests/acceptance/` was authored by no task.** PLAN section 11 assigns the
+  Acceptance category to LEAD but section 12 issued no task, so CONTRACT rule 12's invariant that
+  every file has an owning task did not hold. The five gate harnesses and their README are added to
+  a later task's Write-only list: that task is LEAD and already re-runs the full suite at the freeze.
   Rule 13 is untouched - the directory stays out of `testpaths` and off every must-pass list.
 
 - **#49 (AMB-002) - module names for the P2 and P3 harnesses.** `gosplan/experiments/`
-  `phase2_acceptance.py` (WO-031) and `report.py` (WO-037) are confirmed now rather than deferred to
+  `phase2_acceptance.py` and `report.py` are confirmed now rather than deferred to
   the P2 spec revision. PLAN section 8's tree omitted both; these are additions to it. A later
-  rename costs one card edit, so deferring bought nothing.
+  rename costs one task edit, so deferring bought nothing.
 
-**Affected work orders.** WO-002 (reference dynamics, and the golden matrix this unblocks),
-WO-009 (`reset` must build the same opening state), WO-013 (gains `tests/acceptance/`),
-WO-031 and WO-037 (names fixed).
+**Affected tasks.** reference dynamics, and the golden matrix this unblocks,
+`reset` must build the same opening state, gains `tests/acceptance/`,
+a later task and names fixed.
 
-**Golden files.** Still none - but #62 was the blocker, so WO-002 step 5 can now proceed.
+**Golden files.** Still none - but #62 was the blocker, so a later task step 5 can now proceed.
 
 **Approver.** Human, 2026-09-07, on the four decisions put to them at this point in the build.
 
 ## 0.1.5 - 2026-09-07
 
-**Change.** WO-002 step 5: `ref/gen_golden.py` implemented and the golden matrix generated. The
+**Change.** a later task step 5: `ref/gen_golden.py` implemented and the golden matrix generated. The
 five configurations are recorded here because `golden_configs`' own docstring requires it - PLAN
 section 11 fixes the count at five and the property tests imply the coverage, but the five documents
 are written nowhere in PLAN.md, and that docstring states that choosing them without recording the
@@ -281,11 +281,11 @@ penalty path is exercised in every cell. Every I-O row satisfies `sum_k a_jk < 1
   is the first time it has been exercised on a live economy - before #62 was resolved every
   configuration was deadlocked at zero, where the identity holds trivially.
 - `tests/golden/test_golden_parity.py`: **31 of 151 now pass** - the matrix completeness check and
-  the per-file schema check. The remaining 120 gate on `load_config` (WO-003) and will activate
+  the per-file schema check. The remaining 120 gate on `load_config` and will activate
   when it lands, with no edit to any frozen file.
 
-**Affected work orders.** WO-002 (complete), WO-003 (`load_config` activates 120 parity assertions),
-WO-009 (`GosplanEnv` is what the parity test replays against), WO-013 (regenerates the matrix at the
-spec v1 freeze).
+**Affected tasks.** complete, `load_config` activates 120 parity assertions,
+`GosplanEnv` is what the parity test replays against, regenerates the matrix at the
+spec v1 freeze.
 
 **Approver.** LEAD.

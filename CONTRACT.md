@@ -3,14 +3,14 @@ These rules bind every session, human or model. Violations invalidate the sessio
 
 1. FROZEN SPEC. spec/spec.py is provisional (v0) until gate G1 and frozen (v1) thereafter.
    After v1, only the lead may change it, and only with a spec/CHANGELOG.md entry
-   (version, reason, affected work orders). No other session edits spec/spec.py.
+   (version, reason, affected tasks). No other session edits spec/spec.py.
 
 2. FROZEN TESTS. tests/unit, tests/behavioural and tests/golden are read-only for
-   implementers. If a test looks wrong, file an AMBIGUITY REPORT; do not edit it, do not
+   contributors. If a test looks wrong, file an OPEN QUESTION; do not edit it, do not
    skip it, do not special-case the implementation to pass it.
 
-3. STOP AND REPORT. When the spec, the work order and the whitelisted files do not
-   determine a choice, emit an AMBIGUITY REPORT (workorders/AMBIGUITY_TEMPLATE.md) and end
+3. STOP AND REPORT. When the spec, the task and the whitelisted files do not
+   determine a choice, raise it as an open question and stop
    the session. Fluent invention is the failure mode this rule exists to prevent.
    Choosing "the reasonable default" is a violation.
 
@@ -49,10 +49,10 @@ These rules bind every session, human or model. Violations invalidate the sessio
 11. PARAMETER ARMS. The INFO/INC/SUPPLY/TECH classification in gosplan/params.py is a
     design decision. Changing an arm assignment requires a CHANGELOG entry.
 
-12. WORK ORDERS. An implementer reads only the files on the work order's whitelist,
+12. WORK ORDERS. An contributor reads only the files on the task's whitelist,
     writes only the files it names, runs the completion command verbatim, and reports
-    in the format the card specifies.
+    in the format the task specifies.
 
 13. TESTS ARE NOT EXPERIMENTS. tests/acceptance/ holds lead-run experiments (gates).
-    Nothing there is a unit test, nothing there is on any work order's must-pass list,
-    and no implementer session runs it.
+    Nothing there is a unit test, nothing there is on any task's must-pass list,
+    and no contributor runs it.

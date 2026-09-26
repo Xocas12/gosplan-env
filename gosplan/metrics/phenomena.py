@@ -4,7 +4,7 @@ Realises: PLAN section 4.1 (the seven operationalisations and their estimators),
 (the mechanism parameters behind the held-out phenomena, locked now), PLAN section 4.4 (the
 measurement window), PLAN section 4.5 (the pre-registered bunching estimator settings and the G2
 acceptance criteria) and PLAN section 7.3 (the `forensics_core` coupling and its vendored
-fallback). Owning work orders: **WO-016** (rows 1 and 4 only) and **WO-030** (rows 2, 3, 5, 6, 7,
+fallback). Owning tasks: a later task (rows 1 and 4 only) and a later task (rows 2, 3, 5, 6, 7,
 first computed in the Phase-2 acceptance run).
 
 These functions *measure*; they never act. Nothing here feeds an observation, a reward term or an
@@ -17,9 +17,9 @@ HELD OUT - PLAN sections 4.1 and 12.3
 Rows **2 (storming)**, **5 (hoarding)**, **6 (blat)** and **7 (hidden reserves)** are the emergence
 claims. They are held out: **no plot, table or test of these quantities may be produced before the
 Phase-2 acceptance run** - not during Phase 1, and not while debugging their own mechanisms. The
-Monte Carlo sanity harness of WO-012 may assert conservation and boundedness on the same mechanisms
-and **never a direction**, and WO-012 and WO-016 are *forbidden* from implementing them
-(WO-016: "Forbidden: implementing rows 2, 5, 6, 7"). Their mechanism parameters are locked now in
+Monte Carlo sanity harness of a later task may assert conservation and boundedness on the same mechanisms
+and **never a direction**, and a later task are *forbidden* from implementing them
+(a later task: "Forbidden: implementing rows 2, 5, 6, 7"). Their mechanism parameters are locked now in
 PLAN section 4.2 and are restated in each docstring below so they cannot drift; changing one
 requires a new, separately pre-registered study. If a held-out phenomenon fails to appear, that is
 reported as a failure, not tuned away.
@@ -60,7 +60,7 @@ that reads reports also reports `at_bound_frac`, and a run above 1% carries `BOU
 (`gosplan.metrics.ledger.bound_binding`)."""
 
 # ---------- pre-registered bunching estimator settings (PLAN section 4.5) ----------
-# Pre-registration data, locked before any learning run. These are the defaults WO-016 hard-codes
+# Pre-registration data, locked before any learning run. These are the defaults a later task hard-codes
 # and `write_manifest` records as `bunching_settings` (CONTRACT rule 10). They are not tuning
 # knobs: the sensitivity of `b_hat` to them is itself a reported result of the estimator-bias study
 # of PLAN section 7.2, which sweeps a grid around these values without changing them here.
@@ -103,7 +103,7 @@ BUNCHING_HOLE_HI: float = 1.00
 
 # =================================================================================================
 # PHASE 1 - rows 1 and 4 of the PLAN section 4.1 table. Both are PIPELINE CHECKS.
-# Implemented by WO-016; bound by `tests/unit/test_phenomena_p1.py`.
+# Implemented by a later task; bound by `tests/unit/test_phenomena_p1.py`.
 # =================================================================================================
 
 
@@ -143,16 +143,16 @@ def phenomenon_bunching(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
     falls back to `gosplan/metrics/_fallback.py` with the identical signature. Record the backend
     and its version in the manifest. This module never imports `forensics_core` directly.
 
-    Binds: `tests/unit/test_phenomena_p1.py` (WO-016) - a synthetic density with known excess mass
+    Binds: `tests/unit/test_phenomena_p1.py` - a synthetic density with known excess mass
     is recovered within 5%, hole mass likewise, the bootstrap SE is produced, and the fallback and
     `forensics_core` signatures agree. Acceptance: G2 criterion 2 of PLAN section 4.5 - at the
     notched configuration `b_hat >= 0.5 * b_hat_DP` with a bootstrap CI excluding 0 in at least 90%
     of 30 seeds, and at the smooth counterfactual (`notch_width = 0.25`, `overfulfilment_cap = inf`)
     the CI covers 0 in at least 90% of seeds.
 
-    Owning WO: **WO-016**.
+    Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 4.1 - implemented in WO-016")
+    raise NotImplementedError("PLAN section 4.1")
 
 
 def phenomenon_padding(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
@@ -183,9 +183,9 @@ def phenomenon_padding(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
     **monotone decreasing** in `a * pen` and within **0.03** (ratio units) of the DP's value at each
     of the three levels.
 
-    Binds: `tests/unit/test_phenomena_p1.py` (WO-016). Owning WO: **WO-016**.
+    Binds: `tests/unit/test_phenomena_p1.py`. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 4.1 - implemented in WO-016")
+    raise NotImplementedError("PLAN section 4.1")
 
 
 # =================================================================================================
@@ -194,13 +194,13 @@ def phenomenon_padding(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
 #   *** HELD OUT: rows 2, 5, 6 and 7 (storming, hoarding, blat, hidden reserves). ***
 #
 # Per PLAN sections 4.1 and 12.3 these four must not be computed, plotted, tabulated or tested
-# before the Phase-2 acceptance run (WO-031, gate G3) - not in Phase 1, and not while debugging
-# their own mechanisms. WO-012 (MC sanity) and WO-016 (P1 metrics) are FORBIDDEN from implementing
-# them; WO-012 may assert conservation and boundedness on the same mechanisms and never a
+# before the Phase-2 acceptance run (a later task, gate G3) - not in Phase 1, and not while debugging
+# their own mechanisms. MC sanity and P1 metrics are FORBIDDEN from implementing
+# them; a later task may assert conservation and boundedness on the same mechanisms and never a
 # direction. Their mechanism parameters are locked in PLAN section 4.2 and restated below.
 # Row 3 (quality) is a pipeline check, not an emergence claim, and is not held out.
 #
-# Implemented by WO-030.
+# Implemented by a later task.
 # =================================================================================================
 
 
@@ -212,7 +212,7 @@ def phenomenon_storming(
     Class: **emergence** (Claim A). Phase: **2**. **HELD OUT.**
 
     *** HELD OUT (PLAN sections 4.1, 12.3). No plot, table or test of this quantity may exist
-    before the Phase-2 acceptance run. WO-012 and WO-016 are forbidden from implementing it; the MC
+    before the Phase-2 acceptance run. a later task are forbidden from implementing it; the MC
     sanity harness may assert only conservation and boundedness on the delivery-timing mechanism,
     never a direction. If storming fails to appear, that is reported as a failure. ***
 
@@ -237,9 +237,9 @@ def phenomenon_storming(
                                                      Gini excess is behavioural
         yield_sigma     x1 (unchanged from the Phase-1 tuple)
 
-    Owning WO: **WO-030**.
+    Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 4.1 - implemented in WO-030")
+    raise NotImplementedError("PLAN section 4.1")
 
 
 def phenomenon_quality(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
@@ -259,12 +259,12 @@ def phenomenon_quality(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
     PLAN section 4.4.
 
     The mechanism itself - quality routed through the input bundle, the effort-cost term
-    `kappa_q * q * e`, and the measured factor `q_hat = 1 + mu * (qbar - 1)` - is WO-021's
+    `kappa_q * q * e`, and the measured factor `q_hat = 1 + mu * (qbar - 1)` - is a later task's
     (`supply.quality_matters`, `supply.quality_cost`, `information.quality_measurability`).
 
-    Owning WO: **WO-030**, with the mechanism from **WO-021**.
+    Owning WO: a later task, with the mechanism from a later task.
     """
-    raise NotImplementedError("PLAN section 4.1 - implemented in WO-030")
+    raise NotImplementedError("PLAN section 4.1")
 
 
 def phenomenon_hoarding(
@@ -275,7 +275,7 @@ def phenomenon_hoarding(
     Class: **emergence** (Claim A). Phase: **2**. **HELD OUT.**
 
     *** HELD OUT (PLAN sections 4.1, 12.3). No plot, table or test of this quantity before the
-    Phase-2 acceptance run; WO-012 and WO-016 are forbidden from implementing it. Note that test
+    Phase-2 acceptance run; a later task are forbidden from implementing it. Note that test
     T-B3 asserts shortage *propagation* only - the direction of hoarding is asserted nowhere, by
     design. ***
 
@@ -300,9 +300,9 @@ def phenomenon_hoarding(
     The mechanism is a rule about allocation *weights* (PLAN section 2.7.2), never an instruction to
     inflate a request (CONTRACT rule 7).
 
-    Owning WO: **WO-030**.
+    Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 4.1 - implemented in WO-030")
+    raise NotImplementedError("PLAN section 4.1")
 
 
 def phenomenon_blat(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
@@ -311,7 +311,7 @@ def phenomenon_blat(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
     Class: **emergence** (Claim A). Phase: **2**. **HELD OUT.**
 
     *** HELD OUT (PLAN sections 4.1, 12.3). No plot, table or test of this quantity before the
-    Phase-2 acceptance run; WO-012 and WO-016 are forbidden from implementing it. ***
+    Phase-2 acceptance run; a later task are forbidden from implementing it. ***
 
     Takes: `ledger` and `cfg`. Returns: a mapping with at least `trade_volume_share`,
     `n_matched_pairs`, `mean_surplus`.
@@ -330,9 +330,9 @@ def phenomenon_blat(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
     output and is never self-reported (PLAN section 2.13); it enters the reward only through the
     `trade_surplus` term already named in CONTRACT rule 4.
 
-    Owning WO: **WO-030**.
+    Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 4.1 - implemented in WO-030")
+    raise NotImplementedError("PLAN section 4.1")
 
 
 def phenomenon_hidden_reserves(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
@@ -341,8 +341,8 @@ def phenomenon_hidden_reserves(ledger: Ledger, cfg: EnvConfig) -> dict[str, floa
     Class: **emergence** (Claim A). Phase: **2**. **HELD OUT.**
 
     *** HELD OUT (PLAN sections 4.1, 12.3). No plot, table or test of this quantity before the
-    Phase-2 acceptance run - not during Phase 1 and not while debugging its mechanism. WO-012 and
-    WO-016 are forbidden from implementing it; the MC sanity harness may assert only conservation
+    Phase-2 acceptance run - not during Phase 1 and not while debugging its mechanism. a later task and
+    a later task are forbidden from implementing it; the MC sanity harness may assert only conservation
     and boundedness on the inventory mechanism, never a direction. ***
 
     Takes: `ledger` and `cfg`. Returns: a mapping with at least `hidden_reserves`,
@@ -371,6 +371,6 @@ def phenomenon_hidden_reserves(ledger: Ledger, cfg: EnvConfig) -> dict[str, floa
     Audits compare the claim to stock on hand, not to production (PLAN section 2.8), which is why a
     reserve protects against them - a consequence of the rules, never a rule (CONTRACT rule 7).
 
-    Owning WO: **WO-030**.
+    Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 4.1 - implemented in WO-030")
+    raise NotImplementedError("PLAN section 4.1")

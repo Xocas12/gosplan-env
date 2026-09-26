@@ -4,8 +4,8 @@ Realises: PLAN section 11 (behavioural test T-B5) and CONTRACT rule 6, read agai
 2.4 (the enumerated observation and its "never in any observation" list), 2.9.3 (`welfare_true`,
 `val_measured`, `val_true` - logged, never observed), 2.12 (geometric termination, so periods
 remaining are unobservable and there is no end-game, finding F4) and 6.1 (the `Agent` protocol).
-Owning work order: **WO-002**; on the must-pass lists of **WO-008** (`gosplan/env/obs.py`) and
-**WO-017** (the PPO adapter).
+Owning task: a later task; on the must-pass lists of a later task (`gosplan/env/obs.py`) and
+a later task (the PPO adapter).
 
 CONTRACT rule 6 (WELFARE BLINDNESS): `welfare_true` and `val_measured` are logged and never appear
 in any observation, reward or agent input; the PPO adapter's forward pass takes `obs` only.
@@ -45,10 +45,10 @@ import numpy as np
 import pytest
 
 SKIP_REASON = (
-    "skeleton: T-B5 assertions are written by WO-002 (frozen tests); they bind WO-008 "
-    "(gosplan/env/obs.py), WO-009 (StepInfo) and WO-017 (the PPO adapter's forward pass)"
+    "skeleton: T-B5 assertions are written by frozen tests; they bind a later task "
+    "(gosplan/env/obs.py), StepInfo and the PPO adapter's forward pass"
 )
-"""Reason attached to every `@pytest.mark.skip` below; the bodies arrive with WO-002."""
+"""Reason attached to every `@pytest.mark.skip` below; the bodies arrive with a later task."""
 
 SENTINELS: tuple[float, ...] = (-6.02214076e5, 1.61803398e6, 2.71828182e7)
 """Sentinel magnitudes planted, in turn, in every forbidden field. Three of them so a numerical
@@ -96,12 +96,12 @@ fragment is `audit_selection` and not `audit`."""
 
 OBS_DIM_FORMULA = "12 + 3 * n_sectors"
 """Phase-1 observation dimension (PLAN section 2.4). Asserted here as a second guard: a leak that
-appended a field would change the dimension, and `tests/unit/test_obs.py` (WO-008) checks the
+appended a field would change the dimension, and `tests/unit/test_obs.py` checks the
 layout itself."""
 
 AGENT_ACT_PARAMETERS: tuple[str, ...] = ("self", "obs", "phase", "rng")
 """The exact parameter list of `Agent.act` (PLAN section 6.1, `spec/spec.py`). No `State`, no
-`StepInfo`, no `PlannerView` - "any agent reading `StepInfo`" is on the WO-010 forbidden list."""
+`StepInfo`, no `PlannerView` - "any agent reading `StepInfo`" is on the forbidden list."""
 
 PPO_FORWARD_PARAMETERS: tuple[str, ...] = ("self", "obs")
 """The exact parameter list of `IPPO.forward` (CONTRACT rule 6: "the PPO adapter's forward pass
@@ -241,8 +241,8 @@ def test_no_sentinel_reaches_any_observation(quantity: str, sentinel: float) -> 
     exact and no noise could mask a leaked value.
 
     A hit is a CONTRACT rule 6 violation, and the strictest case is `welfare_true`: no agent, no
-    planner rule and no reward term may read it (PLAN section 2.9.3). Owning WO: **WO-002**; binds
-    **WO-008**.
+    planner rule and no reward term may read it (PLAN section 2.9.3). Owning WO: a later task; binds
+    a later task.
     """
     from gosplan.env.obs import build_observation
 
@@ -272,7 +272,7 @@ def test_observation_does_not_depend_on_forbidden_quantity(quantity: str) -> Non
     `(seed_env, purpose, indices)`, two runs that differ only in a forbidden field see identical
     randomness, so any difference in the observation is a leak and never noise.
 
-    Owning WO: **WO-002**; binds **WO-008** and **WO-009**.
+    Owning WO: a later task; binds a later task and a later task.
     """
     from gosplan.env.obs import build_observation
 
@@ -297,8 +297,8 @@ def test_obs_spec_names_exclude_forbidden_fields() -> None:
     Repeat over a small matrix of configurations that vary `n_sectors`, so the formula is checked
     rather than the single Phase-1 number.
 
-    The layout itself - the exact ordered names - is `tests/unit/test_obs.py` (WO-008); this is the
-    blindness half only. Owning WO: **WO-002**.
+    The layout itself - the exact ordered names - is `tests/unit/test_obs.py`; this is the
+    blindness half only. Owning WO: a later task.
     """
     from gosplan.env.obs import obs_spec
 
@@ -326,7 +326,7 @@ def test_periods_remaining_are_not_observable() -> None:
     Finding F4: under geometric termination the agent never observes periods remaining, so there is
     no end-game to exploit; that is the property the whole horizon design rests on. The statistical
     counterpart - that no field *correlates* with periods remaining - is T-B9 in
-    `test_termination.py`. Owning WO: **WO-002**; binds **WO-008** and **WO-009**.
+    `test_termination.py`. Owning WO: a later task; binds a later task and a later task.
     """
     from gosplan.env.obs import obs_spec
 
@@ -354,10 +354,10 @@ def test_agent_and_ppo_signatures_take_obs_only() -> None:
     the same `ast`-based rendering as T-B4 (these modules carry `from __future__ import
     annotations`, so runtime annotations are strings).
 
-    CONTRACT rule 6 fixes the forward pass to `obs` alone, and the WO-010 forbidden list adds "any
+    CONTRACT rule 6 fixes the forward pass to `obs` alone, and the forbidden list adds "any
     agent reading `StepInfo`". `StepInfo` carries `welfare`, `val_true` and `val_measured` (PLAN
     section 2.9.3), so an agent that accepted one would read exactly the three quantities the rule
-    exists to keep away from it. Owning WO: **WO-002**; binds **WO-010** and **WO-017**.
+    exists to keep away from it. Owning WO: a later task; binds a later task and a later task.
     """
     import inspect
 
