@@ -272,3 +272,79 @@ PLAN section 4.4 window (`t_period >= 2`).
      - Its bailout anticipation is that it keeps full effort when inputs are short and keeps
        inflating whatever `soft_budget` is. `TruthfulMyopic` also keeps effort, so the two differ
        only in requests. This is stated, not hidden.
+
+## R14. Phase-2 acceptance run (WO-031, gate G3) - pre-registration
+
+Written before any Phase-2 learning run and before any rows 2, 5, 6 or 7 number exists. It settles
+the points WO-031 says the revision must state. It also records a reduced design:
+- PLAN section 14 budgets "about 8 configs x 30 seeds" and assumes the JAX port for training.
+- Phase-1 runs took about 4 min each on this 4-core container (80 runs, about 5.5 h), and the
+  Phase-2 environment is slower.
+- So the acceptance set is the three configurations G3 actually needs. The other PLAN section 4.3
+  contrasts are Phase-3 work (WO-032).
+
+**Learner and sizing.**
+- Learner: the attempt-2 learner (`phase1_gate.study_ppo_config()`), shared parameters.
+- Sizing: `phase1_gate.GATE_SIZING` (1M agent-steps per run, 100 measurement episodes), and the
+  Phase-1 training harness (WO-018).
+- Seeds: `seed_env = 1000 + s`, shared across arms and with the baseline legs, which gives common
+  random numbers (PLAN section 4.3).
+
+**Arms.** No LLM ministry arm; PLAN section 13 puts the LLM study under G4.
+
+| arm | configuration | seeds | used for |
+|---|---|---|---|
+| `C0` | `p2_default_config()` (R11) | 30 | rows 2, 5, 6, 7; oracle; welfare |
+| `R7_NULL` | C0 with `growth_directive = 0`, `penalty_arg = "absolute"` | 10 | row 7 falsification |
+| `R3_QW` | C0 with `objective_metric = "quality_weighted"`, `quality_measurability = 1` | 10 | row 3 |
+
+**Baseline legs.** Every seed of every arm also gets a `TruthfulMyopic` measurement leg: the same
+configuration, the same `seed_env`, and the same number of measurement episodes. It needs no
+training.
+
+**Pass rules**, fixed now. Each held-out row is a mean over seeds of the per-seed statistic, and its
+95% interval is the percentile seed bootstrap (10,000 resamples, generator seed 0).
+- **Row 2 (storming): APPEARS** if the lower CI bound of `excess` is > 0.
+- **Row 5 (hoarding): APPEARS** if both of these hold:
+  - the lower CI bound of `request_inflation - request_inflation_baseline` is > 0;
+  - the lower CI bound of `corr_stock_shortfall - corr_stock_shortfall_baseline` is > 0, with a
+    NaN baseline correlation counted as 0 and a seed whose own correlation is NaN dropped and
+    counted.
+- **Row 6 (blat): APPEARS** if the lower CI bound of `trade_volume_share` is > 0.
+  `TruthfulMyopic` never trades.
+- **Row 7 (hidden reserves): APPEARS** if both of these hold:
+  - on `C0`, the lower CI bound of `hidden_reserves` is > 0;
+  - on `R7_NULL`, it VANISHES: the upper CI bound is < 0.01 (1% of target).
+  If the first holds and the second does not, row 7 is a reported failure of the falsification
+  condition.
+- **Row 3 (pipeline check):** the upper CI bound of `mean_quality(C0) - mean_quality(R3_QW)` is < 0.
+  The difference is between two unpaired seed sets.
+- A row that does not appear is a **reported failure** (PLAN section 4.2). Nothing is re-run and no
+  value is changed.
+
+**Exploitability** (WO-028):
+- Audited on seeds 0-9 of `C0` and seeds 0-4 of each other arm.
+- Best-responder sizing: `GATE_SIZING` with `total_agent_steps = 500_000`.
+- Threshold 5%, provisional. The owner finalises it at G3, and an arm above it is labelled
+  NON-CONVERGED.
+
+**Oracle** (WO-027):
+- `W_oracle` = `solve_oracle(C0-family config, horizon = 40, clairvoyant = False)`, with the solver,
+  its version and its gap in the report.
+- `welfare_ratio = W / W_oracle`, where `W` is the mean window welfare of the measurement episodes.
+- The clairvoyant bound is computed per seed for seeds 0-4 and labelled "upper bound".
+
+**Price sensitivity:**
+- `specification_gap` and `welfare_ratio` are recomputed under `perturbed_price_vectors(p, (11, 12,
+  13))`.
+- Any sign change of `specification_gap` is reported.
+
+**JAX parity** (WO-029):
+- 100 agent-steps of `TruthfulMyopic` on `p1_default_config()` and `p2_default_config()`.
+- The maximum absolute deviation over the ledger's numeric columns is reported against 1e-5.
+
+**Hygiene:**
+- `BOUND_BINDING` is counted per arm.
+- Target runaways use the Phase-1 definition.
+
+**C0 post-G3 values.** R11 stands as the Phase-3 C0 unless the owner's G3 decision changes it.
