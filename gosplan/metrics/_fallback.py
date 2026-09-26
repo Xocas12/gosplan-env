@@ -3,7 +3,7 @@
 Realises: PLAN section 7.3 (the interface gosplan consumes from the sibling `forensic-stats`
 programme, "to agree with the `forensics_core` owner at G1; vendored fallback in
 `gosplan/metrics/_fallback.py` with identical signatures until then") and PLAN section 7.2 (the
-estimator-bias study these estimators are the payback for). Owning work order: **WO-016**.
+estimator-bias study these estimators are the payback for). Owning task: a later task.
 
 Why it exists. The repository must type-check, import and run its Phase-1 metrics before the
 `forensics_core` owner has agreed the interface at gate G1 and before the package is installed
@@ -37,7 +37,7 @@ agreed with the `forensics_core` owner at G1: the fields below are the minimum t
 `gosplan/metrics/phenomena.py` reads (rows 1, 5 and 7 of the PLAN section 4.1 table), and a field
 added by that agreement is additive. Once the real package is installed its result types are used
 verbatim; the ones here exist so the fallback is a drop-in for them. `tests/unit/
-test_phenomena_p1.py` (WO-016) asserts that the fallback and `forensics_core` signatures agree.
+test_phenomena_p1.py` asserts that the fallback and `forensics_core` signatures agree.
 
 Version: `FALLBACK_ESTIMATOR_VERSION` is written into the run manifest as `estimator_version`
 alongside `estimator_backend` whenever the fallback is the resolved backend (CONTRACT rule 10), so
@@ -194,15 +194,15 @@ def estimate(
     (`gosplan/metrics/phenomena.py`: `BUNCHING_EXCESS_LO/HI`, `BUNCHING_HOLE_LO/HI`); they are not
     arguments of this frozen signature and must not be inferred from `excl_lo`/`excl_hi`.
 
-    Reference implementation notes for WO-016: `numpy.polynomial.polynomial.Polynomial.fit` on the
+    Reference implementation notes for a later task: `numpy.polynomial.polynomial.Polynomial.fit` on the
     retained bins; no `scipy` is required (`scipy` is a project dependency but is not imported at
     module scope in a skeleton file).
 
     Binds: `tests/unit/test_phenomena_p1.py` - on a synthetic density with known excess mass the
     estimator recovers it within 5%, recovers the hole mass likewise, produces a bootstrap SE, and
-    has a signature identical to `forensics_core.bunching.estimate`. Owning WO: **WO-016**.
+    has a signature identical to `forensics_core.bunching.estimate`. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 7.3 - implemented in WO-016")
+    raise NotImplementedError("PLAN section 7.3")
 
 
 def ledger_test(
@@ -233,9 +233,9 @@ def ledger_test(
 
     Binds: `tests/unit/test_phenomena_p1.py` - signature identity with
     `forensics_core.reconciliation.ledger_test`. No Phase-1 behavioural test binds it, because row 7
-    is held out. Owning WO: **WO-016** (surface), **WO-030** (its first use).
+    is held out. Owning WO: a later task (surface), a later task (its first use).
     """
-    raise NotImplementedError("PLAN section 7.3 - implemented in WO-016")
+    raise NotImplementedError("PLAN section 7.3")
 
 
 def cross_section(values: Array, groups: Array) -> DispersionResult:
@@ -255,6 +255,6 @@ def cross_section(values: Array, groups: Array) -> DispersionResult:
 
     Binds: `tests/unit/test_phenomena_p1.py` - signature identity with
     `forensics_core.dispersion.cross_section`. Its consumer (row 5, hoarding) is **held out** until
-    the Phase-2 acceptance run. Owning WO: **WO-016** (surface), **WO-030** (its first use).
+    the Phase-2 acceptance run. Owning WO: a later task (surface), a later task (its first use).
     """
-    raise NotImplementedError("PLAN section 7.3 - implemented in WO-016")
+    raise NotImplementedError("PLAN section 7.3")

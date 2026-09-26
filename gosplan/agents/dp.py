@@ -2,11 +2,11 @@
 
 Realises: PLAN section 5 in full, plus the parts of PLAN sections 4.5 (estimator settings for
 `b_hat`), 2.6 (period yield), 2.7.1 (target rule), 2.8 (bonus, audit, penalty), 2.11 (inventory)
-and 2.12 (geometric continuation) that the DP reproduces exactly. Owning work order: **WO-014**;
-consumed by **WO-015** (regime map), **WO-019** (DP vs PPO) and by `DPGreedy` in
-`gosplan/agents/heuristic.py` (WO-010).
+and 2.12 (geometric continuation) that the DP reproduces exactly. Owning task: a later task;
+consumed by a later task (regime map), a later task (DP vs PPO) and by `DPGreedy` in
+`gosplan/agents/heuristic.py`.
 
-**No reinforcement learning in this module.** The WO-014 forbidden list is one line long - *any
+**No reinforcement learning in this module.** The forbidden list is one line long - *any
 reinforcement learning* - and it is the point of the whole layer: the DP is the independent ground
 truth against which the learning stack is checked at gate G2, so it must share no code, no
 sampling loop and no hyper-parameter with the learner. What it does share, and must share, are the
@@ -26,10 +26,10 @@ The five uses of a solved `DPSolution`, all named in PLAN section 5:
   1. **G2 criterion 1 ground truth.** At `N = 1`, PPO's mean fictitious padding must be within 0.02
      of the DP's, mean effort within 0.05, and the Wasserstein-1 distance between the two
      stationary `rho_report` distributions below 0.03, in at least 8 of 10 seeds, at each of the
-     three `a * pen` levels chosen at gate G1 (WO-019).
+     three `a * pen` levels chosen at gate G1.
   2. **The `b_hat_dp` threshold.** G2 criterion 2 requires the measured excess mass at the notched
      configuration to reach at least `0.5 * b_hat_dp`, with a bootstrap CI excluding 0, in at least
-     90% of 30 seeds (WO-020).
+     90% of 30 seeds.
   3. **The exact no-manipulation counterfactual** for the estimator-bias study of PLAN section 7.2:
      the DP supplies the true `rho` distribution for each `(notch_width, overfulfilment_cap)` cell,
      so the bias and coverage of the bunching estimator are measured against a known answer.
@@ -38,7 +38,7 @@ The five uses of a solved `DPSolution`, all named in PLAN section 5:
   5. **The `DPGreedy` baseline**, replayed inside the `N`-enterprise environment (PLAN section 6.1).
 
 Cost: about one minute per configuration on one core at the grid below; the 500-point regime map of
-WO-015 is about one CPU-hour on eight cores.
+a later task is about one CPU-hour on eight cores.
 """
 
 from __future__ import annotations
@@ -48,12 +48,14 @@ from typing import TYPE_CHECKING, Literal
 
 from gosplan.agents.base import Array
 
-if TYPE_CHECKING:  # runtime home of the configuration: gosplan/config.py (WO-003, PLAN section 8)
+if (
+    TYPE_CHECKING
+):  # runtime home of the configuration: gosplan/config.py (a later task, PLAN section 8)
     from gosplan.config import EnvConfig
 
 RegimeLabel = Literal["bunching", "pad_to_cap", "truthful_underfulfilment", "mixed"]
 """Regime label attached to a solved DP (PLAN section 5); the return type of `classify_regime`.
-Declared here, in the module that produces it, so that `gosplan/experiments/regime_map.py` (WO-015)
+Declared here, in the module that produces it, so that `gosplan/experiments/regime_map.py`
 imports one definition rather than restating the four labels. Identical to `spec/spec.py`'s alias;
 the unit test that compares the runtime package against the frozen spec keeps them so."""
 
@@ -76,7 +78,7 @@ class DPGrid:
     recovery criterion and for the regime map, so changing one changes what `b_hat_dp` means and is
     recorded in the run manifest (CONTRACT rule 10) rather than adjusted quietly.
 
-    Field-for-field identical to `spec/spec.py`'s `DPGrid`. Owning WO: **WO-014**.
+    Field-for-field identical to `spec/spec.py`'s `DPGrid`. Owning WO: a later task.
     """
 
     n_target: int = 80
@@ -130,8 +132,7 @@ class DPSolution:
 
     Field-for-field identical to `spec/spec.py`'s `DPSolution`. Produced by
     `solve_single_enterprise`; consumed by `classify_regime`, by `DPGreedy`
-    (`gosplan/agents/heuristic.py`), by the regime map (WO-015) and by the DP-vs-PPO comparison
-    (WO-019). Owning WO: **WO-014**.
+    (`gosplan/agents/heuristic.py`), by the regime map and by the DP-vs-PPO comparison. Owning WO: a later task.
     """
 
     policy_effort: Array
@@ -166,7 +167,7 @@ class DPSolution:
     0.05."""
 
     regime: RegimeLabel
-    """`classify_regime(self)` - the label the regime map of WO-015 colours by."""
+    """`classify_regime(self)` - the label the regime map colours by."""
 
     rho_edge_frac: float
     """Fraction of the stationary mass at the report grid edge, from
@@ -259,16 +260,16 @@ def solve_single_enterprise(cfg: EnvConfig, grid: DPGrid) -> DPSolution:
     `hidden_reserves = mean max(0, S - R) / T` after delivery, both over the same simulated path;
     `mean_effort`; `regime = classify_regime(sol)`; `grid`; `config_hash = cfg.hash()`.
 
-    **Forbidden (WO-014 card): any reinforcement learning.** No sampling-based policy improvement,
+    **Forbidden (task specification): any reinforcement learning.** No sampling-based policy improvement,
     no function approximation, no gradient step - this is the independent ground truth for the
     learning stack and must stay independent of it.
 
-    Binds: `tests/unit/test_dp.py` (WO-014) - value iteration converges; with `a_rate * pen -> inf`
+    Binds: `tests/unit/test_dp.py` - value iteration converges; with `a_rate * pen -> inf`
     and `g = 0` the optimal policy reports truthfully; with `notch_height = 0` and
     `overfulfilment_slope = 0` optimal effort is 0; `DPGreedy` reproduces this policy inside the
-    environment at `N = 1`. Owning WO: **WO-014**.
+    environment at `N = 1`. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 5 - implemented in WO-014")
+    raise NotImplementedError("PLAN section 5")
 
 
 def classify_regime(sol: DPSolution) -> RegimeLabel:
@@ -294,9 +295,9 @@ def classify_regime(sol: DPSolution) -> RegimeLabel:
     solver logged), never to widen the grid until the label changes.
 
     Binds: `tests/unit/test_dp.py` - the classifier on synthetic distributions with known labels.
-    Owning WO: **WO-014**.
+    Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 5 - implemented in WO-014")
+    raise NotImplementedError("PLAN section 5")
 
 
 def gauss_hermite_lognormal_nodes(sigma: float, n_nodes: int) -> tuple[Array, Array]:
@@ -325,9 +326,9 @@ def gauss_hermite_lognormal_nodes(sigma: float, n_nodes: int) -> tuple[Array, Ar
     `numpy` supplies the rule; nothing here may import `scipy` (skeleton import rule; `scipy` is a
     project dependency but is not needed for a Gauss-Hermite rule). Binds: `tests/unit/test_dp.py` -
     weights sum to 1 and the node-weighted mean is 1 to 1e-10 for the sigmas of
-    `cfg.supply.yield_sigma`. Owning WO: **WO-014**.
+    `cfg.supply.yield_sigma`. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 5 - implemented in WO-014")
+    raise NotImplementedError("PLAN section 5")
 
 
 def report_action_grid(grid: DPGrid, rho_hi: float | None = None) -> Array:
@@ -350,9 +351,9 @@ def report_action_grid(grid: DPGrid, rho_hi: float | None = None) -> Array:
     An extension beyond it says the unconstrained optimum lies outside what the environment allows,
     which is a result to report - the environment's bound is never widened to match the DP.
 
-    Owning WO: **WO-014**.
+    Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 5 - implemented in WO-014")
+    raise NotImplementedError("PLAN section 5")
 
 
 def report_grid_edge_fraction(stationary_rho: Array, rho_grid: Array) -> float:
@@ -369,9 +370,9 @@ def report_grid_edge_fraction(stationary_rho: Array, rho_grid: Array) -> float:
     every solved configuration, so a regime map cell can always be traced back to whether its
     optimum was interior.
 
-    Owning WO: **WO-014**.
+    Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 5 - implemented in WO-014")
+    raise NotImplementedError("PLAN section 5")
 
 
 def simulate_stationary_reports(
@@ -404,9 +405,9 @@ def simulate_stationary_reports(
     common random numbers with the environment when `seed_env` is shared (CONTRACT rule 9). No
     direct `numpy.random` call and no module-level generator.
 
-    Owning WO: **WO-014**.
+    Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 5 - implemented in WO-014")
+    raise NotImplementedError("PLAN section 5")
 
 
 def dp_excess_mass(stationary_rho: Array) -> float:
@@ -426,7 +427,7 @@ def dp_excess_mass(stationary_rho: Array) -> float:
         hole mass computed identically on [0.95, 1.00) and reported alongside
 
     The estimator itself is **not implemented here**. This function calls the single pre-registered
-    entry point in `gosplan/metrics/phenomena.py` (WO-016), which is the one place in the repository
+    entry point in `gosplan/metrics/phenomena.py`, which is the one place in the repository
     where `forensics_core.bunching.estimate` is imported inside a `try/except ImportError` that
     falls back to `gosplan/metrics/_fallback.py` with an identical signature (PLAN section 7.3).
     This module must never import `forensics_core` itself: two import sites would make it possible
@@ -436,9 +437,9 @@ def dp_excess_mass(stationary_rho: Array) -> float:
     Because the DP's distribution is exact, `b_hat_dp` carries no sampling CI of its own; the
     bootstrap SE of PLAN section 4.5 applies to measured runs, over seeds.
 
-    Owning WO: **WO-014** (this wrapper), **WO-016** (the estimator it calls).
+    Owning WO: a later task (this wrapper), a later task (the estimator it calls).
     """
-    raise NotImplementedError("PLAN sections 5, 4.5 - implemented in WO-014")
+    raise NotImplementedError("PLAN sections 5, 4.5")
 
 
 __all__ = [

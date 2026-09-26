@@ -1,13 +1,13 @@
 """Gate G1 - the DP regime map and the human's pre-registration. **An experiment, not a test.**
 
 Realises: PLAN section 13 (gate G1), read against PLAN sections 5 (the single-enterprise DP and its
-regime classifier), 12.3 (WO-015, the experiment this gate drives, and WO-013, the v1 freeze), 3
+regime classifier), 12.3 (a later task, the experiment this gate drives, and a later task, the v1 freeze), 3
 (the daggered rows this gate fixes), 4.5 (the G2 criteria whose levels are recorded here) and
-CONTRACT rules 1, 11 and 13. Run by: the **LEAD** for the map; the decision is the **human's**.
-Implemented by no work order: the experiment it drives is `gosplan.experiments.regime_map`
-(**WO-015**), on the DP of **WO-014**.
+CONTRACT rules 1, 11 and 13. Run by: the **maintainer** for the map; the decision is the **human's**.
+Implemented by no task: the experiment it drives is `gosplan.experiments.regime_map`
+(a later task), on the DP of a later task.
 
-CONTRACT rule 13: not a test, not on any must-pass list, never run by an implementer session.
+CONTRACT rule 13: not a test, not on any must-pass list, never run by a contributor.
 
 PASS CONDITION (PLAN section 13, verbatim): *regime map produced; human selects P1 daggered values
 from the interior of the bunching region; three `a·pen` levels and `b̂_DP` thresholds recorded
@@ -28,21 +28,21 @@ from the interior of the bunching region; three `a·pen` levels and `b̂_DP` thr
       3. **the human writes `runs/G1_decision.md`**: those six values, the three `a·pen` levels
          that span the bunching region for G2 criterion 1, the `b_hat_DP` thresholds for criterion
          2, and the reasoning - referencing the candidate rows the values came from;
-      4. only then does `spec/spec.py` become v1.0.0 with a `spec/CHANGELOG.md` entry (WO-013,
-         CONTRACT rule 1), and only then may WO-018 train anything.
+      4. only then does `spec/spec.py` become v1.0.0 with a `spec/CHANGELOG.md` entry (a later task,
+         CONTRACT rule 1), and only then may a later task train anything.
 
     Nothing in the training stack chooses these numbers. `gosplan/experiments/dp_vs_ppo.py` and
     `gosplan/experiments/phase1_gate.py` *read* `runs/G1_decision.md` (`G1_DECISION_PATH`) and
     never re-derive its values from a training result. Values picked after seeing a training result
     are values chosen to produce it, and no later reporting repairs that.
 
-ARTEFACTS (PLAN section 13): `runs/G1_decision.md` and `spec` v1.0.0, on top of WO-015's four
+ARTEFACTS (PLAN section 13): `runs/G1_decision.md` and `spec` v1.0.0, on top of a later task's four
 regime-map files. The decision document is the pre-registration; the spec bump is what freezes the
 interface it was written against.
 
 SIGN-OFF: **Human**.
 
-FORBIDDEN: no reinforcement learning anywhere in this gate (the WO-014/WO-015 line of PLAN section
+FORBIDDEN: no reinforcement learning anywhere in this gate (the corresponding task/a later task line of PLAN section
 12.3). The map is analytical and is produced *before* any MARL run, precisely so that the Phase-1
 values cannot be chosen to suit a training result. `DPSolution.hidden_reserves` is computed by the
 DP but is PLAN section 4.1 row 7: it is neither tabulated nor plotted here, and it appears in no
@@ -63,11 +63,11 @@ def main() -> int:
 
     Takes: nothing; the base configuration is `p1_default_config()`, the design size is
     `N_LHS_POINTS` and the discretisation is the PLAN section 5 `DPGrid` defaults, all fixed by the
-    WO-015 card. Returns: a process exit code - 0 when the map and its candidate list were written,
+    task specification. Returns: a process exit code - 0 when the map and its candidate list were written,
     non-zero when the design could not be solved. **The exit code never encodes the decision**: the
     decision is the human's and lives in `runs/G1_decision.md`.
 
-    Intended sequence, for the lead who implements this harness at the time of the run:
+    Intended sequence, for the maintainer who implements this harness at the time of the run:
       1. call `gosplan.experiments.regime_map.run(p1_default_config())` and collect the four
          artefacts and the candidate rows;
       2. check that at least `MIN_BUNCHING_CANDIDATES` candidates are interior - away from the
@@ -82,9 +82,9 @@ def main() -> int:
          pre-registration is verifiable after the fact and not merely asserted.
 
     Owning WO: none - this is a lead-run gate harness (CONTRACT rule 13); the experiment it drives
-    is implemented in **WO-015** on the DP of **WO-014**.
+    is not yet implemented on the DP of a later task.
     """
-    raise NotImplementedError("PLAN section 13 (gate G1) - lead-run; experiment in WO-015")
+    raise NotImplementedError("PLAN section 13 (gate G1) - lead-run; experiment in a later task")
 
 
 if __name__ == "__main__":

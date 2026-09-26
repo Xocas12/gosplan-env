@@ -2,9 +2,9 @@
 
 Realises: PLAN section 2.13 (trade), with the offer dimension of PLAN section 2.3, the visibility
 parameter of PLAN section 2.4 (`information.horizontal_visibility`), the transaction cost of PLAN
-section 3 (`supply.trade_tau`) and the surplus term named in CONTRACT rule 4. Owning work order:
-**WO-024** (trade matching): the lead writes the matching rule and the surplus definition into the
-Phase-2 spec revision, and an implementer session then implements this module against it.
+section 3 (`supply.trade_tau`) and the surplus term named in CONTRACT rule 4. Owning task:
+a later task (trade matching): the maintainer writes the matching rule and the surplus definition into the
+Phase-2 spec revision, and a contributor then implements this module against it.
 
 **Scope tag: P2 sketch.** PLAN section 0 defines the tag precisely, and finding F14 (freeze timing)
 is why it exists: *the interface is in `spec/spec.py` v0 so the type signatures never move, but the
@@ -24,7 +24,7 @@ Phase 1 has run.* Concretely, for this file:
                    already in the registry of PLAN section 3
 
 Nothing downstream may assume more than the frozen half. Anything in the second column that an
-implementer needs before the Phase-2 revision is an AMBIGUITY REPORT (CONTRACT rule 3), not a
+contributor needs before the Phase-2 revision is an OPEN QUESTION (CONTRACT rule 3), not a
 judgement call.
 
 Phase 1. `information.horizontal_visibility = 0.0`, so no counterparty is visible, no match exists,
@@ -39,7 +39,7 @@ defines a *market rule*: who can see whom, how offers are paired, at what price 
 each unit costs to move, and what the resulting change in productive capacity is worth. It contains
 no instruction to trade, no reward for trading, no term that makes trading attractive beyond the
 change in physical input coverage it produces, and nothing that detects or rewards a "blat-like"
-pattern. Whether horizontal exchange emerges, and how much, is a measurement (WO-030), not a rule.
+pattern. Whether horizontal exchange emerges, and how much, is a measurement, not a rule.
 
 Cross-module bindings. `State` and `EnterpriseAction` are the runtime dataclasses of
 `gosplan/env/state.py` and `EnvConfig` that of `gosplan/config.py`, each field-for-field identical
@@ -58,7 +58,7 @@ if TYPE_CHECKING:  # type-only: see the cross-module bindings note in the module
     from gosplan.env.state import State
 
 Array = np.ndarray
-"""Alias for every numeric array in this module (PLAN section 10). The Phase-2 JAX port (WO-029)
+"""Alias for every numeric array in this module (PLAN section 10). The Phase-2 JAX port
 substitutes its own array type behind the same name."""
 
 __all__ = ["match_trades", "trade_surplus", "visible_counterparties"]
@@ -139,9 +139,9 @@ def match_trades(state: State, offers: Array, cfg: EnvConfig, t: int) -> tuple[S
 
     Binds: T-U1 (the traded quantities and the `tau` loss are terms of the conservation identity),
     T-B1 (under the Phase-1 configuration `TruthfulMyopic` executes no trade), and the Phase-2
-    acceptance run of WO-031 through the blat metric of WO-030. Owning WO: **WO-024**.
+    acceptance run of a later task through the blat metric of a later task. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.13 - implemented in WO-024")
+    raise NotImplementedError("PLAN section 2.13")
 
 
 def visible_counterparties(state: State, cfg: EnvConfig, t: int) -> Array:
@@ -161,9 +161,9 @@ def visible_counterparties(state: State, cfg: EnvConfig, t: int) -> Array:
 
     Not part of the frozen interface: this helper is internal to `gosplan/env/trade.py` and may be
     restructured at the Phase-2 spec revision. Only `match_trades` is signature-frozen (PLAN section
-    0, finding F14). Owning WO: **WO-024**.
+    0, finding F14). Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.13 - implemented in WO-024")
+    raise NotImplementedError("PLAN section 2.13")
 
 
 def trade_surplus(
@@ -182,7 +182,7 @@ def trade_surplus(
 
     with `Yhat_i(X) = y_hat_i * coverage(X, need_i, omega_i, theta)` - the intended output of PLAN
     section 2.6 at the given effort, put through the CES coverage aggregator `coverage` in
-    `gosplan/env/production.py` (WO-005) at the given stocks. Only the coverage term differs between
+    `gosplan/env/production.py` at the given stocks. Only the coverage term differs between
     the two evaluations, so `delta_h` is the plan-price value of the extra output the reallocated
     inputs make physically possible, and it is zero whenever coverage was not binding.
 
@@ -192,6 +192,6 @@ def trade_surplus(
     reciprocity.
 
     Not part of the frozen interface: internal to `gosplan/env/trade.py`, restructurable at the
-    Phase-2 spec revision; only `match_trades` is signature-frozen. Owning WO: **WO-024**.
+    Phase-2 spec revision; only `match_trades` is signature-frozen. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.13 - implemented in WO-024")
+    raise NotImplementedError("PLAN section 2.13")

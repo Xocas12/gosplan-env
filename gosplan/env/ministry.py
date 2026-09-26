@@ -2,8 +2,8 @@
 
 Realises: PLAN section 2.14 (ministry), the `MinistryView` record of PLAN section 10, the INFO
 parameters `information.ministry_passthrough` and `information.n_ministries` of PLAN section 3, and
-the adapter seam of PLAN section 7.4 (LLM ministry study). Owning work orders: **WO-025**
-(rule-based ministry) and **WO-026** (LLM adapter).
+the adapter seam of PLAN section 7.4 (LLM ministry study). Owning tasks: a later task
+(rule-based ministry) and a later task (LLM adapter).
 
 **Scope tag: P2 sketch.** Per PLAN section 0 and finding F14 (freeze timing): the interface is in
 `spec/spec.py` v0 so the type signatures never move, but the behaviour is deliberately
@@ -46,7 +46,7 @@ is part of the institutional environment, like the ratchet and the audit rate, a
 rule is a stated, parameterised planner-side rule whose coefficients are treatment variables. The
 distinction is load-bearing. Nothing here rewards an enterprise for anything, nothing here reads an
 enterprise's true output, and the enterprise-level phenomena of PLAN section 4.1 are measured on the
-ledger (WO-030), never implemented. The LLM study of PLAN section 7.4 exists precisely because the
+ledger, never implemented. The LLM study of PLAN section 7.4 exists precisely because the
 interesting question about a ministry is behavioural - whether a model's forwarding *tracks the
 payoff arm* (reasoning) or stays at the historical pattern regardless (retrieval) - and that
 question is empty if the answer is written into the rule.
@@ -70,7 +70,7 @@ if TYPE_CHECKING:  # type-only: see the cross-module bindings note in the module
     from gosplan.env.state import State
 
 Array = np.ndarray
-"""Alias for every numeric array in this module (PLAN section 10). The Phase-2 JAX port (WO-029)
+"""Alias for every numeric array in this module (PLAN section 10). The Phase-2 JAX port
 substitutes its own array type behind the same name."""
 
 __all__ = [
@@ -97,8 +97,8 @@ class MinistryView:
 
     Interface only. Behaviour is deliberately under-specified and is frozen at the Phase-2 spec
     revision (PLAN section 0, finding F14). This declaration must stay field-for-field identical to
-    `spec/spec.py`; `tests/unit/test_env_api.py` enforces it. Owning WO: **WO-025** (rule-based),
-    **WO-026** (LLM).
+    `spec/spec.py`; `tests/unit/test_env_api.py` enforces it. Owning WO: a later task (rule-based),
+    a later task (LLM).
     """
 
     ministry_id: int  # index of this ministry in [0, n_ministries)
@@ -128,9 +128,9 @@ def make_ministry_views(state: State, cfg: EnvConfig) -> tuple[MinistryView, ...
     `passthrough = 1.0` the layer is the identity.
 
     Not part of the frozen interface: the partitioning rule beyond "a partition" is frozen at the
-    Phase-2 spec revision. Owning WO: **WO-025**.
+    Phase-2 spec revision. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.14 - implemented in WO-025")
+    raise NotImplementedError("PLAN section 2.14")
 
 
 def ministry_forward(view: MinistryView, cfg: EnvConfig) -> Array:
@@ -157,13 +157,13 @@ def ministry_forward(view: MinistryView, cfg: EnvConfig) -> Array:
 
     `kappa_m` is **not yet a configuration field**. It is fixed at the Phase-2 spec revision, at
     which point it joins `InformationConfig` with a `spec/CHANGELOG.md` entry recording version,
-    reason and affected work orders (CONTRACT rules 1 and 11). Until then no caller may assume a
-    value for it; needing one before the revision is an AMBIGUITY REPORT (CONTRACT rule 3).
+    reason and affected tasks (CONTRACT rules 1 and 11). Until then no caller may assume a
+    value for it; needing one before the revision is an OPEN QUESTION (CONTRACT rule 3).
 
     At `pi = 1.0` (Phase 1) the rule reduces exactly to the identity `R_tilde_i = R_i` and neither
     `prev_forward` nor `kappa_m` is read - see `ministry_passthrough`, which is that branch. The
     identity branch must exist explicitly and be tested, exactly as the aggregation, lag and
-    channel-noise branches of PLAN section 2.7.5 are (WO-006 notes).
+    channel-noise branches of PLAN section 2.7.5 are (a later task notes).
 
     Boundaries. This function reads a `MinistryView` and nothing else - never a `State`, never a
     reward, never an observation. It writes nothing: the forwarded array is returned and the caller
@@ -172,12 +172,12 @@ def ministry_forward(view: MinistryView, cfg: EnvConfig) -> Array:
     changes what the planner is told, not what physically exists, and `deliver` (PLAN section 2.7.3)
     still ships from real stock.
 
-    Binds: `tests/unit/test_ministry.py` (WO-025) - `pi = 1` is the identity on claims; the padding
+    Binds: `tests/unit/test_ministry.py` - `pi = 1` is the identity on claims; the padding
     term is exactly zero when `R_i >= T_i`; the forwarded value lies between the claim and the
     smoothing anchor for `pi` in `[0.5, 1]`; ministry-level aggregates are smoother than the
-    underlying claims. Owning WO: **WO-025** (rule-based), **WO-026** (LLM adapter).
+    underlying claims. Owning WO: a later task (rule-based), a later task (LLM adapter).
     """
-    raise NotImplementedError("PLAN section 2.14 - implemented in WO-025")
+    raise NotImplementedError("PLAN section 2.14")
 
 
 def ministry_passthrough(view: MinistryView) -> Array:
@@ -201,18 +201,18 @@ def ministry_passthrough(view: MinistryView) -> Array:
                               continues with a transparent ministry rather than with an invented
                               number.
 
-    Not part of the frozen interface: internal to `gosplan/env/ministry.py`. Owning WO: **WO-025**;
-    the fallback path is **WO-026**.
+    Not part of the frozen interface: internal to `gosplan/env/ministry.py`. Owning WO: a later task;
+    the fallback path is a later task.
     """
-    raise NotImplementedError("PLAN section 2.14 - implemented in WO-025")
+    raise NotImplementedError("PLAN section 2.14")
 
 
 class MinistryPolicy(Protocol):
     """The adapter seam: anything that can forward a `MinistryView` (PLAN sections 2.14, 7.4).
 
     Two implementations are planned and they share this one surface, which is the whole point of
-    naming it: the rule-based ministry of WO-025 wraps `ministry_forward`, and the LLM ministry of
-    WO-026 wraps a model call. The environment holds a `MinistryPolicy` and does not know which it
+    naming it: the rule-based ministry of a later task wraps `ministry_forward`, and the LLM ministry of
+    a later task wraps a model call. The environment holds a `MinistryPolicy` and does not know which it
     has, so the LLM study is a swap of one object, not a fork of the period schedule.
 
     **Documented here, not implemented here.** `gosplan/agents/llm_ministry.py` (PLAN section 8) is
@@ -242,7 +242,7 @@ class MinistryPolicy(Protocol):
     The study is deliberately separate from the factorial of PLAN section 4.3 and its results never
     enter a contrast table.
 
-    Owning WO: **WO-025** (rule-based implementation), **WO-026** (LLM adapter).
+    Owning WO: a later task (rule-based implementation), a later task (LLM adapter).
     """
 
     def forward(self, view: MinistryView, cfg: EnvConfig) -> Array:
@@ -257,6 +257,6 @@ class MinistryPolicy(Protocol):
         model call described in the class docstring and falls back to `ministry_passthrough` when
         the response cannot be parsed after one retry.
 
-        Owning WO: **WO-025** (rule-based), **WO-026** (LLM).
+        Owning WO: a later task (rule-based), a later task (LLM).
         """
-        raise NotImplementedError("PLAN section 2.14 - implemented in WO-025")
+        raise NotImplementedError("PLAN section 2.14")

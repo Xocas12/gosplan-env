@@ -2,9 +2,9 @@
 
 Realises: PLAN section 2.8 (REPORT and AUDIT steps 3 and 4 of the period schedule of PLAN section
 2.5), together with the inventory rules of PLAN section 2.11 that the REPORT step applies. Owning
-work order: **WO-007** (Reporting and reward; MID-strong).
+task: a later task (Reporting and reward; MID-strong).
 
-Scope split within WO-007. PLAN section 2.8 also defines the bonus schedule `B(rho)` and its
+Scope split within a later task. PLAN section 2.8 also defines the bonus schedule `B(rho)` and its
 smoothing `Lambda_w`; those live in `gosplan/env/reward.py` beside `reward_scale` and
 `enterprise_reward`, because they are reward terms and CONTRACT rule 4 governs them as a set. This
 module holds only the two functions that turn the agent's report action and the planner's audit
@@ -27,7 +27,7 @@ beyond the symmetric penalty arithmetic below, whose asymmetry is a *configurati
 
 CONTRACT RULE 8 (BOUNDS ARE RESULTS). `report_ratio` is bounded at `rho_max =
 cfg.tech.report_max_ratio` (Phase 1: 10.0). `process_reports` records, per enterprise per period,
-whether the report sat at the bound; `gosplan/metrics/ledger.py` (WO-011) aggregates that into the
+whether the report sat at the bound; `gosplan/metrics/ledger.py` aggregates that into the
 fraction of reports at `rho_max`, and above 1% the run manifest is flagged `BOUND_BINDING` and the
 result is reported *with the flag* (test T-B8). The bound is never silently widened or narrowed to
 make a result look better, and reports at `rho_max` are included in the histograms of PLAN section
@@ -40,8 +40,8 @@ CONTRACT RULE 9 (RNG). The one stochastic term here is the audit measurement err
 Binding to the frozen interface. `spec/spec.py` is the frozen interface (CONTRACT rule 1) and the
 two callables below carry its names, argument names, argument order and return types exactly.
 `spec/spec.py` is not an importable package, so the runtime dataclasses live in the `gosplan`
-package - `EnvConfig` and the arm configs in `gosplan/config.py` (WO-003), `State` and
-`EnterpriseAction` in `gosplan/env/state.py` (WO-009) - and each MUST stay field-for-field identical
+package - `EnvConfig` and the arm configs in `gosplan/config.py`, `State` and
+`EnterpriseAction` in `gosplan/env/state.py` - and each MUST stay field-for-field identical
 to its `spec/spec.py` declaration, which `tests/unit/test_spec_imports.py` enforces. They are
 imported under `TYPE_CHECKING` so this module stays importable while its siblings are skeletons.
 """
@@ -58,7 +58,7 @@ if TYPE_CHECKING:  # pragma: no cover - types only; see the binding note in the 
 
 Array = np.ndarray
 """Alias for every numeric array in this module (PLAN section 10), mirroring `spec.spec.Array`. The
-Phase-2 JAX port (WO-029) substitutes its own array type behind the same name, so no signature here
+Phase-2 JAX port substitutes its own array type behind the same name, so no signature here
 may depend on a numpy-only method."""
 
 
@@ -110,9 +110,9 @@ def process_reports(state: State, action: EnterpriseAction, cfg: EnvConfig) -> S
 
     Binds: `tests/unit/test_reporting.py` - the holding loss is applied before `y` is added, and the
     report is clipped to `rho_max` - and test T-B8 in the behavioural suite, which forces `rho = 10`
-    in more than 1% of reports and asserts the `BOUND_BINDING` flag appears. Owning WO: **WO-007**.
+    in more than 1% of reports and asserts the `BOUND_BINDING` flag appears. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.8 - implemented in WO-007")
+    raise NotImplementedError("PLAN section 2.8")
 
 
 def audit_and_penalise(state: State, audited: Array, cfg: EnvConfig, t: int) -> Array:
@@ -169,6 +169,6 @@ def audit_and_penalise(state: State, audited: Array, cfg: EnvConfig, t: int) -> 
 
     Binds: test T-U8 in `tests/unit/test_reporting.py` - `positive_part` gives exactly 0 for any
     under-report while `absolute` does not, and `audited = False` gives 0 regardless - plus the
-    audit-against-stock check in the same file. Owning WO: **WO-007**.
+    audit-against-stock check in the same file. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.8 - implemented in WO-007")
+    raise NotImplementedError("PLAN section 2.8")

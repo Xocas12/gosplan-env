@@ -3,11 +3,11 @@
 Realises: PLAN section 6.1 (the `IPPO` row), PLAN section 2.3 (action bounds), PLAN section 2.4
 (observation), PLAN section 2.5 (phases) and PLAN section 3 (the TECH hyper-parameters that live
 with the adapter rather than in `EnvConfig`, because the environment never reads them). Owning work
-order: **WO-017** (LEAD).
+order: a later task (maintainer).
 
 **gosplan does not implement PPO.** PLAN section 6.1 requires a *thin adapter around a reference
 implementation* - a CleanRL-style continuous PPO for the NumPy path, a PureJaxRL/JaxMARL-style loop
-for the JAX path - whose exact package and version the lead verifies when the work order is issued
+for the JAX path - whose exact package and version the maintainer verifies when the task is issued
 and which the run manifest records (CONTRACT rule 10, `PPOConfig.reference_impl` and
 `reference_version`). Everything in this module is glue: observation in, bounded action out,
 hyper-parameters pinned, and the two rules below enforced at the boundary.
@@ -75,7 +75,7 @@ What the adapter must guarantee, and what the frozen tests check:
 
 Binds: `tests/unit/test_ppo_adapter.py` (forward takes `obs` only - T-B5; no `RunningMeanStd` on
 rewards, by inspection of the wrapped object; sampled actions within bounds) and, downstream, the
-G2 criteria of PLAN section 4.5 via WO-019 and WO-020.
+G2 criteria of PLAN section 4.5 via a later task.
 """
 
 from __future__ import annotations
@@ -85,7 +85,7 @@ from typing import TYPE_CHECKING
 
 from gosplan.agents.base import Array, Phase
 
-if TYPE_CHECKING:  # runtime homes: WO-003 (config), WO-009 (state); PLAN section 8
+if TYPE_CHECKING:  # runtime homes: config, state; PLAN section 8
     from pathlib import Path
 
     import numpy as np
@@ -104,14 +104,14 @@ class PPOConfig:
     run manifest (CONTRACT rule 10) so a result can always be traced to the learner that produced
     it.
 
-    Frozen and hashable, like the environment configs. Owning WO: **WO-017**.
+    Frozen and hashable, like the environment configs. Owning WO: a later task.
     """
 
     reference_impl: str
     """Import path or package name of the reference PPO this adapter wraps, e.g. a CleanRL-style
     continuous PPO on the NumPy path or a PureJaxRL/JaxMARL-style loop on the JAX path (PLAN section
-    6.1). **No default**: PLAN names families, not a package, and the lead verifies the choice when
-    WO-017 is issued. Recorded in the manifest (CONTRACT rule 10)."""
+    6.1). **No default**: PLAN names families, not a package, and the maintainer verifies the choice when
+    a later task is issued. Recorded in the manifest (CONTRACT rule 10)."""
 
     reference_version: str
     """Exact pinned version (release tag or commit) of `reference_impl`. **No default** for the same
@@ -134,7 +134,7 @@ class PPOConfig:
 
     entropy_coef_start: float = 0.01
     """Entropy bonus at the start of training; annealed to `entropy_coef_end` over the run (PLAN
-    section 12.3, WO-018: "entropy anneal 0.01 -> 0.001"). The schedule itself lives in
+    section 12.3, a later task: "entropy anneal 0.01 -> 0.001"). The schedule itself lives in
     `gosplan/agents/ppo/train.py`."""
 
     entropy_coef_end: float = 0.001
@@ -168,10 +168,10 @@ class IPPO:
     and it owns exactly four responsibilities: build heads for `active_action_dims(cfg)`, initialise
     the report head at `rho = 1` with std 0.05, squash and map samples onto the `action_spec(cfg)`
     boxes, and mask heads by phase. Optimisation belongs to the reference implementation, driven by
-    `gosplan/agents/ppo/train.py` (WO-018).
+    `gosplan/agents/ppo/train.py`.
 
     Everything the module docstring states about CONTRACT rules 4 and 6 is a property of this class
-    and is checked by `tests/unit/test_ppo_adapter.py`. Owning WO: **WO-017** (LEAD).
+    and is checked by `tests/unit/test_ppo_adapter.py`. Owning WO: a later task (maintainer).
     """
 
     cfg: EnvConfig
@@ -183,7 +183,7 @@ class IPPO:
 
     policy: object
     """The wrapped reference-PPO policy object. Typed `object` on purpose: the reference is pinned
-    at WO-017 issue time and its type must not leak into this interface, so the JAX path (WO-029)
+    at a later task issue time and its type must not leak into this interface, so the JAX path
     can substitute its own without a signature change."""
 
     scale: float
@@ -211,9 +211,9 @@ class IPPO:
         enables by default (CONTRACT rule 4) and leave the object in a state where a test can see
         that it did.
 
-        Owning WO: **WO-017**.
+        Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-017")
+        raise NotImplementedError("PLAN section 6.1")
 
     def forward(self, obs: Array) -> tuple[Array, Array, Array]:
         """Policy and value forward pass - **`obs` and nothing else** (CONTRACT rule 6, T-B5).
@@ -230,9 +230,9 @@ class IPPO:
         an argument either - it reaches the policy through observation field 0 (`phase`) and field 1
         (`k_over_M`), and it is `act` that masks heads, not `forward`.
 
-        Owning WO: **WO-017**.
+        Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-017")
+        raise NotImplementedError("PLAN section 6.1")
 
     def act(self, obs: Array, phase: Phase, rng: np.random.Generator) -> EnterpriseAction:
         """Sample one joint action from the current policy.
@@ -245,13 +245,13 @@ class IPPO:
         phase-relevant dimensions are `tanh`-squashed samples mapped onto their `action_spec(cfg)`
         boxes and whose other dimensions are zero.
 
-        Evaluation runs (WO-018, WO-019, WO-020) may want the deterministic policy - the squashed
+        Evaluation runs may want the deterministic policy - the squashed
         mean rather than a sample. That is a property of the caller's evaluation loop, not a second
         signature here; `train.py` documents how it obtains it.
 
-        Owning WO: **WO-017**.
+        Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-017")
+        raise NotImplementedError("PLAN section 6.1")
 
     def reset(self) -> None:
         """Clear per-episode policy state.
@@ -260,9 +260,9 @@ class IPPO:
         no-op; a recurrent one clears its hidden state here. It never touches parameters, the
         optimiser or the configuration.
 
-        Owning WO: **WO-017**.
+        Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-017")
+        raise NotImplementedError("PLAN section 6.1")
 
     def evaluate_actions(self, obs: Array, action: EnterpriseAction) -> tuple[Array, Array, Array]:
         """Log-probabilities, entropies and values for a stored batch - the update's seam.
@@ -282,9 +282,9 @@ class IPPO:
         *training* call on stored data, not an agent input, so CONTRACT rule 6 is untouched - what
         rule 6 constrains is `forward`, and the actions here are the agent's own.
 
-        Owning WO: **WO-017**.
+        Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-017")
+        raise NotImplementedError("PLAN section 6.1")
 
     def phase_mask(self, phase: Phase) -> dict[str, bool]:
         """Which heads the environment actually reads at this phase (PLAN sections 2.3, 2.5).
@@ -299,9 +299,9 @@ class IPPO:
         pointless sampling in `act`. The environment ignores irrelevant dimensions on its own (PLAN
         section 2.3), so a masking bug costs credit-assignment quality, never legality.
 
-        Owning WO: **WO-017**.
+        Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN sections 2.3, 2.5 - implemented in WO-017")
+        raise NotImplementedError("PLAN sections 2.3, 2.5")
 
     def squash(self, raw: Array, name: str) -> Array:
         """Map a pre-squash Gaussian sample onto one action dimension's box (PLAN section 2.3).
@@ -323,9 +323,9 @@ class IPPO:
         how a policy gets there, so the flag is a real diagnostic of the learner and the bound is
         never widened to clear it.
 
-        Owning WO: **WO-017**.
+        Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 2.3 - implemented in WO-017")
+        raise NotImplementedError("PLAN section 2.3")
 
     def manifest_entry(self) -> dict[str, object]:
         """The learner's contribution to the run manifest (CONTRACT rule 10).
@@ -338,9 +338,9 @@ class IPPO:
         is always a bug and never an ambiguity.
 
         The mapping is passed through `train.py` into `gosplan.metrics.ledger.write_manifest`.
-        Owning WO: **WO-017**.
+        Owning WO: a later task.
         """
-        raise NotImplementedError("CONTRACT rule 10 - implemented in WO-017")
+        raise NotImplementedError("CONTRACT rule 10")
 
     def save_checkpoint(self, path: Path) -> None:
         """Write policy parameters and optimiser state to disk.
@@ -350,9 +350,9 @@ class IPPO:
         `PPOConfig` and the configuration hash, so a checkpoint can never be reloaded against a
         different environment configuration without the mismatch being detectable.
 
-        Owning WO: **WO-017**.
+        Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 12.3 WO-018 - implemented in WO-017")
+        raise NotImplementedError("PLAN section 12.3 a later task")
 
     def load_checkpoint(self, path: Path) -> None:
         """Restore policy parameters and optimiser state from disk.
@@ -361,9 +361,9 @@ class IPPO:
         or `PPOConfig` disagrees with this adapter's - silently loading mismatched parameters would
         attribute one run's behaviour to another run's configuration.
 
-        Owning WO: **WO-017**.
+        Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 12.3 WO-018 - implemented in WO-017")
+        raise NotImplementedError("PLAN section 12.3 a later task")
 
 
 __all__ = ["IPPO", "PPOConfig"]

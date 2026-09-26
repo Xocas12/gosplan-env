@@ -2,17 +2,17 @@
 
 Realises: PLAN sections 2.1-2.15 (environment specification), 3 (parameter registry), 4
 (pre-registration and phenomena), 5 (single-enterprise DP), 6 (agents/oracle), 9 (CONTRACT), 10
-(this skeleton) and 11 (test architecture). Owning work order: **WO-001** (Spec v0, CONTRACT,
-registry; LEAD).
+(this skeleton) and 11 (test architecture). Owning task: a later task (Spec v0, CONTRACT,
+registry; maintainer).
 
 This file is the anchor every other module imports from. It carries type aliases, configuration
 dataclasses with the Phase-1 defaults of PLAN section 3, the state/action/view record types, and the
 signature plus complete docstring of every function in the system. **Every body raises
-NotImplementedError**; the work order named in each docstring supplies the implementation.
+NotImplementedError**; the task named in each docstring supplies the implementation.
 
-FROZEN BY CONTRACT RULE 1. `spec/spec.py` is provisional (v0, SPEC_VERSION "0.1.0") until gate G1
-and frozen (v1, "1.0.0") thereafter at WO-013. After v1 only the lead may change this file, and
-only with a `spec/CHANGELOG.md` entry recording version, reason and affected work orders. No other
+FROZEN BY CONTRACT RULE 1. `spec/spec.py` is provisional (v0, SPEC_VERSION "0.1.6") until gate G1
+and frozen (v1, "1.0.0") thereafter at a later task. After v1 only the maintainer may change this file, and
+only with a `spec/CHANGELOG.md` entry recording version, reason and affected tasks. No other
 session edits it.
 
 Other contract rules that constrain what may be written against this interface:
@@ -22,10 +22,9 @@ Other contract rules that constrain what may be written against this interface:
   rule 7  no transition rule or reward term implements a pathology directly;
   rule 9  all environment randomness goes through `draw` (PLAN section 2.15).
 
-Conventions. Struct-of-arrays with leading dimension `N` throughout, so the Phase-2 JAX port
-(WO-029) is a mechanical translation. `Array = np.ndarray`; shapes are stated in every comment and
+Conventions. Struct-of-arrays with leading dimension `N` throughout, so the Phase-2 JAX port is a mechanical translation. `Array = np.ndarray`; shapes are stated in every comment and
 docstring. Symbols follow the table in PLAN section 2.1; where a docstring writes plain-ASCII
-pseudo-maths it is transcribed from the numbered PLAN formula it cites, so an implementer never
+pseudo-maths it is transcribed from the numbered PLAN formula it cites, so an contributor never
 needs PLAN.md to know what to compute.
 """
 
@@ -40,8 +39,8 @@ Array = np.ndarray
 """Alias for every numeric array in the interface (PLAN section 10). The JAX port substitutes its
 own array type behind the same name; no module may rely on numpy-only methods in a signature."""
 
-SPEC_VERSION = "0.1.0"
-"""Provisional spec version (PLAN section 10 header). Bumped to "1.0.0" by WO-013 at the v1 freeze;
+SPEC_VERSION = "0.1.6"
+"""Provisional spec version (PLAN section 10 header). Bumped to "1.0.0" by a later task at the v1 freeze;
 every later change needs a `spec/CHANGELOG.md` entry (CONTRACT rule 1). Written into every run
 manifest (CONTRACT rule 10)."""
 
@@ -108,12 +107,12 @@ Purpose = Literal[
     "trade_visibility",
     "selfobs",
 ]
-"""Enumerated RNG purposes (PLAN section 2.15, plus `selfobs` for the observation noise of WO-008).
+"""Enumerated RNG purposes (PLAN section 2.15, plus `selfobs` for the observation noise of a later task).
 Keying by purpose is what makes draws order-independent, so the NumPy and JAX implementations agree
 by construction and common random numbers across arms hold whenever `seed_env` is shared."""
 
 Dist = Literal["lognormal", "normal", "bernoulli", "categorical"]
-"""Distributions `draw` must support (WO-004 must-pass list). `lognormal` is parameterised by
+"""Distributions `draw` must support (a later task must-pass list). `lognormal` is parameterised by
 (mean_log, sigma); the yield shock of PLAN section 2.6 uses
 mean_log = -sigma**2 / 2 so E[eps] = 1."""
 
@@ -129,7 +128,7 @@ class SupplyConfig:
     Frozen and hashable: every array-valued default is a `tuple`, never a list or ndarray, so
     `EnvConfig.hash()` is stable and configurations can be used as dictionary keys. Field
     docstrings record the arm each parameter belongs to (CONTRACT rule 11) and the sweep range of
-    PLAN section 3. Validation of these fields is `EnvConfig.validate` (WO-003).
+    PLAN section 3. Validation of these fields is `EnvConfig.validate`.
     """
 
     n_enterprises: int = 20
@@ -152,7 +151,7 @@ class SupplyConfig:
     """SUPPLY. `a[j][k]`: units of good `k` needed per unit of good `j`; rows = producing sector,
     columns = input good (PLAN section 2.10). Phase 1: every sector needs two inputs at 0.2 each;
     the graph is a 5-cycle with chords, so a shortage in any sector propagates to all. `validate`
-    rejects any row with `sum_k a[j][k] >= 1` (WO-003)."""
+    rejects any row with `sum_k a[j][k] >= 1`."""
 
     final_demand_share: tuple[float, ...] = (0.5, 0.5, 0.5, 0.5, 0.5)
     """SUPPLY. `phi_j`, fraction of shipped good `j` routed to the consumer sink rather than to
@@ -217,7 +216,7 @@ class SupplyConfig:
 
     price_lag: float = float("inf")
     """SUPPLY. Periods between price recomputations (PLAN section 2.10). Phase 1: `inf`, i.e. plan
-    prices are fixed after `t = 0`. Serialised as the string "inf" by `EnvConfig.hash` (WO-003)."""
+    prices are fixed after `t = 0`. Serialised as the string "inf" by `EnvConfig.hash`."""
 
     tech_drift_sigma: float = 0.0
     """SUPPLY. `sigma_drift` in the per-period I-O drift `a <- a * exp(zeta)`, `zeta ~ N(0, s**2)`,
@@ -232,7 +231,7 @@ class SupplyConfig:
     ces_sigma: float = 0.8
     """SUPPLY. `sigma_c`, consumer CES elasticity of substitution (PLAN sections 2.9.3, 2.10).
     Phase 1: 0.8, complements-leaning. The `sigma_c -> 1` limit is Cobb-Douglas and is tested in
-    `tests/unit/test_reward.py` (WO-007)."""
+    `tests/unit/test_reward.py`."""
 
     trade_tau: float = 0.05
     """SUPPLY. `tau`, per-unit transaction cost on bilateral trade (PLAN section 2.13). Inert in
@@ -242,7 +241,7 @@ class SupplyConfig:
     quality_matters: bool = False
     """SUPPLY. Master toggle for the quality mechanism: quality routed through the input bundle,
     `X_ij` credited as `deliv * qbar_j` (PLAN section 2.6). Phase 1: False (`q == 1` everywhere).
-    Turned on by WO-021."""
+    Turned on by a later task."""
 
     quality_cost: float = 0.0
     """SUPPLY. `kappa_q` in the effort cost `c = kappa * e**2 + F * 1[e > 0] + kappa_q * q * e`
@@ -304,7 +303,7 @@ class IncentiveConfig:
     """INC. `rho_cap`, ratio at which the overfulfilment bonus stops accruing (PLAN section 2.8).
     Phase 1: 1.2. `inf` means no cap and hence no kink - the smooth counterfactual is
     (`notch_width` = 0.25, `overfulfilment_cap` = inf). Grid {1.1, 1.2, inf}; `validate` rejects
-    `rho_cap < 1` (WO-003)."""
+    `rho_cap < 1`."""
 
     penalty_form: PenaltyForm = "proportional"
     """INC. `Pen = pen * f` (`proportional`, Phase 1) or `pen * 1[f > 0]` (`fixed`)
@@ -325,7 +324,7 @@ class IncentiveConfig:
 
     soft_budget: float = 0.0
     """INC. Kornai soft-budget intensity; Phase-2 definition is the bailout probability when
-    `fill < 1` (PLAN section 3, WO-023). Phase 1: 0.0. Range [0, 1]."""
+    `fill < 1` (PLAN section 3, a later task). Phase 1: 0.0. Range [0, 1]."""
 
     steps_per_period: int = 4
     """INC. `M`, PRODUCE steps per plan period; agents act `M + 1` times per period
@@ -382,7 +381,7 @@ class InformationConfig:
     audit_mode: AuditMode = "random"
     """INFO. Audit selection rule (PLAN section 2.7.4). Phase 1: `random`. `targeted` raises the
     probability with the planner's noisy knowledge of downstream complaints and requires
-    `shortfall_visibility > 0` (WO-023)."""
+    `shortfall_visibility > 0`."""
 
     channel_noise: float = 0.0
     """INFO. `sigma_ch`, log-sd of the reporting-channel distortion `claimed_i <- claimed_i *
@@ -395,7 +394,7 @@ class InformationConfig:
 
     n_ministries: int = 1
     """INFO. `M_min`, number of ministries partitioning the enterprises (PLAN section 2.14). Not
-    tabulated in PLAN section 3; 1 in Phase 1, where the layer is inert. Set by WO-025."""
+    tabulated in PLAN section 3; 1 in Phase 1, where the layer is inert. Set by a later task."""
 
     horizontal_visibility: float = 0.0
     """INFO. Fraction of the other `N - 1` enterprises visible as trade counterparties, and the
@@ -412,7 +411,7 @@ class InformationConfig:
 
     self_obs_noise: float = 0.0
     """INFO. Log-sd of multiplicative noise `exp(N(0, s**2))` applied to the agent's own cumulative
-    output and stock observation fields, drawn with purpose `selfobs` (PLAN section 2.4, WO-008).
+    output and stock observation fields, drawn with purpose `selfobs` (PLAN section 2.4, a later task).
     Phase 1: 0.0, so those fields are exact. Mechanism toggle for the shape study; range [0,
     0.05]."""
 
@@ -424,7 +423,7 @@ class TechConfig:
 
     Frozen and hashable. None of these is a treatment variable in any contrast; they are fixed
     across arms. PPO hyper-parameters (`gamma = 0.99`, `lambda_GAE = 0.97`, lr 3e-4, clip 0.2,
-    entropy 0.01 -> 0.001) are also TECH but live with the adapter (WO-017), not in `EnvConfig`,
+    entropy 0.01 -> 0.001) are also TECH but live with the adapter, not in `EnvConfig`,
     because the environment never reads them.
     """
 
@@ -508,7 +507,7 @@ class EnvConfig:
         Takes: nothing beyond `self`. Returns: `None` on success; raises `ValueError` with a message
         naming the offending field and the rule it broke.
 
-        Must reject at least (WO-003 must-pass list, `tests/unit/test_config.py`):
+        Must reject at least (a later task must-pass list, `tests/unit/test_config.py`):
           - `incentive.overfulfilment_cap < 1`;
           - `incentive.notch_width < 0`;
           - `supply.input_complementarity < 1`;
@@ -523,15 +522,15 @@ class EnvConfig:
         visibility`, `quality_measurability`, `shortfall_visibility`, `soft_budget`) inside [0, 1];
         `min_periods <= max_periods`; `report_max_ratio > 1`; `invest_lag >= 1`; `ces_sigma > 0`.
 
-        Realises: PLAN section 3 (registry ranges) and the WO-003 card. Owning WO: **WO-003**.
+        Realises: PLAN section 3 (registry ranges) and its task specification. Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 3 - implemented in WO-003")
+        raise NotImplementedError("PLAN section 3")
 
     def hash(self) -> str:
         """Return the stable content hash of this configuration.
 
         Takes: nothing beyond `self`. Returns: the SHA-256 hex digest of the canonical JSON
-        encoding of the configuration, pinned byte-for-byte by ambiguity report #51:
+        encoding of the configuration, pinned byte-for-byte by open question #51:
 
             json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
 
@@ -543,13 +542,13 @@ class EnvConfig:
         The bytes are pinned, not merely the semantics, because `ref/gen_golden.config_hash`
         re-derives this digest independently and `tests/golden/` asserts the two agree; keys-sorted
         alone still leaves the separators free, so two faithful implementations could disagree and
-        fail golden parity with no card at fault. The digest names the run directory `runs/<hash>/`
+        fail golden parity with no task at fault. The digest names the run directory `runs/<hash>/`
         and appears in the manifest (CONTRACT rule 10).
 
         Binds: `tests/unit/test_config.py` - hash stable under field order, and two configurations
-        that differ in any single parameter hash differently. Owning WO: **WO-003**.
+        that differ in any single parameter hash differently. Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 3 - implemented in WO-003")
+        raise NotImplementedError("PLAN section 3")
 
 
 def load_config(path: str) -> EnvConfig:
@@ -564,9 +563,9 @@ def load_config(path: str) -> EnvConfig:
     Raises `ValueError` on an unknown key: silently ignoring an unrecognised parameter would let a
     sweep run at defaults while its manifest claimed otherwise.
 
-    Realises: PLAN section 3. Owning WO: **WO-003**.
+    Realises: PLAN section 3. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 3 - implemented in WO-003")
+    raise NotImplementedError("PLAN section 3")
 
 
 def p1_default_config() -> EnvConfig:
@@ -581,9 +580,9 @@ def p1_default_config() -> EnvConfig:
     `runs/G1_decision.md` (PLAN sections 5, 13). Until then this function returns the placeholders.
 
     Binds: `tests/unit/test_config.py` asserts field-by-field agreement between this function and
-    the registry data in `gosplan/params.py` - the two must never drift. Owning WO: **WO-003**.
+    the registry data in `gosplan/params.py` - the two must never drift. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 3 - implemented in WO-003")
+    raise NotImplementedError("PLAN section 3")
 
 
 # ---------- state / actions / views (sections 2.2-2.4) ----------
@@ -593,14 +592,14 @@ def p1_default_config() -> EnvConfig:
 class State:
     """The full environment state (PLAN section 2.2), struct-of-arrays with leading dimension `N`.
 
-    Mutable by design: `gosplan/env/step.py` (WO-009) threads one `State` through the period
+    Mutable by design: `gosplan/env/step.py` threads one `State` through the period
     schedule of PLAN section 2.5. It is the *true* state - it contains quantities no agent and no
     planner rule may see (CONTRACT rules 5, 6). Only `make_planner_view` may read it on the
     planner's behalf, and only observation construction (`gosplan/env/obs.py`) may read it on an
     agent's behalf.
 
     `J = cfg.supply.n_sectors`, `N = cfg.supply.n_enterprises`, `L = cfg.supply.invest_lag`.
-    Owning WO: **WO-009** (`gosplan/env/state.py`).
+    Owning WO: a later task (`gosplan/env/state.py`).
     """
 
     target: Array  # (N,) T_i, target in units of own good (section 2.1)
@@ -636,10 +635,10 @@ class EnterpriseAction:
 
     The dimension set is fixed across phases; configuration flags decide which dimensions the
     environment reads, and the PPO adapter builds heads only for `active_action_dims(cfg)`
-    (PLAN section 6.1, WO-017). Inactive dimensions are ignored by the environment rather than
+    (PLAN section 6.1, a later task). Inactive dimensions are ignored by the environment rather than
     rejected, so a Phase-1 policy and a Phase-2 policy share one action type.
 
-    Bounds are those of `action_spec(cfg)`. Owning WO: **WO-009**.
+    Bounds are those of `action_spec(cfg)`. Owning WO: a later task.
     """
 
     effort: Array  # (N,) e_ik in [0, 1]; active in Phase 1; read at PRODUCE steps
@@ -663,7 +662,7 @@ class PlannerView:
     Binds: test T-B4 (planner blindness) constructs a state with `S != R` and sentinel `y`, asserts
     no sentinel reaches this record, and statically asserts that no function in
     `gosplan/env/planner.py` accepts a `State` other than `make_planner_view`. Owning WO:
-    **WO-006**.
+    a later task.
     """
 
     claims: Array  # (N,) claimed_i = R_i as it reached the planner, lagged/noised/aggregated
@@ -688,7 +687,7 @@ class MinistryView:
     this same record and returns per-enterprise forwarded values plus a free-text justification.
 
     Interface only. Behaviour is deliberately under-specified and is frozen at the Phase-2 spec
-    revision (PLAN section 0, finding F14). Owning WO: **WO-025** (rule-based), **WO-026** (LLM).
+    revision (PLAN section 0, finding F14). Owning WO: a later task (rule-based), a later task (LLM).
     """
 
     ministry_id: int  # index of this ministry in [0, n_ministries)
@@ -731,9 +730,9 @@ def obs_spec(cfg: EnvConfig) -> list[str]:
 
     Binds: `tests/unit/test_obs.py` (layout equals this list; dimension `12 + 3J`; phase masking)
     and test T-B5 in `tests/behavioural/test_welfare_blindness.py`, which feeds sentinel values
-    into the forbidden fields and asserts they appear in no observation. Owning WO: **WO-008**.
+    into the forbidden fields and asserts they appear in no observation. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.4 - implemented in WO-008")
+    raise NotImplementedError("PLAN section 2.4")
 
 
 def action_spec(cfg: EnvConfig) -> dict[str, tuple[tuple[int, ...], float, float]]:
@@ -755,9 +754,9 @@ def action_spec(cfg: EnvConfig) -> dict[str, tuple[tuple[int, ...], float, float
 
     The report bound is a result, not a nuisance: CONTRACT rule 8 forbids widening or narrowing it
     to fix an outcome, and the fraction of reports at the bound is logged and flags the run
-    manifest `BOUND_BINDING` above 1% (test T-B8). Owning WO: **WO-009**.
+    manifest `BOUND_BINDING` above 1% (test T-B8). Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.3 - implemented in WO-009")
+    raise NotImplementedError("PLAN section 2.3")
 
 
 def active_action_dims(cfg: EnvConfig) -> list[str]:
@@ -770,11 +769,11 @@ def active_action_dims(cfg: EnvConfig) -> list[str]:
     (`supply.quality_matters`, non-zero `capital_dep`/investment, `information.
     horizontal_visibility > 0`).
 
-    The PPO adapter builds Gaussian heads only for these names (PLAN section 6.1, WO-017), which is
+    The PPO adapter builds Gaussian heads only for these names (PLAN section 6.1, a later task), which is
     why the answer must be a pure function of the configuration and must not change within a run.
-    Owning WO: **WO-009**.
+    Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.3 - implemented in WO-009")
+    raise NotImplementedError("PLAN section 2.3")
 
 
 # ---------- rng (section 2.15) ----------
@@ -803,9 +802,9 @@ def draw(
     Returns: an `Array` of the requested `shape`.
 
     Derivation: `numpy.random.SeedSequence([seed_env, crc32(purpose), *indices])` spawns an
-    independent generator per key (WO-004 notes). Consequences that the rest of the design leans on:
+    independent generator per key (a later task notes). Consequences that the rest of the design leans on:
     draws are **order-independent**, so the NumPy and JAX implementations agree by construction
-    (WO-029 parity); common random numbers across arms hold whenever `seed_env` is shared
+    (a later task parity); common random numbers across arms hold whenever `seed_env` is shared
     (PLAN section 4.3); and the policy stream `seed_policy` is entirely separate.
 
     Constraints: CONTRACT rule 9 forbids any direct `numpy.random` or `jax.random` call inside
@@ -813,13 +812,13 @@ def draw(
 
     Interface note: PLAN section 10 types `purpose` and `dist` as `str`; they are narrowed here to
     the `Purpose` and `Dist` literals, which enumerate exactly the values PLAN section 2.15 and the
-    WO-004 card name. Record the narrowing in `spec/CHANGELOG.md` at the v1 freeze.
+    task specification name. Record the narrowing in `spec/CHANGELOG.md` at the v1 freeze.
 
     Binds: test T-U6 in `tests/unit/test_rng.py` - `draw` is deterministic in
     `(seed_env, purpose, indices)` and independent of call order, and each distribution has the
-    stated moments. Owning WO: **WO-004**.
+    stated moments. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.15 - implemented in WO-004")
+    raise NotImplementedError("PLAN section 2.15")
 
 
 # ---------- production (section 2.6) ----------
@@ -842,9 +841,9 @@ def coverage(X: Array, need: Array, weights: Array, theta: float) -> Array:
     `theta = inf` takes the `min` branch (`np.min` over the goods with positive need).
 
     Binds: test T-U7 in `tests/unit/test_production.py` - `theta = inf` equals `min`; `theta -> 1`
-    equals the weighted harmonic mean; `H = 1` when no inputs are needed. Owning WO: **WO-005**.
+    equals the weighted harmonic mean; `H = 1` when no inputs are needed. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.6 - implemented in WO-005")
+    raise NotImplementedError("PLAN section 2.6")
 
 
 def produce_step(
@@ -879,14 +878,14 @@ def produce_step(
     non-uniform `delivery_timing`, under which a delivered unit arrives at step `k ~
     Categorical(arrival_probs)` with purpose `arrival`.
 
-    Constraints: this function may not reference reports, targets or rewards (WO-005 forbidden
+    Constraints: this function may not reference reports, targets or rewards (forbidden
     list), and every stochastic term goes through `draw` (CONTRACT rule 9).
 
     Binds: `tests/unit/test_production.py` (yield mean 1 to 1e-3 over 1e5 draws; the `v` diversion;
     the cost formula; inputs consumed equal `a * y_tilde` capped at stock; `H = 1` when the `a` row
-    is zero) and test T-U1, the per-period conservation identity. Owning WO: **WO-005**.
+    is zero) and test T-U1, the per-period conservation identity. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.6 - implemented in WO-005")
+    raise NotImplementedError("PLAN section 2.6")
 
 
 # ---------- planner (section 2.7) ----------
@@ -910,7 +909,7 @@ def make_planner_view(state: State, cfg: EnvConfig) -> PlannerView:
 
     All three branches must exist in the implementation even though the Phase-1 configuration makes
     each of them the identity; the identity case is what `tests/unit/test_planner.py` checks
-    (WO-006 notes).
+    (a later task notes).
 
     The record is built once per period after the REPORT step. `audited` and `audit_meas` are all
     False / zero until `select_audits` and the audit measurement have run, after which the view is
@@ -919,9 +918,9 @@ def make_planner_view(state: State, cfg: EnvConfig) -> PlannerView:
     Constraints: no true quantity may cross this boundary - not `y`, not `S`, not `X`, not welfare.
     Binds: test T-B4 in `tests/behavioural/test_planner_blindness.py`, which plants sentinels in the
     state and asserts none reaches the view, plus the static check that no other function in
-    `gosplan/env/planner.py` takes a `State`. Owning WO: **WO-006**.
+    `gosplan/env/planner.py` takes a `State`. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.4/2.7 - implemented in WO-006")
+    raise NotImplementedError("PLAN section 2.4/2.7")
 
 
 def update_targets(view: PlannerView, cfg: EnvConfig) -> Array:
@@ -948,9 +947,9 @@ def update_targets(view: PlannerView, cfg: EnvConfig) -> Array:
     Binds: test T-U4 in `tests/unit/test_planner.py` (fixed point at `rho = 1`, `g = 0`; the step is
     bounded by `c_up`/`c_dn`; the floor is respected; the deadband is inert outside `|rho - 1| <=
     delta`) and test T-B2 in `tests/behavioural/test_fixed_point.py` (`Padder` at `g = 0` keeps `T`
-    constant; at `g > 0` it grows at exactly `(1 + g)`). Owning WO: **WO-006**.
+    constant; at `g > 0` it grows at exactly `(1 + g)`). Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.7.1 - implemented in WO-006")
+    raise NotImplementedError("PLAN section 2.7.1")
 
 
 def fulfilment_measure(view: PlannerView, cfg: EnvConfig) -> Array:
@@ -973,9 +972,9 @@ def fulfilment_measure(view: PlannerView, cfg: EnvConfig) -> Array:
     path.
 
     Binds: `tests/unit/test_planner.py` and `tests/unit/test_reward.py` (the `val` branch is the
-    identity on claims; `net_output` falls as allocated inputs rise). Owning WO: **WO-006**.
+    identity on claims; `net_output` falls as allocated inputs rise). Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.9.2 - implemented in WO-006")
+    raise NotImplementedError("PLAN section 2.9.2")
 
 
 def allocate(view: PlannerView, cfg: EnvConfig) -> Array:
@@ -1001,9 +1000,9 @@ def allocate(view: PlannerView, cfg: EnvConfig) -> Array:
 
     Binds: `tests/unit/test_planner.py` - allocation sums to `avail_j` per good; `eta_q = 0` makes
     the result invariant to `requests`; the `1e-6` regularisers keep the weights finite when a need
-    or a request is zero. Owning WO: **WO-006**.
+    or a request is zero. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.7.2 - implemented in WO-006")
+    raise NotImplementedError("PLAN section 2.7.2")
 
 
 def deliver(state: State, alloc: Array, cfg: EnvConfig) -> tuple[State, Array, Array, Array]:
@@ -1028,7 +1027,7 @@ def deliver(state: State, alloc: Array, cfg: EnvConfig) -> tuple[State, Array, A
     of these four lines, not rules of their own - CONTRACT rule 7 forbids implementing either
     directly, and every `env/` diff is reviewed against that rule.
 
-    Interface note for the v1 freeze (WO-013): this signature takes a `State` and lives in
+    Interface note for the v1 freeze: this signature takes a `State` and lives in
     `gosplan/env/planner.py`, while CONTRACT rule 5 and the T-B4 static check forbid any function in
     that module except `make_planner_view` from accepting a `State`. `deliver` is physical execution
     of an allocation already decided from the view - it makes no planner decision and reads no
@@ -1038,9 +1037,9 @@ def deliver(state: State, alloc: Array, cfg: EnvConfig) -> tuple[State, Array, A
 
     Binds: `tests/unit/test_planner.py` (`poolfill` in [0, 1]; delivery conservation; `claimed = 0`
     gives `fill = 1`), test T-U1 (per-period conservation, to 1e-9) and test T-B3 in
-    `tests/behavioural/test_shortage_propagation.py`. Owning WO: **WO-006**.
+    `tests/behavioural/test_shortage_propagation.py`. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.7.3 - implemented in WO-006")
+    raise NotImplementedError("PLAN section 2.7.3")
 
 
 def select_audits(view: PlannerView, cfg: EnvConfig, t: int) -> Array:
@@ -1062,9 +1061,9 @@ def select_audits(view: PlannerView, cfg: EnvConfig, t: int) -> Array:
     is never observable to any agent before it happens (PLAN section 2.4).
 
     Binds: `tests/unit/test_planner.py` (empirical audit frequency matches `audit_rate`;
-    determinism in `(seed_env, t)`). Owning WO: **WO-006**.
+    determinism in `(seed_env, t)`). Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.7.4 - implemented in WO-006")
+    raise NotImplementedError("PLAN section 2.7.4")
 
 
 # ---------- reporting / reward (sections 2.8-2.9) ----------
@@ -1093,9 +1092,9 @@ def process_reports(state: State, action: EnterpriseAction, cfg: EnvConfig) -> S
     (CONTRACT rule 8).
 
     Binds: `tests/unit/test_reporting.py` (holding loss applied before `y` is added; the report
-    clipped to `rho_max`) and test T-B8 (`BOUND_BINDING`). Owning WO: **WO-007**.
+    clipped to `rho_max`) and test T-B8 (`BOUND_BINDING`). Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.8 - implemented in WO-007")
+    raise NotImplementedError("PLAN section 2.8")
 
 
 def audit_and_penalise(state: State, audited: Array, cfg: EnvConfig, t: int) -> Array:
@@ -1121,9 +1120,9 @@ def audit_and_penalise(state: State, audited: Array, cfg: EnvConfig, t: int) -> 
 
     Binds: test T-U8 in `tests/unit/test_reporting.py` - `positive_part` gives exactly 0 for any
     under-report while `absolute` does not; `audited = False` gives 0 regardless. Owning WO:
-    **WO-007**.
+    a later task.
     """
-    raise NotImplementedError("PLAN section 2.8 - implemented in WO-007")
+    raise NotImplementedError("PLAN section 2.8")
 
 
 def bonus(rho: Array, cfg: EnvConfig) -> Array:
@@ -1138,7 +1137,7 @@ def bonus(rho: Array, cfg: EnvConfig) -> Array:
         B(rho)      = beta * Lambda_w(rho - 1) + s * clip(rho - 1, 0, rho_cap - 1)
 
     `rho_cap = inf` means no cap at all, hence no kink; the implementation must not clip in that
-    branch (WO-007 notes).
+    branch (a later task notes).
 
     Named configurations (PLAN section 2.8):
         notched               w = 0,    rho_cap = 1.2
@@ -1151,9 +1150,9 @@ def bonus(rho: Array, cfg: EnvConfig) -> Array:
 
     Binds: test T-U3 in `tests/unit/test_reward.py` - `bonus` is monotone in `rho`; discontinuous at
     `rho = 1` iff `w = 0`; continuous with continuous derivative iff `w > 0` and `rho_cap = inf`.
-    Owning WO: **WO-007**.
+    Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.8 - implemented in WO-007")
+    raise NotImplementedError("PLAN section 2.8")
 
 
 def reward_scale(cfg: EnvConfig) -> float:
@@ -1169,9 +1168,9 @@ def reward_scale(cfg: EnvConfig) -> float:
     shrink the notch in normalised units. Per-batch advantage normalisation inside PPO is permitted.
 
     Binds: test T-U2 in `tests/unit/test_reward.py` - `reward_scale(cfg) * bonus(1.1, cfg) == 1` to
-    floating-point tolerance, for every configuration in the test matrix. Owning WO: **WO-007**.
+    floating-point tolerance, for every configuration in the test matrix. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.9.1 - implemented in WO-007")
+    raise NotImplementedError("PLAN section 2.9.1")
 
 
 def enterprise_reward(
@@ -1203,9 +1202,9 @@ def enterprise_reward(
     `val_measured` (CONTRACT rule 6).
 
     Binds: test T-B6 in `tests/behavioural/` - the reward is recomputed independently from the
-    five-term formula on random states and must agree exactly. Owning WO: **WO-007**.
+    five-term formula on random states and must agree exactly. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.9.1 - implemented in WO-007")
+    raise NotImplementedError("PLAN section 2.9.1")
 
 
 def val_measured(state: State, cfg: EnvConfig) -> float:
@@ -1220,9 +1219,9 @@ def val_measured(state: State, cfg: EnvConfig) -> float:
 
     Logged only. CONTRACT rule 6: it never appears in any observation, reward or agent input; test
     T-B5 asserts this with sentinels. It is one half of `padding_index = val_measured / val_true`
-    (PLAN section 2.9.4). Owning WO: **WO-007**.
+    (PLAN section 2.9.4). Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.9.3 - implemented in WO-007")
+    raise NotImplementedError("PLAN section 2.9.3")
 
 
 def val_true(state: State, cfg: EnvConfig) -> float:
@@ -1237,9 +1236,9 @@ def val_true(state: State, cfg: EnvConfig) -> float:
 
     Logged only, exactly as `val_measured` (CONTRACT rule 6). The ratio `val_measured / val_true` is
     the `padding_index` of PLAN section 2.9.4 and is at least 1 whenever output is fictitious.
-    Owning WO: **WO-007**.
+    Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.9.3 - implemented in WO-007")
+    raise NotImplementedError("PLAN section 2.9.3")
 
 
 def welfare_true(consumer: Array, cfg: EnvConfig) -> float:
@@ -1253,15 +1252,15 @@ def welfare_true(consumer: Array, cfg: EnvConfig) -> float:
 
     with `alpha_j = cfg.supply.ces_alpha` and `sigma_c = cfg.supply.ces_sigma`. The `sigma_c -> 1`
     limit is the Cobb-Douglas index `prod_j consumer_j**alpha_j` and must be implemented as an
-    explicit branch (WO-007 must-pass list). `W = mean_t welfare_t` over the measurement window of
+    explicit branch (a later task must-pass list). `W = mean_t welfare_t` over the measurement window of
     PLAN section 4.4 (periods `t >= 2`).
 
     Logged only, and the strictest case of CONTRACT rule 6: no agent, no planner rule and no reward
     term may read it. It is the numerator of `welfare_ratio = W / W_oracle` (PLAN section 2.9.4),
     where `W_oracle` comes from PLAN section 6.2 (Phase 1 uses `W_truthful_max` as a clearly
-    labelled placeholder). Owning WO: **WO-007**.
+    labelled placeholder). Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.9.3 - implemented in WO-007")
+    raise NotImplementedError("PLAN section 2.9.3")
 
 
 def initial_prices(cfg: EnvConfig) -> Array:
@@ -1289,9 +1288,9 @@ def initial_prices(cfg: EnvConfig) -> Array:
     reported rather than suppressed.
 
     Binds: `tests/unit/test_prices.py` - the fixed point converges and every price is positive.
-    Owning WO: **WO-007**.
+    Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.10 - implemented in WO-007")
+    raise NotImplementedError("PLAN section 2.10")
 
 
 # ---------- env (section 2.5) ----------
@@ -1302,12 +1301,12 @@ class StepInfo:
     """Per-agent-step diagnostic payload: true quantities for the ledger, never for agents.
 
     Carries the `StepRecord`s produced by one agent-step (one per enterprise) plus the period-level
-    scalars. CONTRACT rule 6 and the WO-009 card make the boundary explicit: `StepInfo` is written
+    scalars. CONTRACT rule 6 and its task specification make the boundary explicit: `StepInfo` is written
     by the environment and read by `gosplan/metrics/ledger.py` and by lead-run experiments; no
-    agent, no policy and no reward term may read it (WO-010 forbidden list: "any agent reading
+    agent, no policy and no reward term may read it (forbidden list: "any agent reading
     `StepInfo`").
 
-    Owning WO: **WO-009**.
+    Owning WO: a later task.
     """
 
     records: tuple[StepRecord, ...]  # one per enterprise, in enterprise-index order
@@ -1343,7 +1342,7 @@ class GosplanEnv:
 
     Binds: `tests/golden/*` (T-B7, agreement with `ref/ref_step.py` to 1e-9 on seeded trajectories),
     `tests/unit/test_conservation.py` (T-U1), `tests/unit/test_env_api.py`, and
-    `tests/behavioural/test_termination.py` (T-B9). Owning WO: **WO-009** (LEAD).
+    `tests/behavioural/test_termination.py` (T-B9). Owning WO: a later task (maintainer).
     """
 
     cfg: EnvConfig
@@ -1359,9 +1358,9 @@ class GosplanEnv:
         targets `T_0 = initial_target_frac * A_{s(i)} * cap_i` and `T_min` - and leaves `state`
         unset until `reset`.
 
-        Realises: PLAN sections 2.5, 2.10. Owning WO: **WO-009**.
+        Realises: PLAN sections 2.5, 2.10. Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+        raise NotImplementedError("PLAN section 2.5")
 
     def reset(self, seed_env: int, seed_policy: int) -> tuple[Array, StepInfo]:
         """Start a new episode.
@@ -1376,9 +1375,9 @@ class GosplanEnv:
         `t_period = 0`, `k_step = 0`, `phase = "produce"`, `plan_prices = initial_prices(cfg)`,
         `planner_io = a`, `alive = True`.
 
-        Owning WO: **WO-009**.
+        Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+        raise NotImplementedError("PLAN section 2.5")
 
     def step(self, action: EnterpriseAction) -> tuple[Array, Array, bool, StepInfo]:
         """Advance one agent-step through the schedule above.
@@ -1399,9 +1398,9 @@ class GosplanEnv:
 
         Binds: T-B7 (golden parity with `ref/`), T-U1 (conservation), T-B9 (empirical continuation
         equals `tenure`; no observation field correlates with periods remaining). Owning WO:
-        **WO-009** (LEAD).
+        a later task (maintainer).
         """
-        raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+        raise NotImplementedError("PLAN section 2.5")
 
     def phase(self) -> Phase:
         """Return the phase the next call to `step` will execute.
@@ -1410,9 +1409,9 @@ class GosplanEnv:
         period's last agent-step (PLAN section 2.5). Agents use it to mask inactive action
         dimensions; the environment never trusts an agent to have masked correctly.
 
-        Owning WO: **WO-009**.
+        Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+        raise NotImplementedError("PLAN section 2.5")
 
 
 # ---------- agents (section 6) ----------
@@ -1422,8 +1421,8 @@ class Agent(Protocol):
     """The interface every policy implements - heuristic, DP-derived, learned or LLM-driven.
 
     Implementations (PLAN section 6.1): `Random`, `TruthfulMyopic`, `Padder` (sanity only),
-    `DPGreedy` in Phase 1 (WO-010, WO-014); `Berliner`, `Weitzman`, `Kornai`, `LLMMinistry` in
-    Phase 2; `IPPO` as a thin adapter over a pinned reference PPO (WO-017).
+    `DPGreedy` in Phase 1; `Berliner`, `Weitzman`, `Kornai`, `LLMMinistry` in
+    Phase 2; `IPPO` as a thin adapter over a pinned reference PPO.
 
     Two hard constraints. CONTRACT rule 6: `act` takes the observation and nothing else - no
     `State`, no `StepInfo`, no `PlannerView`; the PPO adapter's forward pass takes `obs` only, and
@@ -1439,26 +1438,26 @@ class Agent(Protocol):
         dimensions this step reads; `rng`, a generator from the `seed_policy` stream. Returns: an
         `EnterpriseAction` whose active dimensions lie inside the bounds of `action_spec(cfg)`.
 
-        Reference behaviours (PLAN section 6.1, WO-010): `Random` is uniform over the active
+        Reference behaviours (PLAN section 6.1, a later task): `Random` is uniform over the active
         dimensions; `TruthfulMyopic` sets effort `clip(T / (A * cap), 0, 1)` per step so that
         `E[y] = T`, reports `rho = S / T` (truthful of stock) and requests exactly `need`;
         `Padder` reports `rho = 1` always at effort 0.3 and exists only to exercise the shortage
         channel in the Monte-Carlo sanity harness - it is never a baseline.
 
         Binds: T-B1 (no hard-coded pathology), T-B2 (fixed point), T-B3 (shortage propagation),
-        T-B5 (welfare blindness). Owning WO: **WO-010**.
+        T-B5 (welfare blindness). Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-010")
+        raise NotImplementedError("PLAN section 6.1")
 
     def reset(self) -> None:
         """Clear any per-episode internal state.
 
         Takes: nothing. Returns: `None`. Called once per episode before the first `act`. A stateless
-        agent implements it as a no-op body that still raises until WO-010 supplies it.
+        agent implements it as a no-op body that still raises until a later task supplies it.
 
-        Owning WO: **WO-010**.
+        Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-010")
+        raise NotImplementedError("PLAN section 6.1")
 
 
 # ---------- DP (section 5) ----------
@@ -1520,7 +1519,7 @@ class DPSolution:
     section 7.2), the way the rare-audit optimisation gap is sized (finding F9), and the policy the
     `DPGreedy` baseline replays inside the N-enterprise environment.
 
-    Owning WO: **WO-014**; consumed by **WO-015** (regime map) and **WO-019** (DP vs PPO).
+    Owning WO: a later task; consumed by a later task (regime map) and a later task (DP vs PPO).
     """
 
     policy_effort: Array  # (n_target, n_stock) optimal period effort e*(T, S)
@@ -1572,12 +1571,12 @@ def solve_single_enterprise(cfg: EnvConfig, grid: DPGrid) -> DPSolution:
     simulating the policy `grid.sim_episodes` x `grid.sim_periods`; `b_hat_dp`; fictitious padding;
     hidden reserves; mean effort; and the regime label from `classify_regime`.
 
-    Binds: `tests/unit/test_dp.py` (WO-014) - value iteration converges; with `a * pen -> inf` and
+    Binds: `tests/unit/test_dp.py` - value iteration converges; with `a * pen -> inf` and
     `g = 0` the optimal policy reports truthfully; with `beta = 0` and `s = 0` optimal effort is 0;
-    `DPGreedy` reproduces the DP policy inside the environment at `N = 1`. Forbidden in WO-014: any
-    reinforcement learning. Owning WO: **WO-014**.
+    `DPGreedy` reproduces the DP policy inside the environment at `N = 1`. Forbidden in a later task: any
+    reinforcement learning. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 5 - implemented in WO-014")
+    raise NotImplementedError("PLAN section 5")
 
 
 def classify_regime(sol: DPSolution) -> RegimeLabel:
@@ -1591,14 +1590,13 @@ def classify_regime(sol: DPSolution) -> RegimeLabel:
         "truthful_underfulfilment"  mean rho below 0.9 and fictitious padding below 0.01
         "mixed"                     otherwise
 
-    The thresholds are PLAN section 5's, verbatim; they are the classifier the regime map colours by
-    (WO-015) and the human reads at gate G1 when picking Phase-1 values from the interior of the
+    The thresholds are PLAN section 5's, verbatim; they are the classifier the regime map colours by and the human reads at gate G1 when picking Phase-1 values from the interior of the
     bunching region. A grid-edge hit is a regime signal, not an artefact to be smoothed away.
 
     Binds: `tests/unit/test_dp.py` - the classifier on synthetic distributions with known labels.
-    Owning WO: **WO-014**.
+    Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 5 - implemented in WO-014")
+    raise NotImplementedError("PLAN section 5")
 
 
 # ---------- ledger / metrics (section 4) ----------
@@ -1606,18 +1604,18 @@ def classify_regime(sol: DPSolution) -> RegimeLabel:
 
 @dataclass
 class StepRecord:
-    """One row of the ledger: one enterprise, one agent-step (PLAN sections 2.2, 4; WO-011).
+    """One row of the ledger: one enterprise, one agent-step (PLAN sections 2.2, 4; a later task).
 
     Carries every quantity the phenomena of PLAN section 4.1 and the forensic estimators of PLAN
     section 7.3 need, including the true quantities that make the conservation identity checkable.
     It is written by the environment and read only by metrics and lead-run experiments - never by an
     agent (CONTRACT rule 6).
 
-    Fields are grouped: identifiers, the PLAN section 2.2 state columns, then the WO-011 additions
+    Fields are grouped: identifiers, the PLAN section 2.2 state columns, then the corresponding task additions
     (`y, R, rho, S_pre, S_post, audited, S_hat, f, Pen, fill, deliv, consumer, val_measured,
     val_true, welfare, at_bound`), then the action and conservation columns.
 
-    Owning WO: **WO-011**.
+    Owning WO: a later task.
     """
 
     run_hash: str  # EnvConfig.hash() of the run that produced this row
@@ -1673,13 +1671,13 @@ class StepRecord:
 
 
 class Ledger:
-    """Append-only store of `StepRecord`s for one run, plus the run's flags (WO-011).
+    """Append-only store of `StepRecord`s for one run, plus the run's flags.
 
     One record per enterprise per agent-step. The ledger is the input to every metric in PLAN
     section 4.1, to the reconciliation test of PLAN section 7.3, and to the run manifest. Nothing an
     agent can read touches it (CONTRACT rule 6).
 
-    Owning WO: **WO-011**.
+    Owning WO: a later task.
     """
 
     records: list[StepRecord]
@@ -1693,9 +1691,9 @@ class Ledger:
         carries and every report of the run must display (CONTRACT rule 8, test T-B8). A bound is
         never silently moved to clear the flag.
 
-        Owning WO: **WO-011**.
+        Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 4 - implemented in WO-011")
+        raise NotImplementedError("PLAN section 4")
 
     def to_parquet(self, path: str) -> None:
         """Write the ledger to a columnar file.
@@ -1706,9 +1704,9 @@ class Ledger:
         `gosplan/metrics/ledger.py` only and is deliberately not imported by this interface file.
 
         Binds: `tests/unit/test_ledger.py` - parquet round-trip preserves every column and dtype.
-        Owning WO: **WO-011**.
+        Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 4 - implemented in WO-011")
+        raise NotImplementedError("PLAN section 4")
 
 
 def write_manifest(run_dir: str, cfg: EnvConfig, extra: dict) -> None:
@@ -1723,9 +1721,9 @@ def write_manifest(run_dir: str, cfg: EnvConfig, extra: dict) -> None:
     (notably `BOUND_BINDING`). Fields that do not apply to a run are written as `null` rather than
     omitted, so a missing field is always a bug and never an ambiguity.
 
-    Binds: `tests/unit/test_ledger.py` - every rule-10 field is present. Owning WO: **WO-011**.
+    Binds: `tests/unit/test_ledger.py` - every rule-10 field is present. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 4 - implemented in WO-011")
+    raise NotImplementedError("PLAN section 4")
 
 
 def phenomenon_bunching(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
@@ -1752,9 +1750,9 @@ def phenomenon_bunching(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
 
     Binds: `tests/unit/test_phenomena_p1.py` - a synthetic density with known excess mass is
     recovered within 5%, hole mass likewise, and the fallback and `forensics_core` signatures agree.
-    Owning WO: **WO-016**.
+    Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 4.1 - implemented in WO-016")
+    raise NotImplementedError("PLAN section 4.1")
 
 
 def phenomenon_padding(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
@@ -1771,9 +1769,9 @@ def phenomenon_padding(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
     fictitious padding to be monotone decreasing in `a * pen` and within 0.03 of the DP's value at
     each of the three levels (PLAN section 4.5).
 
-    Binds: `tests/unit/test_phenomena_p1.py`. Owning WO: **WO-016**.
+    Binds: `tests/unit/test_phenomena_p1.py`. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 4.1 - implemented in WO-016")
+    raise NotImplementedError("PLAN section 4.1")
 
 
 def phenomenon_hidden_reserves(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
@@ -1785,14 +1783,14 @@ def phenomenon_hidden_reserves(ledger: Ledger, cfg: EnvConfig) -> dict[str, floa
 
     HELD OUT (PLAN section 4.1): no plot, table or test of this quantity may be produced before the
     Phase-2 acceptance run - not during Phase 1 and not while debugging its mechanism. The Monte
-    Carlo sanity harness of WO-012 may assert only conservation and boundedness on the same
+    Carlo sanity harness of a later task may assert only conservation and boundedness on the same
     mechanism, never a direction. Its mechanism parameters (`g`, `penalty_arg`, `h`) are locked now
     in PLAN section 4.2 and may be changed only in a new, separately pre-registered study.
 
     Takes: a `Ledger` and `cfg`. Returns: a mapping with at least `hidden_reserves`,
-    `reconciliation_stat` and `p_value`. Owning WO: **WO-030**.
+    `reconciliation_stat` and `p_value`. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 4.1 - implemented in WO-030")
+    raise NotImplementedError("PLAN section 4.1")
 
 
 def phenomenon_storming(
@@ -1813,9 +1811,9 @@ def phenomenon_storming(
 
     Takes: the run's `ledger`, the truthful-myopic `baseline_ledger` under identical draws, and
     `cfg`. Returns: a mapping with at least `gini`, `gini_baseline`, `excess`. Owning WO:
-    **WO-030**.
+    a later task.
     """
-    raise NotImplementedError("PLAN section 4.1 - implemented in WO-030")
+    raise NotImplementedError("PLAN section 4.1")
 
 
 def phenomenon_hoarding(
@@ -1833,9 +1831,9 @@ def phenomenon_hoarding(
     test T-B3 asserts shortage *propagation* only; the direction of hoarding is asserted nowhere.
 
     Takes: `ledger`, `baseline_ledger`, `cfg`. Returns: a mapping with at least `request_inflation`,
-    `request_inflation_baseline`, `corr_stock_shortfall`, `dispersion_stat`. Owning WO: **WO-030**.
+    `request_inflation_baseline`, `corr_stock_shortfall`, `dispersion_stat`. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 4.1 - implemented in WO-030")
+    raise NotImplementedError("PLAN section 4.1")
 
 
 def phenomenon_blat(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
@@ -1848,9 +1846,9 @@ def phenomenon_blat(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
     `horizontal_visibility = 1.0`, `trade_tau = 0.05`.
 
     Takes: `ledger` and `cfg`. Returns: a mapping with at least `trade_volume_share`,
-    `n_matched_pairs`, `mean_surplus`. Owning WO: **WO-030**.
+    `n_matched_pairs`, `mean_surplus`. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 4.1 - implemented in WO-030")
+    raise NotImplementedError("PLAN section 4.1")
 
 
 def phenomenon_quality(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
@@ -1862,9 +1860,9 @@ def phenomenon_quality(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
     `quality_measurability = 1`.
 
     Takes: `ledger` and `cfg`. Returns: a mapping with at least `mean_quality` and
-    `mean_quality_weighted`. Owning WO: **WO-030**, with the mechanism itself from **WO-021**.
+    `mean_quality_weighted`. Owning WO: a later task, with the mechanism itself from a later task.
     """
-    raise NotImplementedError("PLAN section 4.1 - implemented in WO-030")
+    raise NotImplementedError("PLAN section 4.1")
 
 
 # ---------- P2 sketches (signatures only; bodies frozen at P2 revision) ----------
@@ -1890,9 +1888,9 @@ def match_trades(state: State, offers: Array, cfg: EnvConfig, t: int) -> tuple[S
 
     The signature is frozen now so no type moves later (PLAN section 0, finding F14); the behaviour
     is deliberately under-specified until the Phase-2 revision. `trade_surplus` enters the reward
-    only through the term already named in CONTRACT rule 4. Owning WO: **WO-024**.
+    only through the term already named in CONTRACT rule 4. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.13 - implemented in WO-024")
+    raise NotImplementedError("PLAN section 2.13")
 
 
 def ministry_forward(view: MinistryView, cfg: EnvConfig) -> Array:
@@ -1915,9 +1913,9 @@ def ministry_forward(view: MinistryView, cfg: EnvConfig) -> Array:
     action `pi = 1`. Pinned model versions and every prompt and completion are logged (CONTRACT
     rule 10).
 
-    Owning WO: **WO-025** (rule-based), **WO-026** (LLM adapter).
+    Owning WO: a later task (rule-based), a later task (LLM adapter).
     """
-    raise NotImplementedError("PLAN section 2.14 - implemented in WO-025")
+    raise NotImplementedError("PLAN section 2.14")
 
 
 def solve_oracle(cfg: EnvConfig, horizon: int, clairvoyant: bool, seed_env: Optional[int]) -> dict:
@@ -1932,15 +1930,15 @@ def solve_oracle(cfg: EnvConfig, horizon: int, clairvoyant: bool, seed_env: Opti
     Sketch (PLAN section 6.2, frozen at the Phase-2 revision): a non-anticipative expected-value MIP
     over the full true state at mean yields, with the configured nonconvexities (setup costs become
     binaries, increasing returns a piecewise-linear approximation), solved once per configuration
-    with an open-source solver (HiGHS or CBC through OR-Tools or Pyomo; the lead verifies
+    with an open-source solver (HiGHS or CBC through OR-Tools or Pyomo; the maintainer verifies
     availability). `W_oracle` in the headline metrics of PLAN section 2.9.4 is the expected-value
     MIP's welfare; the clairvoyant number is reported as an upper bound only, never as the
     denominator. The solver's optimality gap is recorded in the run manifest (CONTRACT rule 10).
 
     In Phase 1, `welfare_ratio` uses `W_truthful_max` as a placeholder denominator and every table
-    that reports it says so (PLAN section 2.9.4). Owning WO: **WO-027**.
+    that reports it says so (PLAN section 2.9.4). Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 6.2 - implemented in WO-027")
+    raise NotImplementedError("PLAN section 6.2")
 
 
 __all__ = [

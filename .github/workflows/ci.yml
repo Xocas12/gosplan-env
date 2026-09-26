@@ -122,7 +122,7 @@ jobs:
             exit 1
           fi
           if grep -n 'tests/acceptance' collected.txt; then
-            echo "::error file=pyproject.toml,line=68::CONTRACT rule 13 violated (TESTS ARE NOT EXPERIMENTS): pytest collected an item under tests/acceptance/. That directory holds the lead-run gate experiments G0-G4 of PLAN section 13; nothing there is a unit test, nothing there is on a work order must-pass list, and no CI run and no implementer session executes it. Restore both guards: every file there is named gate_*.py and never test_*.py, and [tool.pytest.ini_options] testpaths lists only tests/unit, tests/behavioural and tests/golden."
+            echo "::error file=pyproject.toml,line=68::CONTRACT rule 13 violated (TESTS ARE NOT EXPERIMENTS): pytest collected an item under tests/acceptance/. That directory holds the lead-run gate experiments G0-G4 of PLAN section 13; nothing there is a unit test, nothing there is on a task must-pass list, and no CI run and no contributor executes it. Restore both guards: every file there is named gate_*.py and never test_*.py, and [tool.pytest.ini_options] testpaths lists only tests/unit, tests/behavioural and tests/golden."
             exit 1
           fi
           echo "OK: nothing collected under tests/acceptance/ (CONTRACT rule 13)."

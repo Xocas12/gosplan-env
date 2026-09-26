@@ -2,12 +2,12 @@
 
 Realises: PLAN section 6.1 (agent table), read against PLAN sections 2.3 (actions), 2.4
 (observation), 2.6 (production), 2.8 (report and audit) and 5 (the DP whose policy `DPGreedy`
-replays). Owning work orders: **WO-010** (`Random`, `TruthfulMyopic`, `Padder`, `DPGreedy`) and
-**WO-030** (`Berliner`, `Weitzman`, `Kornai`, Phase 2).
+replays). Owning tasks: a later task (`Random`, `TruthfulMyopic`, `Padder`, `DPGreedy`) and
+a later task (`Berliner`, `Weitzman`, `Kornai`, Phase 2).
 
 Every class here implements the `Agent` protocol of `gosplan/agents/base.py` structurally: `act`
 takes `(obs, phase, rng)` and nothing else, and `reset` takes nothing. None of them reads `State`,
-`StepInfo` or `PlannerView` - "any agent reading `StepInfo`" is on the WO-010 forbidden list and is
+`StepInfo` or `PlannerView` - "any agent reading `StepInfo`" is on the forbidden list and is
 CONTRACT rule 6. They hold an `EnvConfig` because the *configuration* is public (sector
 productivity, the initial target, the action bounds); they never hold or receive the *state*.
 
@@ -41,7 +41,7 @@ bunching, padding, storming, hoarding, shaving or trade directly. A heuristic ag
 is a fixed probe used to exercise a channel (`Padder`) or to supply a truthful reference line
 (`TruthfulMyopic`). The rule the module must respect instead is the reporting one: no result about
 an *emergent* phenomenon may ever be read off a heuristic agent, and the held-out phenomena of PLAN
-section 4.1 (rows 2, 5, 6, 7) are not computed from any agent here during Phase 1 (WO-012 forbidden
+section 4.1 (rows 2, 5, 6, 7) are not computed from any agent here during Phase 1 (forbidden
 list).
 
 Binds: T-B1 `tests/behavioural/test_no_hardcoded_pathology.py`, T-B2 `test_fixed_point.py`, T-B3
@@ -56,7 +56,7 @@ from typing import TYPE_CHECKING
 
 from gosplan.agents.base import Array, Phase
 
-if TYPE_CHECKING:  # runtime homes: WO-003 (config) and WO-009 (state), PLAN section 8
+if TYPE_CHECKING:  # runtime homes: config and state, PLAN section 8
     import numpy as np
 
     from gosplan.agents.dp import DPSolution
@@ -72,7 +72,7 @@ Used by `TruthfulMyopic` ("requests = need", PLAN section 6.1) and asserted by t
 PADDER_EFFORT = 0.3
 """The constant per-PRODUCE-step effort of `Padder` (PLAN section 6.1, verbatim). Not a swept
 parameter and not a configuration field: `Padder` is a fixed sanity probe, so changing this number
-changes what the Monte-Carlo sanity harness of WO-012 exercises."""
+changes what the Monte-Carlo sanity harness of a later task exercises."""
 
 PADDER_REPORT_RATIO = 1.0
 """The constant report ratio of `Padder` (PLAN section 6.1: "rho = 1 always"), i.e. it claims
@@ -92,7 +92,7 @@ class Random:
     filled with zeros; the environment ignores them (PLAN section 2.3).
 
     Purpose: it is the stress agent. It drives the golden trajectories of `ref/gen_golden.py`
-    together with `TruthfulMyopic` (T-B7), and the Monte-Carlo sanity harness of WO-012 runs 2,000
+    together with `TruthfulMyopic` (T-B7), and the Monte-Carlo sanity harness of a later task runs 2,000
     episodes of it to check conservation to 1e-9, absence of NaN/inf, bounded `T` and `S`, and
     `fill` in [0, 1] under adversarial-but-legal actions. It is never a baseline for any claim.
 
@@ -113,23 +113,23 @@ class Random:
 
         All randomness comes from `rng` (CONTRACT rule 9); no call to `numpy.random` and no call to
         `gosplan.rng.draw`, which belongs to the environment's `seed_env` stream. Owning WO:
-        **WO-010**.
+        a later task.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-010")
+        raise NotImplementedError("PLAN section 6.1")
 
     def reset(self) -> None:
         """No-op: the policy is stateless.
 
-        Takes: nothing. Returns: `None`. Owning WO: **WO-010**.
+        Takes: nothing. Returns: `None`. Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-010")
+        raise NotImplementedError("PLAN section 6.1")
 
 
 @dataclass
 class TruthfulMyopic:
     """Meets the target in expectation and reports its stock truthfully (PLAN section 6.1).
 
-    Rule, verbatim from the PLAN section 6.1 table and the WO-010 card: *effort so that
+    Rule, verbatim from the PLAN section 6.1 table and its task specification: *effort so that
     `E[y] = T`; `rho = S/T` (truthful of stock); requests `= need`; never trades*. Concretely, per
     enterprise `i`:
 
@@ -178,16 +178,16 @@ class TruthfulMyopic:
 
         Determinism matters: T-B1 compares reports with stock to 1e-9, and the common-random-number
         comparisons of PLAN section 4.1 rows 2 and 5 subtract this agent's trajectory from a
-        learned one under the same `seed_env`. Owning WO: **WO-010**.
+        learned one under the same `seed_env`. Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-010")
+        raise NotImplementedError("PLAN section 6.1")
 
     def reset(self) -> None:
         """No-op: the policy is stateless.
 
-        Takes: nothing. Returns: `None`. Owning WO: **WO-010**.
+        Takes: nothing. Returns: `None`. Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-010")
+        raise NotImplementedError("PLAN section 6.1")
 
 
 @dataclass
@@ -209,7 +209,7 @@ class Padder:
     point for padding (PLAN section 4.1 row 4) or for any emergent phenomenon: its padding is
     assumed, not learned, so it measures the plumbing and nothing else. Its uses are exactly two -
     test T-B2 (fixed point) and test T-B3 (shortage propagation) - plus the Monte-Carlo sanity
-    harness of WO-012, which asserts only conservation, boundedness and the *existence* of
+    harness of a later task, which asserts only conservation, boundedness and the *existence* of
     downstream shortage, never a direction or a magnitude.
 
     This is not a CONTRACT rule 7 violation: rule 7 binds transition rules and reward terms, and
@@ -229,8 +229,8 @@ class Padder:
     active-but-inert in Phase 1 (`alloc_eta_request = 0` makes the request term exactly 1 in the
     allocation weight of PLAN section 2.7.2), so no Phase-1 result can depend on it; setting it to
     `REQUEST_MULTIPLE_NEED` keeps T-B3 attributable to the report channel alone. Should any test or
-    Phase-2 configuration make the choice load-bearing, that is an AMBIGUITY REPORT (CONTRACT rule
-    3), not an implementer's decision.
+    Phase-2 configuration make the choice load-bearing, that is an OPEN QUESTION (CONTRACT rule
+    3), not an contributor's decision.
     """
 
     cfg: EnvConfig
@@ -245,16 +245,16 @@ class Padder:
         `report_ratio = PADDER_REPORT_RATIO` at the REPORT step, requests at
         `REQUEST_MULTIPLE_NEED`, everything else zero.
 
-        Owning WO: **WO-010**.
+        Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-010")
+        raise NotImplementedError("PLAN section 6.1")
 
     def reset(self) -> None:
         """No-op: the policy is stateless.
 
-        Takes: nothing. Returns: `None`. Owning WO: **WO-010**.
+        Takes: nothing. Returns: `None`. Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-010")
+        raise NotImplementedError("PLAN section 6.1")
 
 
 @dataclass
@@ -277,10 +277,10 @@ class DPGreedy:
     Lookup rule: nearest grid point. PLAN section 5 fixes the grids but not an interpolation
     scheme, and "applies the DP policy" is only well defined as the tabulated policy, so the
     implementation reads the nearest grid entry and does not smooth between entries. This is what
-    makes the WO-014 must-pass item checkable - *`DPGreedy` reproduces the DP policy inside the env
+    makes the must-pass item checkable - *`DPGreedy` reproduces the DP policy inside the env
     at `N = 1`* - since at a state that sits on a grid point the action must equal the table entry
     exactly. A different rule (bilinear interpolation, say) is a spec question, not an
-    implementer's choice (CONTRACT rules 1 and 3).
+    contributor's choice (CONTRACT rules 1 and 3).
 
     What it is and is not. The DP is solved with no input-output structure (`a = 0`, `phi = 1`) on
     one enterprise (PLAN section 5), so inside the `N`-enterprise environment this is a *heuristic*:
@@ -292,11 +292,11 @@ class DPGreedy:
     Requests: the DP has no input dimension, so the request rule is `REQUEST_MULTIPLE_NEED` (exactly
     need), the same neutral value `TruthfulMyopic` uses; inert in Phase 1 at
     `alloc_eta_request = 0`. Under a Phase-2 configuration with `alloc_eta_request > 0` the DP
-    supplies no request policy at all, and using this agent there needs an AMBIGUITY REPORT
+    supplies no request policy at all, and using this agent there needs an OPEN QUESTION
     (CONTRACT rule 3).
 
-    Binds: `tests/unit/test_dp.py` (WO-014) - `DPGreedy` reproduces the DP policy inside the
-    environment at `N = 1`. Owning WOs: **WO-010** (this class), **WO-014** (the solution it reads).
+    Binds: `tests/unit/test_dp.py` - `DPGreedy` reproduces the DP policy inside the
+    environment at `N = 1`. Owning WOs: a later task (this class), a later task (the solution it reads).
     """
 
     cfg: EnvConfig
@@ -305,10 +305,10 @@ class DPGreedy:
     first `act`, because a policy table read against a different target grid is silently wrong."""
 
     solution: DPSolution
-    """The solved single-enterprise problem (`gosplan/agents/dp.py`, WO-014), supplied already
+    """The solved single-enterprise problem (`gosplan/agents/dp.py`, a later task), supplied already
     solved: either straight from `solve_single_enterprise(cfg, grid)` or from the cache keyed by
-    `(EnvConfig.hash(), DPGrid)` that the DP work order maintains. This field is the "loads a
-    `DPSolution`" of the WO-010 card. Only `policy_effort`, `policy_rho`, `grid` and `config_hash`
+    `(EnvConfig.hash(), DPGrid)` that the DP task maintains. This field is the "loads a
+    `DPSolution`" of its task specification. Only `policy_effort`, `policy_rho`, `grid` and `config_hash`
     are read; the stationary diagnostics on the solution are for experiments, not for acting."""
 
     def act(self, obs: Array, phase: Phase, rng: np.random.Generator) -> EnterpriseAction:
@@ -321,17 +321,17 @@ class DPGreedy:
         `[0, cfg.tech.report_max_ratio]`; if the DP grid was extended past that bound the clipping
         is itself a result and is logged (CONTRACT rule 8).
 
-        Owning WO: **WO-010**.
+        Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-010")
+        raise NotImplementedError("PLAN section 6.1")
 
     def reset(self) -> None:
         """No-op: the lookup carries no episode state.
 
         Takes: nothing. Returns: `None`. The `DPSolution` is run-scoped and is deliberately not
-        cleared here. Owning WO: **WO-010**.
+        cleared here. Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-010")
+        raise NotImplementedError("PLAN section 6.1")
 
 
 @dataclass
@@ -348,10 +348,10 @@ class Berliner:
     It is `TruthfulMyopic` with a safety margin and a ceiling on the claim, so the excess
     accumulates in own-good stock - the mechanism behind hidden reserves (PLAN section 4.1 row 7),
     which is a **held-out** phenomenon: nothing computed from this agent may be plotted, tabulated
-    or tested before the Phase-2 acceptance run (PLAN section 4.1, WO-012 forbidden list).
+    or tested before the Phase-2 acceptance run (PLAN section 4.1, forbidden list).
 
     Status: interface and rule only. The class exists now so that no type moves later (PLAN section
-    0, finding F14); the body is written by **WO-030** after the Phase-2 spec revision.
+    0, finding F14); the body is written by a later task after the Phase-2 spec revision.
     """
 
     cfg: EnvConfig
@@ -367,16 +367,16 @@ class Berliner:
         """Return the safety-factor action for the current phase.
 
         Takes: `obs`, `phase`, `rng` as in the `Agent` protocol. Returns: an `EnterpriseAction` per
-        the class docstring. Owning WO: **WO-030**.
+        the class docstring. Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-030")
+        raise NotImplementedError("PLAN section 6.1")
 
     def reset(self) -> None:
         """Clear per-episode state.
 
-        Takes: nothing. Returns: `None`. Owning WO: **WO-030**.
+        Takes: nothing. Returns: `None`. Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-030")
+        raise NotImplementedError("PLAN section 6.1")
 
 
 @dataclass
@@ -390,14 +390,14 @@ class Weitzman:
     by an amount increasing in `cfg.incentive.ratchet_lambda` and in `cfg.incentive.tenure`.
 
     The exact functional form is **not fixed by PLAN section 6.1** and is deliberately left open
-    until the Phase-2 spec revision (PLAN section 0, finding F14). WO-030 must either transcribe
-    the form the revision states or file an AMBIGUITY REPORT (CONTRACT rule 3); inventing a
+    until the Phase-2 spec revision (PLAN section 0, finding F14). a later task must either transcribe
+    the form the revision states or file an OPEN QUESTION (CONTRACT rule 3); inventing a
     plausible reduction curve here is exactly the failure mode rule 3 exists to prevent. Note also
     that the single-enterprise DP of PLAN section 5 already computes the optimal ratchet-aware
     policy exactly, so this agent is a readable caricature for baselines, never the source of a
     quantitative claim about ratchet effects.
 
-    Status: interface and rule sketch only; body written by **WO-030**.
+    Status: interface and rule sketch only; body written by a later task.
     """
 
     cfg: EnvConfig
@@ -410,16 +410,16 @@ class Weitzman:
         Takes: `obs`, `phase`, `rng` as in the `Agent` protocol. Returns: an `EnterpriseAction`
         whose effort is the `TruthfulMyopic` level reduced as a function of
         `cfg.incentive.ratchet_lambda`, per the form frozen at the Phase-2 spec revision. Owning
-        WO: **WO-030**.
+        WO: a later task.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-030")
+        raise NotImplementedError("PLAN section 6.1")
 
     def reset(self) -> None:
         """Clear per-episode state.
 
-        Takes: nothing. Returns: `None`. Owning WO: **WO-030**.
+        Takes: nothing. Returns: `None`. Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-030")
+        raise NotImplementedError("PLAN section 6.1")
 
 
 @dataclass
@@ -432,7 +432,7 @@ class Kornai:
         input_request_ij = request_inflation * need_ij      # in multiples of need, PLAN sec. 2.3
 
     and, where `cfg.incentive.soft_budget > 0` makes a bailout likely when `fill < 1` (PLAN section
-    3, WO-023), it does not adjust effort downward for the input shortfall it expects to be
+    3, a later task), it does not adjust effort downward for the input shortfall it expects to be
     covered.
 
     Request inflation only pays once `cfg.incentive.alloc_eta_request > 0` (the allocation weight
@@ -443,10 +443,10 @@ class Kornai:
     emerged.
 
     The bailout side of the rule is under-specified until the Phase-2 spec revision fixes what a
-    bailout does (WO-023); until then WO-030 implements the request-inflation half only or files an
-    AMBIGUITY REPORT (CONTRACT rule 3).
+    bailout does; until then a later task implements the request-inflation half only or files an
+    OPEN QUESTION (CONTRACT rule 3).
 
-    Status: interface and rule sketch only; body written by **WO-030**.
+    Status: interface and rule sketch only; body written by a later task.
     """
 
     cfg: EnvConfig
@@ -464,16 +464,16 @@ class Kornai:
 
         Takes: `obs`, `phase`, `rng` as in the `Agent` protocol. Returns: an `EnterpriseAction`
         whose `input_request` is `request_inflation` per good, with effort and report per the rule
-        frozen at the Phase-2 spec revision. Owning WO: **WO-030**.
+        frozen at the Phase-2 spec revision. Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-030")
+        raise NotImplementedError("PLAN section 6.1")
 
     def reset(self) -> None:
         """Clear per-episode state.
 
-        Takes: nothing. Returns: `None`. Owning WO: **WO-030**.
+        Takes: nothing. Returns: `None`. Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-030")
+        raise NotImplementedError("PLAN section 6.1")
 
 
 __all__ = [

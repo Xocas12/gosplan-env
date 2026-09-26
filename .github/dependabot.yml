@@ -8,7 +8,7 @@
 # pins are two different experiments, however green CI is on both: numpy/scipy change
 # floating-point results at the 1e-9 tolerance the golden files of PLAN section 11 assert,
 # ortools changes the optimality gap the manifest records, and jax changes the parity
-# check of WO-029.
+# check of a later task.
 #
 # So: never merge a bump PR between the runs of a single gate (G0-G4, PLAN section 13).
 # Merge bumps only in the quiet stretch after a gate has been signed off and before the

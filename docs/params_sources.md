@@ -1,4 +1,4 @@
-# Parameter sourcing memo (WO-000)
+# Parameter sourcing memo
 
 **Date of writing: 2026-09-07.** Item 8 is date-stamped because its facts decay.
 
@@ -8,11 +8,11 @@ PLAN section 3 tabulates every environment parameter with an arm, a Phase-1 valu
 range. Six rows are marked provisional: their Phase-1 values are placeholders that gate G1 replaces
 with values a human picks from the interior of the DP regime map (PLAN sections 5 and 13), recorded
 in `runs/G1_decision.md`. This memo is the evidence base for that pick, and the source of the
-`source` column of `gosplan/params.py` (WO-001).
+`source` column of `gosplan/params.py`.
 
 It is **not** a decision document. It does not choose Phase-1 values and it does not rank arms.
 
-Two rules govern every line below, from PLAN section 15 and the WO-000 card:
+Two rules govern every line below, from PLAN section 15 and its task specification:
 
 - A range with a citation is evidence. A range without one is a **prior**, and is labelled a prior
   in those words. No item ends with a point value presented as historical fact.
@@ -23,7 +23,7 @@ Two rules govern every line below, from PLAN section 15 and the WO-000 card:
 
 **Outcome of this pass: one item of eight (item 8) is sourced. Seven are unsourced priors.** That
 is a low yield, and it is the honest one — see "What was tempted and not written" at the end, which
-is the card's stated primary quality signal.
+is the task's stated primary quality signal.
 
 ---
 
@@ -176,7 +176,7 @@ tendency of Soviet enterprise director tenure was located in this pass.
 **(c) What it implies.** Nothing sourced. Two things are nonetheless worth fixing in writing,
 because both are places a later pass could go wrong:
 
-Unit conversion assumption, stated on its own line as the card requires:
+Unit conversion assumption, stated on its own line as the task requires:
 > a per-year survival hazard is **not** a per-plan-period hazard unless the plan period is one year;
 > any figure retrieved later must be converted with the plan period stated explicitly.
 
@@ -235,7 +235,7 @@ distribution to be compared against — only the DP's own predicted distribution
 
 **(a) The question.** Magnitude, level and mechanism: was the padding done at the enterprise layer,
 the ministry layer, or the republic layer? The output is a **judgement** on whether the episode is
-admissible as an anchor for the Phase-2 ministry layer (PLAN section 2.14) at all. The card states
+admissible as an anchor for the Phase-2 ministry layer (PLAN section 2.14) at all. The task states
 that "not an anchor" is a perfectly good answer and is preferable to a stretched one.
 
 **(b) What was found.** Only tertiary material was retrievable, and it does not answer the question
@@ -267,8 +267,8 @@ altered.
 
 ### Item 8 - Tooling: availability, versions and prices
 
-**(a) The question.** Current availability and versions of the reference PPO implementation WO-017
-will pin, JAX multi-agent scaffolds for the WO-029 port, `rliable` for the interval estimates of
+**(a) The question.** Current availability and versions of the reference PPO implementation the port
+will pin, JAX multi-agent scaffolds for the JAX port, `rliable` for the interval estimates of
 PLAN section 4.3, and open-source MIP solvers for the PLAN section 6.2 oracle. The reference-PPO
 version, the solver version and the solver's optimality gap are all CONTRACT rule 10 manifest
 fields, so these are operational facts the build depends on, not background.
@@ -289,40 +289,40 @@ fields, so these are operational facts the build depends on, not background.
 | JaxMARL | no release tag read; repository last pushed 2026-09-04 | GitHub `FLAIROx/JaxMARL` |
 | PureJaxRL | no release tag read; repository last pushed 2024-09-09 | GitHub `luchris429/purejaxrl` |
 
-**One finding here is load-bearing for WO-017.** CleanRL's most recent tagged release is v1.0.0 from
+**One finding here is load-bearing.** CleanRL's most recent tagged release is v1.0.0 from
 2022-11-14, while the repository itself has been pushed as recently as 2026-04-20. A release tag is
-therefore **not** a usable pin: WO-017 must pin the reference PPO **by commit SHA**, and record that
+therefore **not** a usable pin: the port must pin the reference PPO **by commit SHA**, and record that
 SHA in the manifest under CONTRACT rule 10. Pinning `cleanrl==1.0.0` would pin something almost four
 years older than the code a reader would find on the default branch.
 
 PureJaxRL's last push is 2024-09-09, roughly two years before the date of writing; JaxMARL is
-actively maintained. For the WO-029 port, JaxMARL is the better-maintained scaffold on this evidence.
+actively maintained. For the JAX port, JaxMARL is the better-maintained scaffold on this evidence.
 
-**On the model-tier mapping.** The card also asks for the specific current models behind the
+**On the model-tier mapping.** The task also asks for the specific current models behind the
 `MID-fast` and `MID-strong` tiers and their prices. **This memo deliberately omits model names.**
 The repository carries no AI model or vendor names by the owner's standing instruction, and PLAN
 section 12.1 in any case requires the *lead* to record the tier-to-model mapping in the manifest at
 issue time — which is the right place for a fact that decays this fast. What is recorded here is the
-method: at issue time the lead selects one model per tier, records the identifier and version in the
+method: at issue time the maintainer selects one model per tier, records the identifier and version in the
 run manifest alongside the reference-PPO SHA, and budgets against the then-current per-token price.
-This is a **deliberate deviation from the card's wording**, recorded as such.
+This is a **deliberate deviation from the task's wording**, recorded as such.
 
-**(c) What it implies.** WO-017 pins CleanRL by commit SHA. WO-029 targets JaxMARL. WO-032 uses
-`rliable` 1.2.0. WO-027 uses HiGHS 1.15.1 or OR-Tools 9.15 and records the optimality gap.
+**(c) What it implies.** Pin CleanRL by commit SHA. Target JaxMARL. Use `rliable` 1.2.0. Use
+HiGHS 1.15.1 or OR-Tools 9.15 and record the optimality gap.
 
-**(d)** Sourced, as of 2026-09-07: the versions in the table above, each read from the named package index or repository API on that date. These facts decay and must be re-read at WO-017, WO-027, WO-029 and WO-032 rather than trusted from this memo.
+**(d)** Sourced, as of 2026-09-07: the versions in the table above, each read from the named package index or repository API on that date. These facts decay and must be re-read when the port happens rather than trusted from this memo.
 
 ---
 
 ## What was tempted and not written
 
-The card calls this the primary quality signal, and asks for every parameter where a
+The task calls this the primary quality signal, and asks for every parameter where a
 plausible-sounding number was available but not defensible. Listed in full, not trimmed.
 
 **Item 1, bonus schedules — maximum and average bonus as a share of salary.** A search snippet
 carried specific percentage figures for the cap on a Soviet manager's bonus and for the average
 bonus, attributed to a 1962 Berkeley *California Management Review* piece. The page 404s on the
-current host. The figures were **not written**, in any form, because the card forbids "attaching a
+current host. The figures were **not written**, in any form, because the task forbids "attaching a
 citation to a figure that source does not contain" and a snippet is not the source. Item 1 says
 "not obtained" instead. This is the single most tempting omission in the memo: the numbers are
 memorable, widely repeated, and would have looked authoritative.
@@ -358,11 +358,11 @@ project's own hypothesis into its own evidence. Not written.
 
 **Item 7 — the level of the cotton padding.** The scandal is republic-scale and the temptation was
 to conclude from that scale that the padding was organised at the republic or ministry layer. Scale
-is not level. Not written; the item concludes "not an anchor" instead, which is the answer the card
+is not level. Not written; the item concludes "not an anchor" instead, which is the answer the task
 says it prefers.
 
 **Item 8 — model names and per-token prices.** Omitted deliberately, for the reason given in the
-item, and flagged there as a deviation from the card's wording rather than a silent gap.
+item, and flagged there as a deviation from the task's wording rather than a silent gap.
 
 ## What a later pass should retrieve first
 

@@ -1,0 +1,37 @@
+# CONTRACT rule 2 (FROZEN TESTS) - temporary exemption for this branch.
+#
+# Every path below changed in the work-order vocabulary cleanup and in NOTHING ELSE. For the
+# Python files that was checked mechanically rather than by eye: both revisions were parsed and
+# their ASTs compared with all string constants normalised, and the dumps are identical. No
+# assertion, expression, import or control-flow statement moved; only docstring and message text.
+# tests/golden/README.md is prose describing what the golden files are.
+#
+# Remove this file once the branch has merged. A standing entry here is a permanently
+# unfrozen test.
+tests/behavioural/test_bound_flag.py
+tests/behavioural/test_fixed_point.py
+tests/behavioural/test_no_hardcoded_pathology.py
+tests/behavioural/test_planner_blindness.py
+tests/behavioural/test_reward_formula.py
+tests/behavioural/test_shortage_propagation.py
+tests/behavioural/test_termination.py
+tests/behavioural/test_welfare_blindness.py
+tests/golden/README.md
+tests/golden/test_golden_parity.py
+tests/unit/test_config.py
+tests/unit/test_conservation.py
+tests/unit/test_contract_guard.py
+tests/unit/test_dp.py
+tests/unit/test_env_api.py
+tests/unit/test_ledger.py
+tests/unit/test_mc_sanity_runs.py
+tests/unit/test_obs.py
+tests/unit/test_phenomena_p1.py
+tests/unit/test_planner.py
+tests/unit/test_ppo_adapter.py
+tests/unit/test_prices.py
+tests/unit/test_production.py
+tests/unit/test_reporting.py
+tests/unit/test_reward.py
+tests/unit/test_rng.py
+tests/unit/test_spec_imports.py

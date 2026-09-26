@@ -1,7 +1,7 @@
 """Oracle package - the full-information planning benchmark of PLAN section 6.2.
 
 Realises: PLAN section 6.2 (oracle) and PLAN section 2.9.4 (the headline metrics whose denominators
-it supplies). Owning work order: **WO-027**. Phase status: **Phase 2** - nothing in Phase 1 imports
+it supplies). Owning task: a later task. Phase status: **Phase 2** - nothing in Phase 1 imports
 this package, where `welfare_ratio` uses `W_truthful_max` as a labelled placeholder denominator.
 
 The package holds exactly one solver module, `gosplan.oracle.kantorovich`, and re-exports its

@@ -1,8 +1,8 @@
 """The single-enterprise dynamic program and its regime classifier (PLAN section 5).
 
 Realises: PLAN section 5 (the analytical layer - the single-enterprise DP solved before any
-multi-agent RL) and PLAN section 11 (test architecture, unit/property category). Owning work order:
-**WO-002** (frozen tests; LEAD). Binds the WO-014 must-pass line of PLAN section 12.3, verbatim -
+multi-agent RL) and PLAN section 11 (test architecture, unit/property category). Owning task:
+a later task (frozen tests; maintainer). Binds the corresponding task must-pass line of PLAN section 12.3, verbatim -
 "`tests/unit/test_dp.py` (value iteration converges; with `a*pen -> inf` and `g = 0` the policy
 reports truthfully; with `beta = 0, s = 0` effort is 0; regime classifier on synthetic
 distributions; `DPGreedy` reproduces the DP policy inside the env at `N = 1`)". Module under test:
@@ -22,12 +22,12 @@ capacity, geometric continuation `psi = cfg.incentive.tenure`, with
     V(T, S) = max_{e, rho} { E_eps[ B(rho) - M * kappa * e**2 - a * E_nu[Pen] ]
                              + psi * gamma * E V(T', S'') }
 
-FORBIDDEN IN WO-014: any reinforcement learning. The DP is the ground truth for gate G2 criterion 1,
+FORBIDDEN IN a later task: any reinforcement learning. The DP is the ground truth for gate G2 criterion 1,
 the source of the `b_hat_dp` threshold for criterion 2, the exact no-manipulation counterfactual of
 the estimator-bias study (PLAN section 7.2), and the policy `DPGreedy` replays inside the
 `N`-enterprise environment.
 
-FROZEN BY CONTRACT RULE 2. SKELETON: every test is `@pytest.mark.skeleton` and skipped until WO-014
+FROZEN BY CONTRACT RULE 2. SKELETON: every test is `@pytest.mark.skeleton` and skipped until a later task
 lands; each docstring states the exact assertion, formula and tolerance.
 """
 
@@ -109,7 +109,7 @@ def test_value_iteration_converges(p1_cfg, implemented) -> None:
     `(n_target, n_stock)` and are finite everywhere. Solving twice at the same `(cfg, grid)` gives
     identical tables, so a solution can be cached by `(EnvConfig.hash(), grid)`.
 
-    First bullet of the WO-014 must-pass list. Policy iteration is an acceptable alternative
+    First bullet of the corresponding task must-pass list. Policy iteration is an acceptable alternative
     provided the same convergence report is produced.
     """
     from gosplan.agents.dp import solve_single_enterprise
@@ -132,7 +132,7 @@ def test_policy_reports_truthfully_in_the_high_penalty_limit(p1_cfg, implemented
     resulting `fictitious_padding = mean max(0, R - S) / T` is below 0.01. Reporting above stock is
     strictly dominated once the expected penalty exceeds the notch, and the DP must find that.
 
-    Second bullet of the WO-014 must-pass list.
+    Second bullet of the corresponding task must-pass list.
     """
     import dataclasses
 
@@ -159,7 +159,7 @@ def test_optimal_effort_is_zero_without_a_bonus(p1_cfg, implemented) -> None:
     the sanity check that the cost term enters with the right sign and that the DP is not rewarding
     production through some other channel.
 
-    Third bullet of the WO-014 must-pass list.
+    Third bullet of the corresponding task must-pass list.
     """
     import dataclasses
 
@@ -185,7 +185,7 @@ def test_regime_classifier_labels_a_bunching_distribution(p1_cfg, implemented) -
     label. The distributions are synthetic and constructed by the test, so the label is checked
     against a known answer rather than against whatever the solver happened to produce.
 
-    Fourth bullet of the WO-014 must-pass list.
+    Fourth bullet of the corresponding task must-pass list.
     """
     from gosplan.agents.dp import classify_regime
 
@@ -202,7 +202,7 @@ def test_regime_classifier_labels_a_pad_to_cap_distribution(p1_cfg, implemented)
     Assertion: `rho_edge_frac > 0.5` gives `"pad_to_cap"`, whatever the mass near 1; at exactly 0.5
     it does not. A grid-edge hit is a regime signal, not an artefact to be smoothed away - the
     solver extends `rho_hi` when the optimum sits at the edge and logs every edge hit (PLAN section
-    5), and this label is how the regime map of WO-015 colours that region.
+    5), and this label is how the regime map of a later task colours that region.
     """
     from gosplan.agents.dp import classify_regime
 
@@ -332,7 +332,7 @@ def test_dpgreedy_reproduces_the_dp_policy_inside_the_environment_at_one_enterpr
     `mean(sol.stationary_rho)` to 0.02. This is what makes the DP a usable baseline inside the
     multi-agent environment and the reference the G2 criterion-1 comparison is made against.
 
-    Fifth bullet of the WO-014 must-pass list.
+    Fifth bullet of the corresponding task must-pass list.
     """
     from gosplan.agents.dp import solve_single_enterprise
     from gosplan.agents.heuristic import DPGreedy
