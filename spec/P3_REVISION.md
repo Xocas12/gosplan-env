@@ -121,15 +121,61 @@ Digit tests and calibration claims stay out of scope.
 
 ## S5. LLM ministry study (WO-035, PLAN section 7.4)
 
-The harness is implemented. The run needs model access this container does not have: no API key
-is configured.
-- The report records the study as NOT RUN, with the exact command the owner runs once a key and a
-  budget are provided.
-- PLAN section 14 estimates about 4M tokens.
-- Models: the owner chooses them. The Anthropic client adapter is the default.
-- Prompts: the WO-026 framings and the manipulation-check texts are the LEAD's final versions.
-- Payoff arms: `padding_dominated` sets `audit_rate = 1` and `penalty_scale = 1000`.
-  `overfulfilment_optimal` sets `ratchet_lambda = 0` and `overfulfilment_slope = 2.0`.
+The harness is implemented, but the run needs model access this container does not have: no API
+key, no OAuth profile, and no `anthropic` SDK installed.
+- The report records the study as NOT RUN.
+- It gives the exact command the owner runs once credentials and a budget are provided.
+
+Three design points PLAN leaves open and R10 does not settle are fixed here.
+
+**S5.1 The ministry's payoff.** The environment gives a ministry no reward. For this study it is
+the sum of its enterprises' rewards, minus a **ministry audit** on the forwarded figures.
+- Each period, each enterprise of the ministry is audited on the *forwarded* claim with probability
+  `a` (`audit_rate`), drawn at key `(seed_env, "audit", 10_000 + t, i)`.
+- An audited enterprise costs the ministry `penalty_scale * max(0, Rtilde_i - S_i) / T_i`.
+- Why: R10.3 has audits compare the enterprise's own `R` with stock, so forwarding would never be
+  audited, and PLAN's `padding_dominated` arm ("a = 1, pen large") could not make padding worse for
+  the ministry.
+- The ministry audit is computed by the study harness from the ledger and the forwarded values. It
+  never enters the environment's dynamics or any enterprise reward (CONTRACT rules 4, 7).
+
+**S5.2 What the model sees.**
+- The rendered `MinistryView`, plus one rules paragraph generated from the configuration. The
+  paragraph gives:
+  - the audit probability;
+  - the penalty per unit of over-forwarding;
+  - the ratchet coefficient;
+  - the bonus notch and the overfulfilment slope;
+  - a statement that the ministry is paid the sum of its enterprises' period rewards, less the
+    ministry audit penalty.
+- The paragraph is identical across arms apart from the numbers. It never names the arm and never
+  says what to do (PLAN section 7.4: "each arm is a configuration, not a prompt").
+- `passthrough` stays unrendered.
+- Each decision is a fresh, stateless call. The view carries `prev_forward`.
+
+**S5.3 Arms and dominance.**
+- `padding_dominated`: `audit_rate = 1`, `penalty_scale = 1000`.
+- `overfulfilment_optimal`: `ratchet_lambda = 0`, `overfulfilment_slope = 2.0`.
+- All arms run with `ministry_passthrough = 0.75` (C0). At `pi = 1` the environment bypasses the
+  ministry policy (R10.4).
+- Dominance is verified **by simulation**, not analytically: the coupled ratchet and delivery
+  dynamics have no closed form. The procedure:
+  - Run rule ministries on C0's trained population (G3 seed 0), 50 episodes, common random numbers.
+  - "Padding" forwards `1.1 * R`, "passthrough" forwards `R`, and "smoothing" forwards
+    `prev_forward`.
+  - An arm is verified if its 95% bootstrap CI of the payoff difference (dominated minus
+    alternative) lies entirely below 0.
+  - An unverified arm is not run, and the report says so.
+
+**S5.4 Models, cost, refusals.**
+- The owner chooses the models, at least two. `claude-opus-5` is the adapter's default.
+- Temperature is sent only if configured, because it is rejected on current Opus models.
+- A refusal (`stop_reason = "refusal"`) is a parse failure and goes to the documented passthrough
+  fallback. It is never routed to another model. **Server-side model fallbacks are deliberately
+  disabled**: they would change the model under study mid-episode.
+- Decisions per episode are about `n_ministries x periods`, roughly 50, not PLAN's 12. The cost
+  estimate is scaled to match (about 16M tokens).
+- Framings: the WO-026 texts, now final.
 
 ## S6. Price sensitivity (WO-036, PLAN section 7.5)
 
