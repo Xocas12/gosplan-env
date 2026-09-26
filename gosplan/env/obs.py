@@ -189,12 +189,36 @@ def obs_spec(cfg: EnvConfig) -> list[str]:
     values into the forbidden fields and asserts they appear in no observation. Owning WO:
     **WO-008**.
     """
-    _require_phase_1_layout(cfg)
     j = cfg.supply.n_sectors
     names = list(SCALAR_FIELDS)
     for template, _span in PER_GOOD_BLOCKS:
         names += [template.format(j=k) for k in range(j)]
+    names += [f"peer_report_ratio_{m}" for m in range(peer_width(cfg))]
     return names
+
+
+def peer_width(cfg: EnvConfig) -> int:
+    """Width of the Phase-2 peer block (PLAN section 2.4; P2 revision R9.6).
+
+    `G - 1`, with `G` the largest sector size, when `cfg.information.horizontal_visibility > 0`;
+    0 otherwise, so the Phase-1 layout is exactly `12 + 3J`. Owning WO: **WO-024**.
+    """
+    if cfg.information.horizontal_visibility <= 0:
+        return 0
+    sizes = np.bincount(np.asarray(cfg.supply.sector_of, dtype=int))
+    return int(sizes.max()) - 1
+
+
+def _peer_index(cfg: EnvConfig) -> Array:
+    """`(N, G - 1)` indices of each enterprise's sector peers in index order, `-1` as padding."""
+    sector = np.asarray(cfg.supply.sector_of, dtype=int)
+    n = sector.shape[0]
+    width = peer_width(cfg)
+    idx = np.full((n, width), -1, dtype=int)
+    for i in range(n):
+        peers = [b for b in range(n) if b != i and sector[b] == sector[i]]
+        idx[i, : len(peers)] = peers
+    return idx
 
 
 def build_observation(state: State, cfg: EnvConfig, deliv: Array, need: Array) -> Array:
@@ -290,6 +314,15 @@ def build_observation(state: State, cfg: EnvConfig, deliv: Array, need: Array) -
     obs[:, base : base + j] = _coverage(np.asarray(state.inv_inputs, dtype=float), need)
     obs[np.arange(n), base + j + sector] = 1.0
     obs[:, base + 2 * j : base + 3 * j] = _coverage(deliv, need)
+    width = peer_width(cfg)
+    if width > 0:
+        # P2 revision R9.6: the last report ratios of the other members of the agent's own sector,
+        # in enterprise-index order, zero-padded; appended after index 12 + 3J. Claims only - never
+        # another enterprise's y, S or X (CONTRACT rule 6).
+        idx = _peer_index(cfg)
+        ratios = np.asarray(state.last_report_ratio, dtype=float)
+        start = base + 3 * j
+        obs[:, start : start + width] = np.where(idx >= 0, ratios[np.maximum(idx, 0)], 0.0)
 
     sigma = cfg.information.self_obs_noise
     if sigma > 0.0:
@@ -354,12 +387,3 @@ def _coverage(num: Array, den: Array) -> Array:
     num = np.asarray(num, dtype=float)
     den = np.asarray(den, dtype=float)
     return np.divide(num, den, out=np.ones(np.broadcast(num, den).shape), where=den != 0.0)
-
-
-def _require_phase_1_layout(cfg: EnvConfig) -> None:
-    """Refuse the Phase-2 peer block, whose width and order PLAN section 2.4 does not state."""
-    if cfg.information.horizontal_visibility > 0:
-        raise NotImplementedError(
-            "PLAN section 2.4 - the horizontal_visibility peer block has no stated width or "
-            "order; awaiting an ambiguity-report resolution (WO-008)"
-        )
