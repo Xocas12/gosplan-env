@@ -1,9 +1,9 @@
 """LLM ministry study - PLAN sections 2.14, 7.4, 12.5, 13 (gate G4) and 14.
 
 Realises: the study design of PLAN section 7.4, run against the ministry layer of PLAN section 2.14
-through the adapter of a later task. Owning task: a later task (MID-strong, Phase 3; **the maintainer writes
+through the adapter of a later task. Owning task: contributor, Phase 3; **the maintainer writes
 both framing prompts and the manipulation-check prompt** - this module never contains prompt text,
-it loads the maintainer's files). Gate: **G4** - the final report needs the LLM study (PLAN section 13).
+it loads the maintainer's files. Gate: **G4** - the final report needs the LLM study (PLAN section 13).
 
     Separate from the factorial. PLAN section 7.4 is explicit: this study stands beside the
     contrasts of PLAN section 4.3, it is not a cell in them. Nothing here feeds a `Delta_X`, and no
