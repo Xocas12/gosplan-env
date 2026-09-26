@@ -469,7 +469,7 @@ schedules the Phase-2 spec revision (LEAD) before WO-021 to WO-031. Its full tex
 - `State`: `claim_history (N, 2)`, `pending_deliv (N, J, M)`, `trade_surplus_acc (N,)` and
   `ministry_prev (N,)`, appended with a `None` default. `gosplan.env.state.ensure_p2_fields`
   fills them with their opening values, which are also what `initial_state` sets.
-- `Purpose`: `complaint` (R3) and `bailout` (R8).
+- `Purpose`: `complaint` (R3), `bailout` (R8) and `pricepert` (R14: the PLAN section 7.5 price perturbation, resolution (i) of the `perturbed_price_vectors` open item; drawn post-hoc, keyed by each fixed seed, never inside an episode).
 - `EnvConfig.validate()`:
   - range checks for the two new fields, `report_lag in {0, 1, 2}` and
     `1 <= n_ministries <= N`;
