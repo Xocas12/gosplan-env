@@ -2,7 +2,7 @@
 
 Realises: PLAN sections 2.2 (state), 2.3 (actions), 2.5 (period schedule bookkeeping and the
 per-step diagnostic payload), 2.11 (inventory), 2.12 (the `alive` flag) and 2.15 (the two seed
-fields). Owning task: a later task (step function and env wrapper; maintainer).
+fields). Owning task: step function and env wrapper; maintainer.
 
 Struct-of-arrays with leading dimension `N` throughout, so the Phase-2 JAX port is a
 mechanical translation and its parity test is meaningful. Shapes are stated in a comment on every

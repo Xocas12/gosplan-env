@@ -5,8 +5,8 @@ single input to every operationalisation of PLAN section 4.1 and to the reconcil
 PLAN section 7.3), PLAN section 4.4 (the measurement window is applied by the readers of this
 ledger, never by the writer - the ledger stores everything), CONTRACT rule 8 (bounds are results:
 the `at_bound` column and the `BOUND_BINDING` flag) and CONTRACT rule 10 (the manifest).
-Owning task: a later task (`tests/unit/test_ledger.py`; parquet round-trip, every rule-10
-manifest field present, `BOUND_BINDING` logic - test T-B8).
+Owning task: `tests/unit/test_ledger.py`; parquet round-trip, every rule-10
+manifest field present, `BOUND_BINDING` logic - test T-B8.
 
 Direction of information flow. The environment writes `StepInfo` (PLAN section 2.5, a later task), whose
 `StepRecord`s land here; metrics and lead-run experiments read them. **No agent, no policy and no

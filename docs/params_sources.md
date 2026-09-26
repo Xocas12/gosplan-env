@@ -299,7 +299,7 @@ PureJaxRL's last push is 2024-09-09, roughly two years before the date of writin
 actively maintained. For the JAX port, JaxMARL is the better-maintained scaffold on this evidence.
 
 **On the model-tier mapping.** The task also asks for the specific current models behind the
-`MID-fast` and `MID-strong` tiers and their prices. **This memo deliberately omits model names.**
+model tiers and their prices. **This memo deliberately omits model names.**
 The repository carries no AI model or vendor names by the owner's standing instruction, and PLAN
 section 12.1 in any case requires the *lead* to record the tier-to-model mapping in the manifest at
 issue time — which is the right place for a fact that decays this fast. What is recorded here is the

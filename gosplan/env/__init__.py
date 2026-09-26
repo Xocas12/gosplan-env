@@ -1,8 +1,8 @@
 """The `gosplan.env` package: the environment of PLAN sections 2.2-2.15.
 
 Realises: PLAN section 8 (repository layout), which gives this package one module per numbered
-block of the environment specification. Owning task: a later task (step function and env
-wrapper; maintainer).
+block of the environment specification. Owning task: step function and env
+wrapper; maintainer.
 
 Modules, and the PLAN section each one realises:
 

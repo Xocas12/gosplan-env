@@ -2,7 +2,7 @@
 
 Realises: PLAN section 2.8 (REPORT and AUDIT steps 3 and 4 of the period schedule of PLAN section
 2.5), together with the inventory rules of PLAN section 2.11 that the REPORT step applies. Owning
-task: a later task (Reporting and reward; MID-strong).
+task: a later task (Reporting and reward).
 
 Scope split within a later task. PLAN section 2.8 also defines the bonus schedule `B(rho)` and its
 smoothing `Lambda_w`; those live in `gosplan/env/reward.py` beside `reward_scale` and
