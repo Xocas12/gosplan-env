@@ -289,3 +289,204 @@ WO-009 (`GosplanEnv` is what the parity test replays against), WO-013 (regenerat
 spec v1 freeze).
 
 **Approver.** LEAD.
+
+## 0.1.6 - 2026-09-24
+
+**Reason.** PLAN section 5 / WO-014, AMBIGUITY-010 item A. The frozen `tests/unit/test_dp.py`
+checks `sol.n_iterations <= grid.max_iterations`, and "non-convergence is a result" (WO-014 card)
+needs a declared iteration cap at which the solver stops and returns `converged = False`; the v0
+`DPGrid` declared none.
+
+**Change.** `DPGrid`: added `max_iterations: int = 5000` after `value_tol` (additive, defaulted;
+no existing field, signature or default moved). Mirrored field for field in
+`gosplan/agents/dp.py`. `SPEC_VERSION` stays "0.1.0" until the WO-013 freeze, as for 0.1.1-0.1.5.
+
+**Affected work orders.** WO-014 (implements the cap), WO-015 (uses `DPGrid()` defaults), WO-019
+(DP-vs-PPO reads `DPSolution.converged`). The `tests/unit/test_dp.py` helpers were aligned with the
+declared names by a lead edit (AMBIGUITY-010 A).
+
+**Golden files.** Not regenerated: the DP is not part of the golden dynamics.
+
+**Suite.** Full frozen suite 455 passed, 16 skipped, 0 failed.
+
+**Approver.** LEAD.
+
+## 1.0.0 - 2026-09-24
+
+**Reason.** WO-013, the v1 freeze at gate G1 (PLAN sections 10, 12.3, 13), after gate G0 was signed
+off (`runs/G0_signoff.md`: full frozen suite green; MC sanity report clean over 126,000 episodes;
+LEAD rule-7 review clean). Each amendment below names the G0 finding or ambiguity report behind it.
+
+**Change.**
+- `SPEC_VERSION`: "0.1.0" -> "1.0.0" in `spec/spec.py` and the mirror in `gosplan/config.py`.
+- Recorded as owed by the v0 file: `draw`'s `purpose` / `dist` are narrowed from `str` (PLAN
+  section 10) to the `Purpose` and `Dist` literals, which enumerate exactly the values of PLAN
+  section 2.15 and the WO-004 card; `Purpose` carries `selfobs` beyond section 2.15's list, for the
+  self-observation noise of WO-008 (PLAN section 2.4).
+- `GosplanEnv.reset` docstring: `inv_inputs = a_{s(i)j} * T_0_i` (ambiguity #62, CHANGELOG 0.1.4;
+  confirmed by golden parity in G0).
+- `EnterpriseAction.input_request` comment and `process_reports` docstring: the action is a
+  multiple of need in `[0, r_max]`, rescaled by need when read (AMBIGUITY-008; G0 T-B1).
+- `GosplanEnv.step` docstring: counters advance to the next agent-step, the observation describes
+  the executed step (AMBIGUITY-007), and a step after `done` auto-continues (AMBIGUITY-004).
+- Seeding convention for every harness after G0 (AMBIGUITY-014, a G0 finding): episode `e` uses
+  `seed_env = root + e`, shared across agents and arms at the same `e`; root and rule in the
+  manifest `flags`. No signature change.
+- No signature, field, enum member or default moved at this version; the only field added since
+  0.1.0 is `DPGrid.max_iterations` (0.1.6).
+
+Folded in from "Unreleased" (LEAD rulings on this branch, none a `spec/spec.py` signature change):
+
+**Reason.** Defect in the reference golden generator found while checking WO-003:
+`ref/gen_golden.py::_base` wrote `"invest_lag": 0`, contradicting its own docstring ("every
+unstated default is the one declared on `SupplyConfig`", which is 1) and the `invest_lag >= 1`
+rule of `EnvConfig.validate` (spec/spec.py, WO-003). With golden files present, every golden
+parity test failed in `validate()` before comparing anything.
+
+**Change.** `ref/gen_golden.py`: `invest_lag` 0 -> 1 in the base golden configuration. No change
+to `spec/spec.py`; `SPEC_VERSION` unchanged. The only dynamics effect is the width of
+`pending_invest`, which is inert in Phase 1 (`v == 0`).
+
+**Affected work orders.** WO-002 (ref), WO-009 (golden parity must-pass).
+
+**Golden files.** Regenerated locally (git-ignored; not committed).
+
+**Suite.** `tests/golden`: 31 passed (config hash and obs layout parity), 120 skipped awaiting
+WO-009/WO-010.
+
+**Approver.** LEAD.
+
+Further unreleased LEAD rulings on this branch (no `spec/spec.py` change; docstrings to be corrected
+at the WO-013 freeze): AMBIGUITY-003 (yield shock keyed per enterprise, as `ref_produce`),
+AMBIGUITY-004 (`GosplanEnv.step` after `done` continues as `ref_rollout` does), AMBIGUITY-005
+(`Ledger.append` keeps `BOUND_BINDING` in step; lead edit of the `tests/unit/test_ledger.py` fixture
+under `.github/FROZEN_TEST_EXEMPTION`), and the WO-003 follow-up (`EnvConfig.hash` covers the
+four-section object only, per ambiguity #51). AMBIGUITY-006 (smooth-arm slope term smoothed by a softplus
+at the notch width in both `gosplan/env/reward.py` and `ref/ref_step.py`; golden set regenerated;
+lead edit of T-U3's threshold in `tests/unit/test_reward.py` under `.github/FROZEN_TEST_EXEMPTION`),
+AMBIGUITY-007 (state counters advance eagerly; `ref_step` renders the digest at the next position)
+and AMBIGUITY-008 (golden truthful policy, post-REPORT truthful report, `input_request` as a
+multiple of need, rollout observation, and two lead test edits). Golden set regenerated after each.
+AMBIGUITY-009 (`DPGreedy` grid lookup) and AMBIGUITY-010 (WO-014 DP rulings; the one `spec/spec.py`
+change is entry 0.1.6 below).
+
+**Affected work orders.** WO-003 (mirror constant), WO-004 (narrowing recorded), WO-008
+(`selfobs`), WO-009 (docstrings), WO-012 (seeding convention going forward), WO-013 (this entry;
+gate harnesses G0 and G1 implemented in `tests/acceptance/`, G2-G4 remain stubs until their
+experiments exist), WO-016 onward (seeding convention). No completed card needs reissuing: no
+behaviour changed.
+
+**Golden files.** Regenerated: `ref.gen_golden --check` reported all 30 stale solely because each
+document embeds `spec_version`; a key-by-key comparison of the regenerated set against the previous
+one showed `spec_version` as the only differing key (dynamics unchanged).
+
+**Suite.** Full frozen suite after the freeze: 456 passed, 16 skipped (later cards), 0 failed - identical to before the freeze; no skip introduced.
+
+**Approver.** LEAD. Crosses gate G1: the human's G1 decision (`runs/G1_decision.md`) follows this
+freeze and does not alter it; the daggered PLAN section 3 values stay at their provisional
+placeholders until then.
+
+## 1.0.1 - 2026-09-24
+
+**Reason.** PLAN section 4.5 pre-registration, amended BEFORE ANY LEARNING RUN under the owner's
+delegation (AMBIGUITY-011 resolution): the degree-7 counterfactual is biased on smooth report
+distributions peaked near 1 (e.g. +0.058 on N(1, 0.15), +0.43 on N(1, 0.10)), enough to fail the
+frozen smooth-null test and to decide G2's smooth arm by estimator bias rather than behaviour.
+
+**Change.** Patch (docstring only in `spec/spec.py`): `phenomenon_bunching`'s docstring now reads
+"polynomial of degree 9". `gosplan/metrics/phenomena.py`: `BUNCHING_POLY_DEGREE` 7 -> 9.
+`gosplan/metrics/_fallback.py`: seed-level percentile bootstrap (1,000 replicates, 95%, seed 0).
+`gosplan/metrics/__init__.py`: `resolve_estimators` implemented; `EstimatorBackend` gains
+read-only mapping access (`__getitem__`, `__contains__`), which the frozen WO-016 tests use
+(AMBIGUITY-015). G2 criterion 2's notched-arm threshold amended for non-finite `b_hat_DP`
+(AMBIGUITY-011 point 3). No signature moved.
+
+**Affected work orders.** WO-014 (`dp_excess_mass` now uses degree 9), WO-016 (estimator), WO-020
+(criterion 2 threshold). Lead edit of `tests/unit/test_phenomena_p1.py` (degree assertion and
+docstrings), recorded in `.github/FROZEN_TEST_EXEMPTION`.
+
+**Golden files.** Not regenerated: the estimator is not part of the golden dynamics.
+
+**Suite.** Full frozen suite after the change: 461 passed, 11 skipped (later cards), 0 failed.
+
+**Approver.** LEAD, under the owner's explicit delegation of the AMBIGUITY-011 decisions; crosses a
+pre-registered quantity of PLAN section 4, amended before any learning run.
+
+## 1.1.0 - 2026-09-24
+
+**Reason.** Gate G1 (PLAN section 13): the six daggered PLAN section 3 values, declared provisional
+placeholders "replaced at G1", are replaced by the G1 decision (`runs/G1_decision.md`; the owner
+delegated the choice to the LEAD). Folding them into the defaults is the lead decision WO-013
+note 6 reserves for G1.
+
+**Change.** Defaults of `IncentiveConfig` / `InformationConfig` in `spec/spec.py`, mirrored in
+`gosplan/config.py` and `gosplan/params.py` (`provisional` -> False): `ratchet_lambda` 0.5 -> 0.53,
+`growth_directive` 0.02 -> 0.021, `overfulfilment_slope` 0.5 -> 0.331, `effort_cost` 0.15 ->
+0.193, `penalty_scale` 60.0 -> 200.0, `audit_rate` 0.10 (unchanged, now final). No field, type or
+signature moved; minor because replacing these placeholders at G1 is their documented semantics.
+
+**Affected work orders.** WO-016 onward (every Phase-1 experiment runs at `p1_default_config()`),
+WO-019 (the three `a*pen` levels 0.8 / 4 / 20), WO-020 (criterion-2 threshold 0.440).
+
+**Golden files.** Regenerated for the embedded `spec_version` only; the golden configurations are
+written literally in `ref/gen_golden.py` and do not read these defaults.
+
+**Suite.** Full frozen suite at the new defaults: 461 passed, 11 skipped (later cards), 0 failed.
+
+**Approver.** LEAD under the owner's written delegation of the G1 decision (Human role).
+
+## 1.1.1 - 2026-09-24
+
+**Reason.** PLAN section 14 budgets the Phase-1 gate at about 3k env steps per second; the
+environment ran at about 700 per second at `N = 20`, half of it building per-enterprise ledger
+rows that training never reads (G0 cost observation, `runs/G0_signoff.md`).
+
+**Change.** Additive, keyword-only, defaulted: `GosplanEnv.__init__(cfg, *, records: bool = True)`
+in `spec/spec.py` and `gosplan/env/env.py`; `gosplan.env.step.advance(..., *, records=True)`.
+With `records=False` and no ledger attached, `StepRecord`s are built only at the DELIVER step
+(the observation needs that step's deliveries); with the default, or whenever a ledger is
+attached, behaviour is unchanged. `GosplanEnv.step` also copies the state field-wise instead of
+`copy.deepcopy` (same semantics). Measured: 1.36 -> 0.74 ms per agent-step at `N = 20`.
+
+**Affected work orders.** WO-009 (env), WO-018 (training uses `records=False`).
+
+**Golden files.** Not regenerated: dynamics unchanged (T-B7 exact).
+
+**Suite.** Full frozen suite: 461 passed, 11 skipped, 0 failed; golden parity exact.
+
+**Approver.** LEAD.
+
+
+## 2.0.0 - 2026-09-26
+
+**Reason.** Gate G2 closed with the owner's decision (a) (`runs/G2_record.md`); PLAN section 12
+schedules the Phase-2 spec revision (LEAD) before WO-021 to WO-031. Its full text is
+`spec/P2_REVISION.md`, which freezes every Phase-2 sketch and resolves AMB-WO006-B, -D, -E, -F.
+
+**Change.**
+- `InformationConfig`: `audit_target_gain` (`kappa_t`, default 4.0, range [0, 10]; R4) and
+  `ministry_pad` (`kappa_m`, default 0.5, range [0, 1]; R10).
+- `State`: `claim_history (N, 2)`, `pending_deliv (N, J, M)`, `trade_surplus_acc (N,)` and
+  `ministry_prev (N,)`, appended with a `None` default. `gosplan.env.state.ensure_p2_fields`
+  fills them with their opening values, which are also what `initial_state` sets.
+- `Purpose`: `complaint` (R3), `bailout` (R8) and `pricepert` (R14: the PLAN section 7.5 price perturbation, resolution (i) of the `perturbed_price_vectors` open item; drawn post-hoc, keyed by each fixed seed, never inside an episode).
+- `EnvConfig.validate()`:
+  - range checks for the two new fields, `report_lag in {0, 1, 2}` and
+    `1 <= n_ministries <= N`;
+  - rejects out-of-scope toggles (R1): `irs_alpha`, `capital_dep`, `tech_drift_sigma`, finite
+    `price_lag` and `bonus_heterogeneity`.
+- `gosplan.config.p2_default_config()` (R11).
+
+**Frozen-test edits (LEAD, exemption-listed).**
+- `tests/unit/test_spec_imports.py`: the two new `InformationConfig` fields.
+- `tests/golden/test_golden_parity.py`: the four Phase-2 `State` fields are excluded from the
+  Phase-1 state digest; the reference implementation remains the Phase-1 oracle (R12).
+
+**Affected work orders.** WO-021 to WO-031 (all Phase 2).
+
+**Golden files.** Regenerated: `ref/gen_golden.py`'s literal configuration gains the two new
+fields (config hash). The digests' Phase-1 content is unchanged.
+
+**Suite.** Full suite: 473 passed, 1 skipped, 0 failed.
+
+**Approver.** LEAD, under the owner's instruction to continue building after G2.

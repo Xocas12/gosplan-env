@@ -70,7 +70,51 @@ def main() -> int:
     Owning WO: none - this is a lead-run gate harness (CONTRACT rule 13); the experiment it drives
     is implemented in **WO-012**.
     """
-    raise NotImplementedError("PLAN section 13 (gate G0) - lead-run; experiment in WO-012")
+    import json
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    from gosplan.config import p1_default_config
+    from gosplan.experiments import mc_sanity
+
+    runs = Path("runs")
+    if not any(Path("tests/golden").glob("*.json")):
+        subprocess.run([sys.executable, "-m", "ref.gen_golden"], check=True)
+    suite = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q"], capture_output=True, text=True, check=False
+    )
+    suite_line = (suite.stdout.strip().splitlines() or ["<no output>"])[-1]
+    print(f"frozen suite: {suite_line}")
+
+    result = mc_sanity.run(p1_default_config())
+    print(f"mc_sanity passed: {result['passed']}; report: {result['report_path']}")
+
+    problems = []
+    for config_hash in result["config_hashes"]:
+        manifest = runs / str(config_hash) / "manifest.json"
+        if not manifest.exists():
+            problems.append(f"missing manifest {manifest}")
+            continue
+        doc = json.loads(manifest.read_text(encoding="utf-8"))
+        if doc.get("config_hash") != config_hash:
+            problems.append(f"manifest {manifest} names {doc.get('config_hash')}")
+    review = runs / "G0_rule7_review.md"
+    if not review.exists():
+        problems.append("the LEAD rule-7 review runs/G0_rule7_review.md is missing")
+
+    record = runs / "G0_gate_run.md"
+    record.write_text(
+        "# Gate G0 run record\n\n"
+        f"- frozen suite: {suite_line}\n"
+        f"- mc_sanity passed: {result['passed']} ({result['report_path']})\n"
+        f"- manifests checked: {len(result['config_hashes'])}\n"
+        f"- problems: {problems or 'none'}\n"
+        "- verdict: entered by the LEAD in runs/G0_signoff.md, never inferred from this file\n",
+        encoding="utf-8",
+    )
+    print(f"wrote {record}; problems: {problems or 'none'}")
+    return 0
 
 
 if __name__ == "__main__":

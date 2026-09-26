@@ -1,0 +1,140 @@
+{
+  "config_hash": "539a41e097a3dc84523d8f286bbf1064c0c5b77a1567d7d2d7d69daad44886fd",
+  "config": {
+    "supply": {
+      "n_enterprises": 1,
+      "n_sectors": 1,
+      "sector_of": [
+        0
+      ],
+      "io_matrix": [
+        [
+          0.0
+        ]
+      ],
+      "final_demand_share": [
+        1.0
+      ],
+      "productivity": [
+        1.0
+      ],
+      "yield_sigma": [
+        0.05
+      ],
+      "input_complementarity": 8.0,
+      "setup_cost": 0.0,
+      "irs_alpha": 0.0,
+      "capital_dep": 0.0,
+      "invest_lag": 1,
+      "delivery_timing": "uniform",
+      "arrival_probs": [
+        0.25,
+        0.25,
+        0.25,
+        0.25
+      ],
+      "holding_loss": 0.02,
+      "input_holding_loss": 0.0,
+      "price_markup": 0.1,
+      "price_lag": "inf",
+      "tech_drift_sigma": 0.0,
+      "ces_alpha": [
+        1.0
+      ],
+      "ces_sigma": 0.8,
+      "trade_tau": 0.05,
+      "quality_matters": false,
+      "quality_cost": 0.0
+    },
+    "incentive": {
+      "objective_metric": "val",
+      "ratchet_lambda": 0.53,
+      "growth_directive": 0.021,
+      "ratchet_cap_up": 0.3,
+      "ratchet_cap_dn": 0.3,
+      "ratchet_deadband": 0.0,
+      "notch_height": 1.0,
+      "notch_width": 0.0,
+      "overfulfilment_slope": 0.331,
+      "overfulfilment_cap": 1.2,
+      "penalty_form": "proportional",
+      "penalty_arg": "positive_part",
+      "penalty_scale": 40.0,
+      "effort_cost": 0.193,
+      "soft_budget": 0.0,
+      "steps_per_period": 4,
+      "tenure": 0.9,
+      "alloc_eta_request": 0.0,
+      "alloc_eta_need": 1.0,
+      "bonus_heterogeneity": 0.0
+    },
+    "information": {
+      "report_lag": 0,
+      "aggregation_level": "enterprise",
+      "audit_rate": 0.1,
+      "audit_noise": 0.0,
+      "audit_mode": "random",
+      "channel_noise": 0.0,
+      "ministry_passthrough": 1.0,
+      "n_ministries": 1,
+      "horizontal_visibility": 0.0,
+      "quality_measurability": 0.0,
+      "shortfall_visibility": 0.0,
+      "self_obs_noise": 0.0
+    },
+    "tech": {
+      "horizon_mode": "geometric",
+      "min_periods": 4,
+      "max_periods": 20,
+      "report_max_ratio": 10.0,
+      "request_max_multiple": 3.0,
+      "target_floor_frac": 0.05,
+      "inventory_cap_mult": 3.0,
+      "initial_target_frac": 0.6,
+      "param_sharing": "shared",
+      "seed_env": 1,
+      "seed_policy": 1
+    }
+  },
+  "spec_version": "1.1.0",
+  "git_hash": "687a080c26ff02c157e5db8a3ff932e62ca57256",
+  "seed_env": 1,
+  "seed_policy": 1,
+  "reference_ppo_version": "cleanrl ppo_continuous_action (algorithm), JAX re-expression in gosplan.agents.ppo @ cleanrl v1.0.0 algorithm; gosplan-ppo 1",
+  "estimator_version": "0.1.0+fallback",
+  "estimator_backend": "gosplan.metrics._fallback",
+  "llm_models": null,
+  "solver": null,
+  "solver_version": null,
+  "solver_optimality_gap": null,
+  "bunching_settings": {
+    "bin_width": 0.005,
+    "window_lo": 0.6,
+    "window_hi": 1.4,
+    "excl_lo": 0.95,
+    "excl_hi": 1.02,
+    "degree": 9,
+    "excess_lo": 1.0,
+    "excess_hi": 1.02,
+    "hole_lo": 0.95,
+    "hole_hi": 1.0,
+    "measurement_first_period": 2,
+    "exclude_episode_end": false,
+    "include_at_bound": true
+  },
+  "flags": [
+    "seed_env=1",
+    "seed_policy=1",
+    "seed_rule_train=\"seed_env(b, e) = seed_env + b + n_envs * e\"",
+    "seed_rule_eval=\"seed_env(e) = seed_env + 10**6 + e\"",
+    "seed_policy_streams=\"SeedSequence(seed_policy): init in IPPO; spawn key 1 for rollouts\"",
+    "entropy_schedule={\"end\": 0.001, \"shape\": \"linear in the update index, start -> end over n_updates\", \"start\": 0.01}",
+    "eval_policy=\"deterministic: squashed Gaussian mean, a = squash(mean)\"",
+    "gae_step_discount=0.9979919516614258",
+    "train_envs_records=false",
+    "vector_env_wrappers=\"none (list of GosplanEnv stepped in lockstep)\"",
+    "train_config={\"agent_steps_per_period\": 5, \"checkpoint_every_updates\": 2000, \"eval_episodes\": 50, \"eval_every_updates\": 200, \"n_envs\": 8, \"n_updates\": 2000, \"rollout_steps\": 125, \"run_root\": \"runs/dp_vs_ppo/runs\", \"total_agent_steps\": 2000000}",
+    "ppo_manifest={\"action_dim\": 3, \"clip_coef\": 0.2, \"entropy_coef_end\": 0.001, \"entropy_coef_start\": 0.01, \"framework\": \"jax 0.11.1\", \"gamma\": 0.99, \"head_names\": [\"effort\", \"report_ratio\", \"input_request\"], \"init_seed\": \"numpy SeedSequence(cfg.tech.seed_policy)\", \"lambda_gae\": 0.97, \"learning_rate\": 0.0003, \"normalise_advantages\": true, \"obs_dim\": 15, \"observation_normalisation\": false, \"param_sharing\": \"shared\", \"reference_constants\": {\"activation\": \"tanh\", \"actor_out_init_gain\": 0.01, \"adam_betas\": [0.9, 0.999], \"adam_eps\": 1e-05, \"clip_value_loss\": true, \"critic_out_init_gain\": 1.0, \"entropy\": \"pre-squash Gaussian entropy (no closed form after tanh)\", \"hidden_init_gain\": 1.4142135623730951, \"hidden_sizes\": [64, 64], \"learning_rate_anneal\": false, \"log_std\": \"state-independent parameter per action element\", \"max_grad_norm\": 0.5, \"num_minibatches\": 4, \"optimizer\": \"adam\", \"separate_actor_critic\": true, \"target_kl\": null, \"update_epochs\": 4, \"vf_coef\": 0.5}, \"reference_impl\": \"cleanrl ppo_continuous_action (algorithm), JAX re-expression in gosplan.agents.ppo\", \"reference_ppo_version\": \"cleanrl ppo_continuous_action (algorithm), JAX re-expression in gosplan.agents.ppo @ cleanrl v1.0.0 algorithm; gosplan-ppo 1\", \"reference_version\": \"cleanrl v1.0.0 algorithm; gosplan-ppo 1\", \"report_head_init_ratio\": 1.0, \"report_head_init_std\": 0.05, \"report_head_log_std\": -3.5835189384561095, \"report_head_z0\": -1.0986122886681098, \"return_scaling\": false, \"reward_clipping\": false, \"reward_normalisation\": false, \"scale\": 0.9679605072113057}",
+    "wall_clock_s=1133.2052105249986"
+  ]
+}

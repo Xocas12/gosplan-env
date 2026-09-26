@@ -44,7 +44,8 @@ AMBIGUITY REPORT (CONTRACT rule 3), not a hidden stream.
 
 from __future__ import annotations
 
-from typing import Literal
+import zlib
+from typing import Literal, get_args
 
 import numpy as np
 
@@ -63,6 +64,9 @@ Purpose = Literal[
     "terminate",
     "trade_visibility",
     "selfobs",
+    "complaint",
+    "bailout",
+    "pricepert",
 ]
 """The enumerated RNG purposes of PLAN section 2.15, plus `selfobs` for the observation noise of
 WO-008. Mirrors `spec.spec.Purpose`. Keying by purpose is what makes draws order-independent."""
@@ -82,6 +86,9 @@ PURPOSES: tuple[Purpose, ...] = (
     "terminate",
     "trade_visibility",
     "selfobs",
+    "complaint",
+    "bailout",
+    "pricepert",
 )
 """The closed list of legal purposes, as data, in the order PLAN section 2.15 gives them:
 
@@ -98,6 +105,10 @@ PURPOSES: tuple[Purpose, ...] = (
     trade_visibility  which counterparties are visible for bilateral trade (PLAN section 2.13)
     selfobs           noise on the agent's own observation fields, gated by `self_obs_noise`
                       (PLAN section 2.4; added for WO-008)
+    complaint         noise on the planner's view of downstream shortfall (P2 revision R3)
+    bailout           soft-budget bailout of a penalised under-deliverer (P2 revision R8)
+    pricepert         the post-hoc price perturbation of PLAN section 7.5, keyed by its fixed
+                      seed (P2 revision R14); never drawn inside an episode
 
 Two draws with different purposes are independent by construction even at identical indices, which
 is why a new kind of randomness is added by adding a purpose here (and to `Purpose` and to
@@ -173,4 +184,46 @@ def draw(
     stated moments (the PLAN section 2.6 yield shock has mean 1 to 1e-3 over 1e5 draws, which
     `tests/unit/test_production.py` also checks). Owning WO: **WO-004**.
     """
-    raise NotImplementedError("PLAN section 2.15 - implemented in WO-004")
+    if purpose not in PURPOSES:
+        raise ValueError(f"draw: unknown purpose {purpose!r}; must be one of {PURPOSES}")
+    if dist not in _DIST_PARAMS:
+        raise ValueError(f"draw: unknown dist {dist!r}; must be one of {get_args(Dist)}")
+    required = _DIST_PARAMS[dist]
+    missing = [name for name in required if name not in params]
+    if missing:
+        raise ValueError(f"draw: dist {dist!r} is missing parameter(s) {missing}")
+    unknown = sorted(set(params) - set(required))
+    if unknown:
+        raise ValueError(f"draw: dist {dist!r} got unknown parameter(s) {unknown}")
+
+    seq = np.random.SeedSequence([seed_env, zlib.crc32(purpose.encode()), *indices])
+    gen = np.random.default_rng(seq)
+    if dist == "lognormal":
+        return gen.lognormal(mean=params["mean_log"], sigma=params["sigma"], size=shape)
+    if dist == "normal":
+        return gen.normal(loc=params["mean"], scale=params["sigma"], size=shape)
+    if dist == "bernoulli":
+        return gen.random(size=shape) < params["p"]
+    probs = params["probs"]
+    return gen.choice(len(probs), size=shape, p=probs)
+
+
+_DIST_PARAMS: dict[str, tuple[str, ...]] = {
+    "lognormal": ("mean_log", "sigma"),
+    "normal": ("mean", "sigma"),
+    "bernoulli": ("p",),
+    "categorical": ("probs",),
+}
+"""The distribution-parameter table of the WO-004 card: for each `Dist`, exactly the keyword
+parameters `draw` accepts. A missing or unknown parameter raises; none is defaulted or aliased."""
+
+
+def uniforms(seed_env: int, purpose: Purpose, *indices: int, shape: tuple[int, ...]) -> Array:
+    """The uniforms behind `draw(..., dist="bernoulli", p=p)` at the same key: that draw is exactly
+    `uniforms(...) < p`. Exists for the JAX port (WO-029), whose audit probability is computed from
+    state on the device and is compared against these host-side keyed uniforms, so the two backends
+    agree by construction (PLAN section 2.15, CONTRACT rule 9)."""
+    if purpose not in PURPOSES:
+        raise ValueError(f"uniforms: unknown purpose {purpose!r}; must be one of {PURPOSES}")
+    seq = np.random.SeedSequence([seed_env, zlib.crc32(purpose.encode()), *indices])
+    return np.random.default_rng(seq).random(size=shape)

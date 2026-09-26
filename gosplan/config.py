@@ -31,10 +31,14 @@ an arm requires a CHANGELOG entry (CONTRACT rule 11).
 
 from __future__ import annotations
 
+import dataclasses
+import hashlib
+import json
+import tomllib
 from dataclasses import dataclass, field
 from typing import Literal
 
-SPEC_VERSION = "0.1.0"
+SPEC_VERSION = "2.0.0"
 """Mirror of `spec.spec.SPEC_VERSION` - the provisional (v0) interface version.
 
 WO-013 bumps it to `"1.0.0"` at gate G1 and every later change needs a `spec/CHANGELOG.md` entry
@@ -231,11 +235,11 @@ class IncentiveConfig:
     """INC. Which fulfilment measure the bonus and the ratchet key on (PLAN section 2.9.2). Phase
     1: `val`. Historical motivation: `val` is the measure the NNO reforms attacked."""
 
-    ratchet_lambda: float = 0.5  # provisional: replaced at G1
+    ratchet_lambda: float = 0.53  # G1 value, runs/G1_decision.md
     """INC. `lambda`, ratchet coefficient in the target rule of PLAN section 2.7.1. Range [0, 1];
     Weitzman-type models motivate the form, the empirical value is unsourced."""
 
-    growth_directive: float = 0.02  # provisional: replaced at G1
+    growth_directive: float = 0.021  # G1 value, runs/G1_decision.md
     """INC. `g`, the exogenous growth directive multiplying the target every period (PLAN section
     2.7.1). The forcing term added for finding F1; it must be a treatment variable because at
     `g = 0` with reports at target the target rule has a fixed point (test T-B2). Range
@@ -265,7 +269,7 @@ class IncentiveConfig:
     estimator-bias study (PLAN section 7.2). Grid {0, 0.02, 0.05, 0.10, 0.25}; `validate` rejects
     `w < 0`."""
 
-    overfulfilment_slope: float = 0.5  # provisional: replaced at G1
+    overfulfilment_slope: float = 0.331  # G1 value, runs/G1_decision.md
     """INC. `s`, linear bonus slope above target: `s * clip(rho - 1, 0, rho_cap - 1)` (PLAN section
     2.8). Range [0, 2]; the historical anchor is the per-percentage-point bonus increment (lead to
     source, PLAN section 15)."""
@@ -285,12 +289,12 @@ class IncentiveConfig:
     (`absolute`) (PLAN section 2.8). Under `positive_part` any under-report incurs no penalty -
     test T-U8."""
 
-    penalty_scale: float = 60.0  # provisional: replaced at G1
+    penalty_scale: float = 200.0  # G1 value, runs/G1_decision.md
     """INC. `pen`, penalty scale in ratio units (PLAN sections 2.8, 2.9.1; finding F9). Range
     [5, 200]; unsourced, chosen from the regime map. `audit_rate * penalty_scale` is the compound
     quantity the G2 padding-elasticity criterion sweeps (PLAN section 4.5)."""
 
-    effort_cost: float = 0.15  # provisional: replaced at G1
+    effort_cost: float = 0.193  # G1 value, runs/G1_decision.md
     """INC. `kappa` in `c_ik = kappa * e_ik**2 + ...` (PLAN section 2.6). A real cost paid when
     incurred, not shaping (CONTRACT rule 4). Range [0.05, 0.5]; unsourced, from the regime map."""
 
@@ -342,7 +346,7 @@ class InformationConfig:
     """INFO. Level at which the planner observes claims (PLAN section 2.7.5). At `sector` it sees
     only `sum_{i in j} claimed_i` and allocates by planned need alone. Phase 1: `enterprise`."""
 
-    audit_rate: float = 0.10  # provisional: replaced at G1
+    audit_rate: float = 0.10  # G1 value, runs/G1_decision.md
     """INFO (dual: it also enters the reward through the penalty, so it is reported separately -
     PLAN section 4.3). `a`, per-enterprise per-period audit probability (PLAN section 2.7.4). Range
     [0.01, 0.30]; unsourced. `validate` requires it in [0, 1]."""
@@ -382,6 +386,17 @@ class InformationConfig:
     shortfall_visibility: float = 0.0
     """INFO. How much of buyers' complaints the planner sees, gating the `targeted` audit mode
     (PLAN section 2.7.4). Phase 1: 0.0; range [0, 1]."""
+
+    audit_target_gain: float = 4.0
+    """INFO. `kappa_t`, the gain of the `targeted` audit probability
+    `clip(a * (1 + kappa_t * downstream_shortfall_i), 0, 1)` (PLAN section 2.7.4; P2 revision R4).
+    Default 4.0; range [0, 10]. Inert unless `audit_mode = "targeted"` and
+    `shortfall_visibility > 0`."""
+
+    ministry_pad: float = 0.5
+    """INFO. `kappa_m`, how much of a shortfall `max(0, T_i - R_i)` a ministry pads into the claim
+    it forwards (PLAN section 2.14; P2 revision R10). Default 0.5; range [0, 1]. Inert at
+    `ministry_passthrough = 1`."""
 
     self_obs_noise: float = 0.0
     """INFO. Log-sd of the multiplicative noise `exp(N(0, s**2))` applied to the agent's own
@@ -515,7 +530,163 @@ class EnvConfig:
 
         Realises: PLAN section 3 (registry ranges) and the WO-003 card. Owning WO: **WO-003**.
         """
-        raise NotImplementedError("PLAN section 3 - implemented in WO-003")
+        supply = self.supply
+        incentive = self.incentive
+        information = self.information
+        tech = self.tech
+
+        # SUPPLY: structure and sizes (PLAN sections 2.1, 2.6, 2.10, 2.11).
+        if len(supply.sector_of) != supply.n_enterprises:
+            raise ValueError(
+                "supply.sector_of: length must equal supply.n_enterprises "
+                f"({len(supply.sector_of)} != {supply.n_enterprises})"
+            )
+        for index, sector in enumerate(supply.sector_of):
+            if not 0 <= sector < supply.n_sectors:
+                raise ValueError(
+                    f"supply.sector_of[{index}]: sector must lie in [0, n_sectors) "
+                    f"(got {sector}, n_sectors={supply.n_sectors})"
+                )
+        if len(supply.io_matrix) != supply.n_sectors or any(
+            len(row) != supply.n_sectors for row in supply.io_matrix
+        ):
+            raise ValueError(
+                f"supply.io_matrix: must be n_sectors x n_sectors (n_sectors={supply.n_sectors})"
+            )
+        for index, row in enumerate(supply.io_matrix):
+            if sum(row) >= 1:
+                raise ValueError(
+                    f"supply.io_matrix[{index}]: every row must sum to < 1, so no sector is "
+                    f"self-sustaining (got {sum(row)})"
+                )
+        for name in ("final_demand_share", "productivity", "yield_sigma", "ces_alpha"):
+            vector = getattr(supply, name)
+            if len(vector) != supply.n_sectors:
+                raise ValueError(
+                    f"supply.{name}: length must equal supply.n_sectors "
+                    f"({len(vector)} != {supply.n_sectors})"
+                )
+        if supply.input_complementarity < 1:
+            raise ValueError(
+                "supply.input_complementarity: theta must be >= 1, with inf selecting the "
+                f"Leontief branch (got {supply.input_complementarity})"
+            )
+        if supply.invest_lag < 1:
+            raise ValueError(f"supply.invest_lag: must be >= 1 (got {supply.invest_lag})")
+        if supply.ces_sigma <= 0:
+            raise ValueError(f"supply.ces_sigma: must be > 0 (got {supply.ces_sigma})")
+        if supply.delivery_timing != "uniform":
+            if len(supply.arrival_probs) != incentive.steps_per_period:
+                raise ValueError(
+                    "supply.arrival_probs: length must equal incentive.steps_per_period when "
+                    f"delivery_timing != 'uniform' "
+                    f"({len(supply.arrival_probs)} != {incentive.steps_per_period})"
+                )
+            if abs(sum(supply.arrival_probs) - 1) > 1e-9:
+                raise ValueError(
+                    f"supply.arrival_probs: must sum to 1 (got {sum(supply.arrival_probs)})"
+                )
+        for index, share in enumerate(supply.final_demand_share):
+            if not 0 <= share <= 1:
+                raise ValueError(
+                    f"supply.final_demand_share[{index}]: must lie in [0, 1] (got {share})"
+                )
+        for name in (
+            "holding_loss",
+            "input_holding_loss",
+            "trade_tau",
+            "price_markup",
+            "tech_drift_sigma",
+        ):
+            value = getattr(supply, name)
+            if value < 0:
+                raise ValueError(f"supply.{name}: must be non-negative (got {value})")
+        for index, sigma in enumerate(supply.yield_sigma):
+            if sigma < 0:
+                raise ValueError(f"supply.yield_sigma[{index}]: must be non-negative (got {sigma})")
+
+        # INC: bonus schedule, ratchet and probabilities (PLAN sections 2.7.1, 2.8).
+        if incentive.overfulfilment_cap < 1:
+            raise ValueError(
+                "incentive.overfulfilment_cap: must be >= 1, with inf meaning no cap "
+                f"(got {incentive.overfulfilment_cap})"
+            )
+        if incentive.notch_width < 0:
+            raise ValueError(
+                f"incentive.notch_width: must be non-negative (got {incentive.notch_width})"
+            )
+        for name in ("ratchet_cap_up", "ratchet_cap_dn"):
+            value = getattr(incentive, name)
+            if value < 0:
+                raise ValueError(f"incentive.{name}: must be non-negative (got {value})")
+        for name in ("penalty_scale", "effort_cost", "notch_height", "overfulfilment_slope"):
+            value = getattr(incentive, name)
+            if value < 0:
+                raise ValueError(f"incentive.{name}: must be non-negative (got {value})")
+        if not 0 <= incentive.tenure <= 1:
+            raise ValueError(f"incentive.tenure: must lie in [0, 1] (got {incentive.tenure})")
+        if not 0 <= incentive.soft_budget <= 1:
+            raise ValueError(
+                f"incentive.soft_budget: must lie in [0, 1] (got {incentive.soft_budget})"
+            )
+
+        # INFO: probabilities and noise scales (PLAN sections 2.7.4, 2.7.5, 2.8).
+        for name in (
+            "audit_rate",
+            "ministry_passthrough",
+            "horizontal_visibility",
+            "quality_measurability",
+            "shortfall_visibility",
+        ):
+            value = getattr(information, name)
+            if not 0 <= value <= 1:
+                raise ValueError(f"information.{name}: must lie in [0, 1] (got {value})")
+        for name in ("audit_noise", "channel_noise", "self_obs_noise"):
+            value = getattr(information, name)
+            if value < 0:
+                raise ValueError(f"information.{name}: must be non-negative (got {value})")
+        if not 0 <= information.audit_target_gain <= 10:
+            raise ValueError(
+                "information.audit_target_gain: must lie in [0, 10] "
+                f"(got {information.audit_target_gain})"
+            )
+        if not 0 <= information.ministry_pad <= 1:
+            raise ValueError(
+                f"information.ministry_pad: must lie in [0, 1] (got {information.ministry_pad})"
+            )
+        if information.report_lag not in (0, 1, 2):
+            raise ValueError(
+                f"information.report_lag: must be 0, 1 or 2 (got {information.report_lag})"
+            )
+        if not 1 <= information.n_ministries <= supply.n_enterprises:
+            raise ValueError(
+                "information.n_ministries: must lie in [1, supply.n_enterprises] "
+                f"(got {information.n_ministries})"
+            )
+
+        # Out of Phase-2 scope (spec/P2_REVISION.md R1): rejected rather than silently ignored.
+        out_of_scope = {
+            "supply.irs_alpha": supply.irs_alpha != 0,
+            "supply.capital_dep": supply.capital_dep != 0,
+            "supply.tech_drift_sigma": supply.tech_drift_sigma != 0,
+            "supply.price_lag": supply.price_lag != float("inf"),
+            "incentive.bonus_heterogeneity": incentive.bonus_heterogeneity != 0,
+        }
+        for name, active in out_of_scope.items():
+            if active:
+                raise ValueError(
+                    f"{name}: not implemented in Phase 2 (spec/P2_REVISION.md R1); only its "
+                    "Phase-1 value is accepted"
+                )
+
+        # TECH: horizon and bounds (PLAN sections 2.3, 2.12).
+        if tech.min_periods > tech.max_periods:
+            raise ValueError(
+                "tech.min_periods: must be <= tech.max_periods "
+                f"({tech.min_periods} > {tech.max_periods})"
+            )
+        if tech.report_max_ratio <= 1:
+            raise ValueError(f"tech.report_max_ratio: must be > 1 (got {tech.report_max_ratio})")
 
     def hash(self) -> str:
         """Return the stable content hash of this configuration.
@@ -537,7 +708,21 @@ class EnvConfig:
         Binds: `tests/unit/test_config.py` - the hash is stable under field order, and two
         configurations differing in any single parameter hash differently. Owning WO: **WO-003**.
         """
-        raise NotImplementedError("PLAN section 3 - implemented in WO-003")
+
+        def canonical(value: object) -> object:
+            if isinstance(value, float) and value == float("inf"):
+                return "inf"
+            if isinstance(value, tuple):
+                return [canonical(item) for item in value]
+            if isinstance(value, dict):
+                return {key: canonical(item) for key, item in value.items()}
+            return value
+
+        # The nested per-section object only (spec docstring; ambiguity report #51).
+        sections = ("supply", "incentive", "information", "tech")
+        payload = {name: canonical(dataclasses.asdict(getattr(self, name))) for name in sections}
+        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+        return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
 def load_config(path: str) -> EnvConfig:
@@ -554,7 +739,63 @@ def load_config(path: str) -> EnvConfig:
 
     Realises: PLAN section 3. Owning WO: **WO-003**.
     """
-    raise NotImplementedError("PLAN section 3 - implemented in WO-003")
+    if path.lower().endswith(".toml"):
+        with open(path, "rb") as handle:
+            document = tomllib.load(handle)
+    elif path.lower().endswith(".json"):
+        with open(path, encoding="utf-8") as handle:
+            document = json.load(handle)
+    else:
+        raise ValueError(f"load_config: unsupported configuration format for {path!r}")
+    if not isinstance(document, dict):
+        raise ValueError("load_config: the configuration document must be a mapping")
+
+    sections: dict[str, type] = {
+        "supply": SupplyConfig,
+        "incentive": IncentiveConfig,
+        "information": InformationConfig,
+        "tech": TechConfig,
+    }
+    unknown = sorted(set(document) - set(sections) - {"spec_version"})
+    if unknown:
+        raise ValueError(f"load_config: unknown configuration key {unknown[0]!r}")
+
+    def decode(value: object, default: object) -> object:
+        """Inverse of `EnvConfig.hash`'s encoding: `"inf"` -> `float("inf")`, arrays -> tuples."""
+        if isinstance(value, str) and value == "inf":
+            return float("inf")
+        if isinstance(default, tuple):
+            if not isinstance(value, (list, tuple)):
+                raise ValueError(f"load_config: expected an array, got {type(value).__name__}")
+            element_default = default[0] if default else None
+            return tuple(decode(item, element_default) for item in value)
+        if isinstance(value, (list, tuple)):
+            raise ValueError("load_config: expected a scalar, got an array")
+        return value
+
+    kwargs: dict[str, object] = {}
+    for section_name, section_cls in sections.items():
+        if section_name not in document:
+            continue
+        raw = document[section_name]
+        if not isinstance(raw, dict):
+            raise ValueError(f"load_config: section {section_name!r} must be a mapping")
+        defaults = {spec.name: spec.default for spec in dataclasses.fields(section_cls)}
+        section_kwargs: dict[str, object] = {}
+        for key, value in raw.items():
+            if key not in defaults:
+                raise ValueError(
+                    f"load_config: unknown configuration key {key!r} in section {section_name!r}"
+                )
+            section_kwargs[key] = decode(value, defaults[key])
+        kwargs[section_name] = section_cls(**section_kwargs)
+
+    spec_version = document.get("spec_version", SPEC_VERSION)
+    if not isinstance(spec_version, str):
+        raise ValueError("load_config: spec_version must be a string")
+    config = EnvConfig(spec_version=spec_version, **kwargs)
+    config.validate()
+    return config
 
 
 def p1_default_config() -> EnvConfig:
@@ -575,4 +816,57 @@ def p1_default_config() -> EnvConfig:
     entry that names an `EnvConfig` field (all but the five `ppo_` rows, which belong to the
     adapter of WO-017). The two must never drift. Owning WO: **WO-003**.
     """
-    raise NotImplementedError("PLAN section 3 - implemented in WO-003")
+    config = EnvConfig()
+    config.validate()
+    return config
+
+
+def p2_default_config() -> EnvConfig:
+    """Return the Phase-2 default configuration (spec/P2_REVISION.md R11).
+
+    Takes: nothing. Returns: `p1_default_config()` (the G1 values) with the PLAN section 4.2
+    locked values behind the held-out phenomena, and the Phase-2 baseline C0's information and
+    incentive settings chosen by the LEAD before any Phase-2 run:
+
+        locked (PLAN 4.2)  delivery_timing = "stochastic", arrival_probs = (0.25,)*4;
+                           alloc_eta_request = 0.7, input_complementarity = 8,
+                           input_holding_loss = 0.01; horizontal_visibility = 1.0,
+                           trade_tau = 0.05; g, penalty_arg and h as in Phase 1
+        C0 (LEAD, R11)     report_lag = 1, channel_noise = 0.05, ministry_passthrough = 0.75,
+                           n_ministries = 5, ministry_pad = 0.5, audit_mode = "targeted",
+                           shortfall_visibility = 0.5, audit_target_gain = 4.0,
+                           quality_matters = True, quality_cost = 0.05,
+                           quality_measurability = 0.5, soft_budget = 0.25
+
+    Owning: the Phase-2 spec revision (LEAD).
+    """
+    import dataclasses
+
+    base = p1_default_config()
+    supply = dataclasses.replace(
+        base.supply,
+        delivery_timing="stochastic",
+        arrival_probs=(0.25, 0.25, 0.25, 0.25),
+        input_complementarity=8.0,
+        input_holding_loss=0.01,
+        trade_tau=0.05,
+        quality_matters=True,
+        quality_cost=0.05,
+    )
+    incentive = dataclasses.replace(base.incentive, alloc_eta_request=0.7, soft_budget=0.25)
+    information = dataclasses.replace(
+        base.information,
+        horizontal_visibility=1.0,
+        report_lag=1,
+        channel_noise=0.05,
+        ministry_passthrough=0.75,
+        n_ministries=5,
+        ministry_pad=0.5,
+        audit_mode="targeted",
+        shortfall_visibility=0.5,
+        audit_target_gain=4.0,
+        quality_measurability=0.5,
+    )
+    config = dataclasses.replace(base, supply=supply, incentive=incentive, information=information)
+    config.validate()
+    return config

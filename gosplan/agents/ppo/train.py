@@ -37,16 +37,49 @@ Boundaries this harness does not cross:
 
 from __future__ import annotations
 
+import dataclasses
+import json
+import subprocess
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import numpy as np
+
 from gosplan.agents.ppo.adapter import IPPO, PPOConfig
+from gosplan.env.env import GosplanEnv
+from gosplan.env.state import EnterpriseAction, initial_targets
+from gosplan.metrics.ledger import Ledger, bound_binding, write_manifest
 
 if TYPE_CHECKING:  # runtime homes: WO-003 (config), WO-009 (env), WO-011 (ledger); PLAN section 8
     from gosplan.config import EnvConfig
-    from gosplan.env.env import GosplanEnv
-    from gosplan.metrics.ledger import Ledger
+
+EVAL_SEED_OFFSET: int = 10**6
+"""LEAD ruling AMBIGUITY-016 point 5: `eval_root = train_root + 10**6`, a block disjoint from the
+training seeds."""
+
+SEED_RULE_TRAIN: str = "seed_env(b, e) = seed_env + b + n_envs * e"
+"""LEAD ruling AMBIGUITY-016 point 5: training copy `b`, episode `e` (recorded in `flags`)."""
+
+SEED_RULE_EVAL: str = "seed_env(e) = seed_env + 10**6 + e"
+"""LEAD ruling AMBIGUITY-016 point 5: evaluation episode `e` (recorded in `flags`)."""
+
+ENTROPY_SCHEDULE: str = "linear in the update index, start -> end over n_updates"
+"""The shape of the entropy anneal `entropy_coefficient` implements (recorded in `flags`)."""
+
+EVAL_POLICY: str = "deterministic: squashed Gaussian mean, a = squash(mean)"
+"""The evaluation policy of `evaluate` (recorded in `flags`)."""
+
+FINAL_LEDGER_FILE: str = "final_eval_ledger.parquet"
+"""File name, under the run directory, of the final evaluation's ledger (AMBIGUITY-016 point 4)."""
+
+HYGIENE_TARGET_MULTIPLE: float = 3.0
+"""G2 criterion 4 (PLAN section 12.4): a training episode fails hygiene if any target exceeds this
+multiple of `T_0`; the per-update fraction is logged (AMBIGUITY-018 item 8)."""
+
+TARGET_BLOWUP_MULTIPLE: float = 3.0
+"""Hygiene criterion 4 of PLAN section 4.5: `T > 3 T_0`."""
 
 
 @dataclass(frozen=True)
@@ -126,7 +159,12 @@ def make_env_batch(cfg: EnvConfig, n_envs: int, seed_env: int) -> list[GosplanEn
 
     Owning WO: **WO-018**.
     """
-    raise NotImplementedError("PLAN section 12.3 WO-018 - implemented in WO-018")
+    envs = []
+    for b in range(n_envs):
+        env = GosplanEnv(cfg, records=False)
+        env.reset(_train_episode_seed(seed_env, b, 0, n_envs), cfg.tech.seed_policy)
+        envs.append(env)
+    return envs
 
 
 def entropy_coefficient(update: int, n_updates: int, ppo_cfg: PPOConfig) -> float:
@@ -150,7 +188,11 @@ def entropy_coefficient(update: int, n_updates: int, ppo_cfg: PPOConfig) -> floa
 
     Owning WO: **WO-018**.
     """
-    raise NotImplementedError("PLAN section 12.3 WO-018 - implemented in WO-018")
+    start, end = float(ppo_cfg.entropy_coef_start), float(ppo_cfg.entropy_coef_end)
+    if n_updates <= 1:
+        return start
+    frac = min(max(update, 0), n_updates - 1) / (n_updates - 1)
+    return start + frac * (end - start)
 
 
 def evaluate(
@@ -191,7 +233,57 @@ def evaluate(
 
     Owning WO: **WO-018** (harness), **WO-016** (the estimators it calls).
     """
-    raise NotImplementedError("PLAN section 12.3 WO-018 - implemented in WO-018")
+    from gosplan.metrics.phenomena import (
+        MEASUREMENT_FIRST_PERIOD,
+        phenomenon_bunching,
+        phenomenon_padding,
+    )
+
+    env = GosplanEnv(cfg)
+    ledger = Ledger()
+    env.attach_ledger(ledger)
+    returns = []
+    for e in range(n_episodes):
+        obs, _opening = env.reset(seed_env + e, cfg.tech.seed_policy)
+        agent.reset()
+        episode_return = np.zeros(cfg.supply.n_enterprises)
+        done = False
+        while not done:
+            obs, reward, done, _info = env.step(_deterministic_action(agent, obs, env.phase()))
+            episode_return += reward
+        returns.append(float(episode_return.mean()))
+
+    records = ledger.records
+    effort = [
+        r.effort for r in records if r.phase == "produce" and r.t_period >= MEASUREMENT_FIRST_PERIOD
+    ]
+    reports = [r for r in records if r.phase == "report"]
+    t_0 = np.asarray(initial_targets(cfg), dtype=float)
+    blown = {r.episode for r in records if r.target > TARGET_BLOWUP_MULTIPLE * t_0[r.enterprise]}
+    bunching = phenomenon_bunching(ledger, cfg)
+    padding = phenomenon_padding(ledger, cfg)
+    metrics = {
+        "mean_return": float(np.mean(returns)),
+        "mean_effort": float(np.mean(effort)) if effort else float("nan"),
+        "fictitious_padding": float(padding["padding"]),
+        "b_hat": float(bunching["excess_mass"]),
+        "b_hat_se": float(bunching["se"]),
+        "hole": float(bunching["hole_mass"]),
+        "frac_at_bound": sum(1 for r in reports if r.at_bound) / max(len(reports), 1),
+        "frac_target_over_3T0": len(blown) / max(n_episodes, 1),
+    }
+    return metrics, ledger
+
+
+def step_discount(gamma: float, cfg: EnvConfig) -> float:
+    """The per-agent-step discount used in GAE: `gamma ** (1 / (M + 1))`.
+
+    `PPOConfig.gamma` is a PER-PLAN-PERIOD discount - the one the DP applies as `psi * gamma` per
+    period (PLAN section 5) - and a period is `M + 1` agent-steps (PLAN section 2.5). Discounting
+    at `gamma` per agent-step would make the learner `gamma ** (M + 1)` per period and optimise a
+    different objective from the DP it is checked against (LEAD ruling AMBIGUITY-020).
+    """
+    return float(gamma) ** (1.0 / (cfg.incentive.steps_per_period + 1))
 
 
 def checkpoint_path(run_dir: Path, update: int) -> Path:
@@ -208,7 +300,7 @@ def checkpoint_path(run_dir: Path, update: int) -> Path:
 
     Owning WO: **WO-018**.
     """
-    raise NotImplementedError("PLAN section 12.3 WO-018 - implemented in WO-018")
+    return Path(run_dir) / "checkpoints" / f"update_{update:06d}.ckpt"
 
 
 def log_update(run_dir: Path, row: dict[str, float]) -> None:
@@ -231,7 +323,10 @@ def log_update(run_dir: Path, row: dict[str, float]) -> None:
 
     Owning WO: **WO-018**.
     """
-    raise NotImplementedError("PLAN section 12.3 WO-018 - implemented in WO-018")
+    line = json.dumps({key: _jsonable(value) for key, value in row.items()})
+    with open(Path(run_dir) / "train_log.jsonl", "a", encoding="utf-8") as handle:
+        handle.write(line + "\n")
+        handle.flush()
 
 
 def train_manifest_extra(
@@ -254,7 +349,68 @@ def train_manifest_extra(
 
     Owning WO: **WO-018** (this assembly), **WO-011** (`write_manifest`).
     """
-    raise NotImplementedError("CONTRACT rule 10 - implemented in WO-018")
+    from gosplan.metrics import phenomena, resolve_estimators
+
+    backend = resolve_estimators()
+    entry = agent.manifest_entry()
+    ppo_cfg = train_cfg.ppo_cfg
+    tech = train_cfg.env_cfg.tech
+    train_record = {
+        field.name: getattr(train_cfg, field.name)
+        for field in dataclasses.fields(train_cfg)
+        if field.name not in ("env_cfg", "ppo_cfg")
+    }
+    train_record["run_root"] = str(train_cfg.run_root)
+    train_record["n_updates"] = _n_updates(train_cfg)
+    train_record["agent_steps_per_period"] = train_cfg.env_cfg.incentive.steps_per_period + 1
+    records = {
+        "seed_env": tech.seed_env,
+        "seed_policy": tech.seed_policy,
+        "seed_rule_train": SEED_RULE_TRAIN,
+        "seed_rule_eval": SEED_RULE_EVAL,
+        "seed_policy_streams": "SeedSequence(seed_policy): init in IPPO; spawn key 1 for rollouts",
+        "entropy_schedule": {
+            "shape": ENTROPY_SCHEDULE,
+            "start": ppo_cfg.entropy_coef_start,
+            "end": ppo_cfg.entropy_coef_end,
+        },
+        "eval_policy": EVAL_POLICY,
+        "gae_step_discount": step_discount(ppo_cfg.gamma, train_cfg.env_cfg),
+        "train_envs_records": False,
+        "vector_env_wrappers": "none (list of GosplanEnv stepped in lockstep)",
+        "train_config": train_record,
+        "ppo_manifest": entry,
+        "wall_clock_s": float(wall_clock_s),
+    }
+    record_flags = [
+        f"{key}={json.dumps(_jsonable(value), sort_keys=True)}" for key, value in records.items()
+    ]
+    return {
+        "git_hash": _git_hash(),
+        "reference_ppo_version": entry["reference_ppo_version"],
+        "estimator_version": backend.version,
+        "estimator_backend": backend.name,
+        "llm_models": None,
+        "solver": None,
+        "solver_version": None,
+        "solver_optimality_gap": None,
+        "bunching_settings": {
+            "bin_width": phenomena.BUNCHING_BIN_WIDTH,
+            "window_lo": phenomena.BUNCHING_WINDOW_LO,
+            "window_hi": phenomena.BUNCHING_WINDOW_HI,
+            "excl_lo": phenomena.BUNCHING_EXCL_LO,
+            "excl_hi": phenomena.BUNCHING_EXCL_HI,
+            "degree": phenomena.BUNCHING_POLY_DEGREE,
+            "excess_lo": phenomena.BUNCHING_EXCESS_LO,
+            "excess_hi": phenomena.BUNCHING_EXCESS_HI,
+            "hole_lo": phenomena.BUNCHING_HOLE_LO,
+            "hole_hi": phenomena.BUNCHING_HOLE_HI,
+            "measurement_first_period": phenomena.MEASUREMENT_FIRST_PERIOD,
+            "exclude_episode_end": phenomena.MEASUREMENT_EXCLUDE_EPISODE_END,
+            "include_at_bound": phenomena.MEASUREMENT_INCLUDE_AT_BOUND,
+        },
+        "flags": sorted(set(flags)) + record_flags,
+    }
 
 
 def train(train_cfg: TrainConfig) -> Path:
@@ -289,7 +445,220 @@ def train(train_cfg: TrainConfig) -> Path:
     Binds: the WO-018 smoke test - 100 updates at `N = 1` complete, write a manifest carrying every
     CONTRACT rule 10 field, and leave a loadable checkpoint. Owning WO: **WO-018**.
     """
-    raise NotImplementedError("PLAN section 12.3 WO-018 - implemented in WO-018")
+    cfg = train_cfg.env_cfg
+    ppo_cfg = train_cfg.ppo_cfg
+    cfg.validate()
+    run_dir = Path(train_cfg.run_root) / cfg.hash()
+    (run_dir / "checkpoints").mkdir(parents=True, exist_ok=True)
+    (run_dir / "train_log.jsonl").write_text("", encoding="utf-8")  # one row per update, fresh
+    agent = IPPO(cfg, ppo_cfg)
+    n_envs, horizon = train_cfg.n_envs, train_cfg.rollout_steps
+    n = cfg.supply.n_enterprises
+    rows = n_envs * n
+    n_updates = _n_updates(train_cfg)
+    root = int(cfg.tech.seed_env)
+    rng = np.random.default_rng(np.random.SeedSequence(int(cfg.tech.seed_policy)).spawn(2)[1])
+    start = time.perf_counter()
+    envs = make_env_batch(cfg, n_envs, root)
+    episode_index = [0] * n_envs
+    # The opening observations: `make_env_batch` returns environments already reset onto episode
+    # 0; resetting again onto the identical seed reproduces that state and returns its observation.
+    obs = np.concatenate(
+        [
+            env.reset(_train_episode_seed(root, b, 0, n_envs), cfg.tech.seed_policy)[0]
+            for b, env in enumerate(envs)
+        ]
+    ).astype(np.float32)
+    running_return = np.zeros((n_envs, n))
+    # G2 criterion 4 is stated over TRAINING episodes (AMBIGUITY-018 item 8): per episode, whether
+    # any enterprise's target exceeded HYGIENE_TARGET_MULTIPLE x T_0, read from the env state.
+    hygiene_bound = HYGIENE_TARGET_MULTIPLE * np.asarray(initial_targets(cfg), dtype=float)
+    episode_blowup = np.zeros(n_envs, dtype=bool)
+    run_flags: set[str] = set()
+    masks = {phase: agent.element_mask(phase) for phase in ("produce", "report")}
+    d, a_dim = agent.obs_dim, agent.action_dim
+
+    buf_obs = np.zeros((horizon, rows, d), dtype=np.float32)
+    buf_z = np.zeros((horizon, rows, a_dim), dtype=np.float32)
+    buf_mask = np.zeros((horizon, rows, a_dim), dtype=np.float32)
+    buf_logp = np.zeros((horizon, rows), dtype=np.float32)
+    buf_value = np.zeros((horizon, rows), dtype=np.float32)
+    buf_reward = np.zeros((horizon, rows), dtype=np.float32)
+    buf_done = np.zeros((horizon, rows), dtype=np.float32)
+
+    agent_steps = 0
+    final_ledger: Ledger | None = None
+    final_eval_update = -1
+    for update in range(n_updates):
+        t_update = time.perf_counter()
+        ent_coef = entropy_coefficient(update, n_updates, ppo_cfg)
+        finished_returns: list[float] = []
+        finished_blowups: list[bool] = []
+        for t in range(horizon):
+            mask = np.repeat(np.stack([masks[env.phase()] for env in envs]), n, axis=0)
+            eps = rng.standard_normal((rows, a_dim)).astype(np.float32)
+            z, action, logp, value = agent.policy.sample(obs, eps, mask)
+            action = np.asarray(action, dtype=float).reshape(n_envs, n, a_dim)
+            buf_obs[t], buf_mask[t] = obs, mask
+            buf_z[t], buf_logp[t], buf_value[t] = z, logp, value
+            next_obs = []
+            for b, env in enumerate(envs):
+                o, reward, done, info = env.step(agent._to_action(action[b]))
+                run_flags.update(info.flags)  # StepInfo: run flags only (CONTRACT rule 6)
+                buf_reward[t, b * n : (b + 1) * n] = reward
+                running_return[b] += reward
+                episode_blowup[b] |= bool(np.any(env.state.target > hygiene_bound))
+                if done:
+                    buf_done[t, b * n : (b + 1) * n] = 1.0
+                    finished_returns.append(float(running_return[b].mean()))
+                    running_return[b] = 0.0
+                    finished_blowups.append(bool(episode_blowup[b]))
+                    episode_blowup[b] = False
+                    episode_index[b] += 1
+                    seed = _train_episode_seed(root, b, episode_index[b], n_envs)
+                    o, _opening = env.reset(seed, cfg.tech.seed_policy)
+                else:
+                    buf_done[t, b * n : (b + 1) * n] = 0.0
+                next_obs.append(o)
+            obs = np.concatenate(next_obs).astype(np.float32)
+        agent_steps += n_envs * horizon
+
+        _mean, _log_std, next_value = agent.policy.forward(obs)
+        advantages, returns = _gae(
+            buf_reward,
+            buf_value,
+            buf_done,
+            np.asarray(next_value),
+            step_discount(ppo_cfg.gamma, cfg),
+            ppo_cfg.lambda_gae,
+        )
+        batch = {
+            "obs": buf_obs.reshape(-1, d),
+            "z": buf_z.reshape(-1, a_dim),
+            "mask": buf_mask.reshape(-1, a_dim),
+            "logp": buf_logp.reshape(-1),
+            "advantages": advantages.reshape(-1),
+            "returns": returns.reshape(-1),
+            "values": buf_value.reshape(-1),
+        }
+        diagnostics = agent.policy.update(batch, ent_coef, rng)
+
+        now = time.perf_counter()
+        row: dict[str, float] = {
+            "update": update,
+            "agent_steps_total": agent_steps,
+            "enterprise_steps_total": agent_steps * n,
+            "wall_clock_s": now - start,
+            "steps_per_second": agent_steps / (now - start),
+            "update_steps_per_second": n_envs * horizon / (now - t_update),
+            "entropy_coef": ent_coef,
+            "train_episodes_finished": len(finished_returns),
+            "train_episode_return_mean": (
+                float(np.mean(finished_returns)) if finished_returns else float("nan")
+            ),
+            "train_episode_target_blowup_frac": (
+                float(np.mean(finished_blowups)) if finished_blowups else float("nan")
+            ),
+            **diagnostics,
+        }
+        if (update + 1) % train_cfg.eval_every_updates == 0:
+            metrics, final_ledger = evaluate(
+                agent, cfg, train_cfg.eval_episodes, root + EVAL_SEED_OFFSET
+            )
+            final_eval_update = update
+            row.update({f"eval_{key}": value for key, value in metrics.items()})
+        if (update + 1) % train_cfg.checkpoint_every_updates == 0:
+            agent.save_checkpoint(checkpoint_path(run_dir, update))
+        log_update(run_dir, row)
+
+    if final_eval_update != n_updates - 1 or final_ledger is None:
+        _metrics, final_ledger = evaluate(
+            agent, cfg, train_cfg.eval_episodes, root + EVAL_SEED_OFFSET
+        )
+    final_ledger.to_parquet(str(run_dir / FINAL_LEDGER_FILE))
+    flags = set(run_flags) | set(final_ledger.flags)
+    if bound_binding(final_ledger):
+        flags.add("BOUND_BINDING")
+    wall_clock_s = time.perf_counter() - start
+    extra = train_manifest_extra(train_cfg, agent, wall_clock_s, tuple(sorted(flags)))
+    write_manifest(str(run_dir), cfg, extra)
+    return run_dir
+
+
+# ---------- private helpers ----------
+
+
+def _train_episode_seed(root: int, b: int, e: int, n_envs: int) -> int:
+    """AMBIGUITY-016 point 5: training copy `b`, episode `e` -> `root + b + n_envs * e`."""
+    return int(root) + int(b) + int(n_envs) * int(e)
+
+
+def _n_updates(train_cfg: TrainConfig) -> int:
+    return train_cfg.total_agent_steps // (train_cfg.n_envs * train_cfg.rollout_steps)
+
+
+def _deterministic_action(agent: IPPO, obs: np.ndarray, phase: str) -> EnterpriseAction:
+    """The evaluation policy: `squash(mean)` per head through the adapter's public surface, the
+    dimensions the phase does not read set to zero (as `IPPO.act` does)."""
+    mean, _log_std, _value = agent.forward(obs)
+    mask = agent.element_mask(phase)
+    squashed = np.zeros_like(np.asarray(mean, dtype=float))
+    for name in agent.head_names:
+        cols = agent._head_slices[name]
+        squashed[:, cols] = agent.squash(mean[:, cols], name)
+    return agent._to_action(squashed * mask)
+
+
+def _gae(
+    rewards: np.ndarray,
+    values: np.ndarray,
+    dones: np.ndarray,
+    next_value: np.ndarray,
+    gamma: float,
+    lam: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """CleanRL's GAE. `dones[t]` is the geometric termination flag returned by step `t`: a
+    terminal step does not bootstrap. The rollout boundary bootstraps from `next_value` (the
+    episode continues into the next rollout; it is not cut)."""
+    horizon = rewards.shape[0]
+    advantages = np.zeros_like(rewards)
+    last = np.zeros(rewards.shape[1], dtype=rewards.dtype)
+    for t in reversed(range(horizon)):
+        following = next_value if t == horizon - 1 else values[t + 1]
+        nonterminal = 1.0 - dones[t]
+        delta = rewards[t] + gamma * following * nonterminal - values[t]
+        last = delta + gamma * lam * nonterminal * last
+        advantages[t] = last
+    return advantages, advantages + values
+
+
+def _jsonable(value: object) -> object:
+    """Plain JSON values: numpy scalars to Python, non-finite floats to null, recursively."""
+    if isinstance(value, dict):
+        return {str(k): _jsonable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(v) for v in value]
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, np.generic):
+        value = value.item()
+    if isinstance(value, float) and not np.isfinite(value):
+        return None  # strict JSON has no NaN/inf; a missing diagnostic is written as null
+    return value
+
+
+def _git_hash() -> str | None:
+    """`git rev-parse HEAD`, `-dirty` when the tree has uncommitted changes; `None` without git."""
+    try:
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True
+        ).stdout.strip()
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain"], capture_output=True, text=True, check=True
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return head + ("-dirty" if dirty else "")
 
 
 __all__ = [

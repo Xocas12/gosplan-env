@@ -63,10 +63,16 @@ comparing field names, order and annotations. The cross-module types are importe
 
 from __future__ import annotations
 
+import dataclasses
+import functools
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
+
+from gosplan.env.production import period_quality
+from gosplan.env.state import INITIAL_CAPACITY
+from gosplan.rng import draw
 
 if TYPE_CHECKING:  # pragma: no cover - types only; see the binding note in the module docstring
     from gosplan.config import AggLevel, EnvConfig
@@ -124,7 +130,9 @@ def make_planner_view(state: State, cfg: EnvConfig) -> PlannerView:
 
     Source of each field, all of them planner-side quantities already recorded in `State`:
 
-        claims               `state.last_report` (R_i in units), after the three filters below
+        claims               the forwarded claim (P2 revision R10: `state.last_report` at
+                             `ministry_passthrough = 1`, else the ministry's forward
+                             `state.ministry_prev`), after the three filters below
         requests             `state.request` (N, J), after the same aggregation branch
         audited              `state.last_audited`; all False until `select_audits` has run
         audit_meas           the audit measurement `S_hat` of PLAN section 2.8; zeros where not
@@ -134,27 +142,31 @@ def make_planner_view(state: State, cfg: EnvConfig) -> PlannerView:
                              `state.quality_acc`; Phase 1 ones, since `quality_matters` is False
         targets              `state.target` - the planner set them, so they are planner-side
         planner_io           `state.planner_io`, the possibly stale copy of `a` (PLAN section 2.6)
-        downstream_shortfall Phase 2 only, scaled by `cfg.information.shortfall_visibility`; Phase 1
-                             zeros, which is what makes `audit_mode = "targeted"` inert
+        downstream_shortfall P2 revision R3: shortfall_visibility * (1 - last_fill_i) * exp(xi_i),
+                             xi_i ~ N(0, channel_noise**2) at key (seed_env, "complaint", t, i),
+                             sector mean under "sector"; zeros (no draw) at the Phase-1
+                             shortfall_visibility = 0, which makes `audit_mode = "targeted"` inert
         aggregation_level    `cfg.information.aggregation_level`, so a rule can tell which level the
                              arrays it received are meaningful at
         plan_prices          `state.plan_prices` (J,), needed by the `net_output` measure
 
-    The three information filters of PLAN section 2.7.5 are applied here, in this order:
+    The three information filters of PLAN section 2.7.5 are applied here, in the order P2 revision
+    R2 fixes - lag selection, then aggregation, then noise:
 
+        lag           P2 revision R2: at `report_lag = L > 0` the claims are
+                      `state.claim_history[:, L - 1]` (column 0 is one period ago; opening value
+                      `T_0`, so a lagged planner starts from on-plan claims) instead of the current
+                      forwarded claim (AMBIGUITY-023 item 1 on what this means at DELIVER)
         aggregation   at `aggregation_level = "sector"` the planner sees only
                       `sum_{i in j} claimed_i` - the per-sector total, with per-enterprise identity
                       destroyed - and `allocate` then keys on planned need alone
-        lag           the rules consume claims from `report_lag` periods ago; at `report_lag = L`
-                      the view issued in period `t` carries the claims of period `t - L`, and
-                      periods `t < L` fall back on the initial (zero) claims
         channel noise claimed_i <- claimed_i * exp(xi_i),  xi_i ~ N(0, sigma_ch**2),
                       key = (seed_env, "channel", t, i)   via `gosplan.rng.draw`
 
     ALL THREE BRANCHES MUST EXIST even though the Phase-1 configuration (`"enterprise"`, `0`, `0.0`)
     makes each of them the identity map; the identity case is exactly what
-    `tests/unit/test_planner.py` checks (WO-006 card). The order matters: aggregate, then lag, then
-    noise - the noise is what the reporting channel does to whatever actually travels down it.
+    `tests/unit/test_planner.py` checks (WO-006 card). The noise comes last: it is what the
+    reporting channel does to whatever actually travels down it.
 
     The record is built once per period, after the REPORT step. `audited` and `audit_meas` are all
     False / zero until `select_audits` and the audit measurement of PLAN section 2.8 have run, after
@@ -169,7 +181,81 @@ def make_planner_view(state: State, cfg: EnvConfig) -> PlannerView:
     state reach no field of the view; the static signature check over this module) and the identity
     cases in `tests/unit/test_planner.py`. Owning WO: **WO-006**.
     """
-    raise NotImplementedError("PLAN section 2.4/2.7 - implemented in WO-006")
+    info = cfg.information
+    n = cfg.supply.n_enterprises
+    requests = np.array(state.request, dtype=float)
+
+    # Filter 1 - lag (P2 revision R2): with report_lag = L > 0 the planner is served
+    # `claim_history[:, L - 1]` (column 0 is one period ago) instead of the current forwarded
+    # claim. R2 applies aggregation and noise AFTER the lag selection, in that order.
+    lag = info.report_lag
+    if lag > 0:
+        history = state.claim_history
+        if history is None:  # hand-built state: the opening value of `ensure_p2_fields`
+            history = np.repeat(np.asarray(state.target, dtype=float)[:, None], 2, axis=1)
+        claims = np.array(np.asarray(history, dtype=float)[:, lag - 1], dtype=float)
+    else:
+        claims = np.array(
+            _forwarded_claims(state.last_report, state.ministry_prev, cfg), dtype=float
+        )
+    # Filter 2 - aggregation (PLAN section 2.7.5).
+    # At "sector" each enterprise carries its sector's mean claim (LEAD ruling on AMB-WO006-A,
+    # following ref_make_planner_view): the per-sector total survives, per-enterprise identity
+    # does not. Requests and targets are not aggregated.
+    sector = np.asarray(cfg.supply.sector_of)
+    if info.aggregation_level == "sector":
+        claims = _sector_mean(claims, sector, cfg.supply.n_sectors)
+    # Filter 3 - channel noise (PLAN section 2.7.5): claimed_i <- claimed_i * exp(xi_i).
+    xi = draw(
+        state.seed_env,
+        "channel",
+        state.t_period,
+        shape=(n,),
+        dist="normal",
+        mean=0.0,
+        sigma=info.channel_noise,
+    )
+    claims = claims * np.exp(xi)
+
+    audited = np.array(state.last_audited, dtype=bool)
+    audit_meas = np.zeros(n)  # LEAD ruling on AMB-WO006-C: zeros, as ref_make_planner_view
+
+    qbar = period_quality(state.quality_acc, cfg)
+    measured_quality = 1.0 + info.quality_measurability * (qbar - 1.0)
+
+    # Downstream shortfall (P2 revision R3): buyers' complaints about seller i,
+    #   downstream_shortfall_i = shortfall_visibility * (1 - fill_i) * exp(xi_i),
+    #   xi_i ~ N(0, channel_noise**2), key (seed_env, "complaint", t, i),
+    # with fill_i the seller's own fill at the most recent DELIVER. Sector mean under "sector".
+    if info.shortfall_visibility > 0:
+        complaint = draw(
+            state.seed_env,
+            "complaint",
+            state.t_period,
+            shape=(n,),
+            dist="normal",
+            mean=0.0,
+            sigma=info.channel_noise,
+        )
+        fill = np.asarray(state.last_fill, dtype=float)
+        downstream_shortfall = info.shortfall_visibility * (1.0 - fill) * np.exp(complaint)
+        if info.aggregation_level == "sector":
+            downstream_shortfall = _sector_mean(downstream_shortfall, sector, cfg.supply.n_sectors)
+    else:
+        downstream_shortfall = np.zeros(n)
+
+    return PlannerView(
+        claims=claims,
+        requests=requests,
+        audited=audited,
+        audit_meas=audit_meas,
+        measured_quality=measured_quality,
+        targets=np.array(state.target, dtype=float),
+        planner_io=np.array(state.planner_io, dtype=float),
+        downstream_shortfall=downstream_shortfall,
+        aggregation_level=info.aggregation_level,
+        plan_prices=np.array(state.plan_prices, dtype=float),
+    )
 
 
 def update_targets(view: PlannerView, cfg: EnvConfig) -> Array:
@@ -209,7 +295,21 @@ def update_targets(view: PlannerView, cfg: EnvConfig) -> Array:
     `g = 0` keeps `T` constant, and at `g > 0` `T` grows at exactly `(1 + g)`. Owning WO:
     **WO-006**.
     """
-    raise NotImplementedError("PLAN section 2.7.1 - implemented in WO-006")
+    inc = cfg.incentive
+    targets = np.asarray(view.targets, dtype=float)
+    m = np.asarray(fulfilment_measure(view, cfg), dtype=float)
+    rho = m / targets
+    step = np.clip(rho - 1.0, -inc.ratchet_cap_dn, inc.ratchet_cap_up)
+    # Deadband on the RAW ratio: |rho - 1| <= delta, written as 1 - delta <= rho <= 1 + delta.
+    delta = inc.ratchet_deadband
+    in_band = (rho >= 1.0 - delta) & (rho <= 1.0 + delta)
+    step = np.where(in_band, 0.0, step)
+    sector = np.asarray(cfg.supply.sector_of)
+    prod = np.asarray(cfg.supply.productivity, dtype=float)[sector]
+    t_0 = cfg.tech.initial_target_frac * prod * INITIAL_CAPACITY
+    t_min = cfg.tech.target_floor_frac * t_0
+    grown = (1.0 + inc.growth_directive) * targets * (1.0 + inc.ratchet_lambda * step)
+    return np.maximum(t_min, grown)
 
 
 def fulfilment_measure(view: PlannerView, cfg: EnvConfig) -> Array:
@@ -239,7 +339,18 @@ def fulfilment_measure(view: PlannerView, cfg: EnvConfig) -> Array:
     identity on `view.claims`; `net_output` falls as allocated inputs rise; `quality_weighted`
     reduces to `val` at `mu = 0`. Owning WO: **WO-006**.
     """
-    raise NotImplementedError("PLAN section 2.9.2 - implemented in WO-006")
+    metric = cfg.incentive.objective_metric
+    claims = np.asarray(view.claims, dtype=float)
+    if metric == "val":
+        return claims.copy()
+    if metric == "net_output":
+        alloc = np.asarray(allocate(view, cfg), dtype=float)
+        prices = np.asarray(view.plan_prices, dtype=float)
+        own_price = prices[np.asarray(cfg.supply.sector_of)]
+        return claims - (alloc * prices[None, :]).sum(axis=1) / own_price
+    if metric == "quality_weighted":
+        return claims * np.asarray(view.measured_quality, dtype=float)
+    raise ValueError(f"fulfilment_measure: unknown objective_metric {metric!r}")
 
 
 def allocate(view: PlannerView, cfg: EnvConfig) -> Array:
@@ -278,7 +389,30 @@ def allocate(view: PlannerView, cfg: EnvConfig) -> Array:
     makes the result exactly invariant to `view.requests`; the `1e-6` regularisers keep the weights
     finite when a need or a request is zero. Owning WO: **WO-006**.
     """
-    raise NotImplementedError("PLAN section 2.7.2 - implemented in WO-006")
+    inc = cfg.incentive
+    j = cfg.supply.n_sectors
+    sector = np.asarray(cfg.supply.sector_of)
+    phi = np.asarray(cfg.supply.final_demand_share, dtype=float)
+    claims = np.asarray(view.claims, dtype=float)
+    # avail_j = sum_{i: s(i)=j} (1 - phi_j) * claimed_i
+    # Accumulated per enterprise, (1 - phi) * claim, in index order: the same float operations as
+    # ref_allocate, so the golden digests agree bit for bit.
+    avail = np.zeros(j)
+    for i, s_i in enumerate(sector):
+        avail[s_i] += (1.0 - phi[s_i]) * claims[i]
+    # need_bj = planner_io[s(b), j] * T_b
+    need = np.asarray(view.planner_io, dtype=float)[sector] * np.asarray(view.targets)[:, None]
+    w = (need + 1e-6) ** inc.alloc_eta_need
+    if view.aggregation_level != "sector":
+        # At "sector" the weight collapses to the need term alone (docstring, PLAN 2.7.5).
+        requests = np.asarray(view.requests, dtype=float)
+        w = (requests + 1e-6) ** inc.alloc_eta_request * w
+    alloc = np.zeros_like(w)
+    for g in range(j):
+        total = sum(float(v) for v in w[:, g])
+        if total > 0.0:
+            alloc[:, g] = avail[g] * w[:, g] / total
+    return alloc
 
 
 def deliver(state: State, alloc: Array, cfg: EnvConfig) -> tuple[State, Array, Array, Array]:
@@ -298,9 +432,21 @@ def deliver(state: State, alloc: Array, cfg: EnvConfig) -> tuple[State, Array, A
         consumer_j = sum_{i in j} phi_j * shipped_i * qbar_i
         S_i       -= shipped_i
 
-    with `claimed_i = state.last_report` (the claim the seller actually made, in units),
-    `phi_j = cfg.supply.final_demand_share`, and `qbar` the period-average quality from
-    `state.quality_acc` (Phase 1 ones, since `supply.quality_matters` is False). The degenerate case
+    with `claimed_i` the seller's delivery obligation - its own claim `state.last_report` at
+    `ministry_passthrough = 1`, the ministry's forward `Rtilde_i` otherwise (P2 revision R10.3) -
+    `phi_j = cfg.supply.final_demand_share`, and `qbar_i = quality_acc_i / M` (P2 revision R5,
+    `period_quality`; Phase 1 ones). `state.quality_acc` still holds the PREVIOUS period's sum at
+    DELIVER, i.e. the quality of the goods being shipped (AMBIGUITY-023 item 4). In the bundle,
+    `qbar_j` is the claim-weighted mean of good `j`'s sellers,
+    `sum_{i in j} claimed_i qbar_i / sum_{i in j} claimed_i` (R5; the plain sector mean when the
+    pool is empty).
+
+    Delivery timing (P2 revision R6). Under `uniform` everything credited to `X` arrives now. Under
+    `stochastic` / `backloaded` each `deliv_bj * qbar_j` arrives whole at step
+    `k_bj = arrival_steps(seed_env, t)[b, j]`: step 0 is credited here, later steps are parked in
+    `state.pending_deliv[b, j, k_bj]` and credited by `credit_arrivals` at the head of step `k`.
+    `alloc`, `fill`, `poolfill` and the returned `deliv` are unaffected - timing moves arrival,
+    not quantity. The degenerate case
     `sum_{i in j} claimed_i = 0` gives `poolfill_j = 1`, consistent with `claimed_i = 0` giving
     `fill_i = 1`. `poolfill_j` lies in [0, 1] by construction and must not be clipped into the
     interval: a value outside it is a bug to be found, not a bound to be applied.
@@ -325,7 +471,67 @@ def deliver(state: State, alloc: Array, cfg: EnvConfig) -> tuple[State, Array, A
     `tests/behavioural/test_shortage_propagation.py` (a `Padder` with `S = 0` produces `fill < 1`
     for every downstream buyer; `TruthfulMyopic` produces `fill = 1`). Owning WO: **WO-006**.
     """
-    raise NotImplementedError("PLAN section 2.7.3 - implemented in WO-006")
+    j = cfg.supply.n_sectors
+    sector = np.asarray(cfg.supply.sector_of)
+    phi = np.asarray(cfg.supply.final_demand_share, dtype=float)
+    alloc = np.asarray(alloc, dtype=float)
+    # Delivery obligations are the forwarded claims (P2 revision R10.3); at pi = 1 they are the
+    # seller's own claim `last_report`, exactly as in Phase 1.
+    claimed = np.asarray(
+        _forwarded_claims(state.last_report, state.ministry_prev, cfg), dtype=float
+    )
+    stock = np.asarray(state.inv_output, dtype=float)
+    qbar = period_quality(state.quality_acc, cfg)
+
+    # fill_i = min(1, S_i / claimed_i), fill_i = 1 when claimed_i = 0
+    ratio = np.divide(stock, claimed, out=np.ones_like(claimed), where=claimed > 0)
+    fill = np.where(claimed > 0, np.minimum(1.0, ratio), 1.0)
+    shipped = np.minimum(stock, claimed)
+    # poolfill_j; empty pool (sum_{i in j} claimed_i = 0) gives 1 (card decision, PLAN 2.7.3)
+    pool_num = np.bincount(sector, weights=fill * claimed, minlength=j)
+    pool_den = np.bincount(sector, weights=claimed, minlength=j)
+    poolfill = np.divide(pool_num, pool_den, out=np.ones(j), where=pool_den > 0)
+    deliv = alloc * poolfill[None, :]
+    # LEAD ruling on AMBIGUITY-023 item 2: when the planner's claims (lagged, noisy or forwarded)
+    # differ from the sellers' obligations, `alloc * poolfill` no longer equals what was shipped.
+    # The allocation fixes each buyer's SHARE; physical shipments fix the QUANTITY, so buyers of good
+    # j receive exactly (1 - phi_j) * shipped_j. When the two already agree (every Phase-1
+    # configuration) the old formula is kept bit for bit.
+    target = (1.0 - phi) * np.bincount(sector, weights=shipped, minlength=j)
+    current = deliv.sum(axis=0)
+    if not np.allclose(current, target, rtol=1e-12, atol=1e-12):
+        scale = np.divide(target, current, out=np.zeros(j), where=current > 0)
+        deliv = deliv * scale[None, :]
+    if cfg.supply.quality_matters:
+        # R5: qbar_j is the claim-weighted mean qbar of good j's sellers; with no claim in the
+        # pool, the plain sector mean (AMBIGUITY-023 item 5).
+        q_num = np.bincount(sector, weights=claimed * qbar, minlength=j)
+        q_plain = np.bincount(sector, weights=qbar, minlength=j) / np.bincount(sector, minlength=j)
+        qbar_good = np.divide(q_num, pool_den, out=q_plain, where=pool_den > 0)
+    else:
+        qbar_good = np.ones(j)  # Phase 1 qbar = 1
+    credit = deliv * qbar_good[None, :]
+    pending = state.pending_deliv
+    if cfg.supply.delivery_timing == "uniform":
+        inv_inputs = np.asarray(state.inv_inputs, dtype=float) + credit
+    else:
+        # R6: each buyer-good delivery arrives whole at step k_bj; step 0 is credited now, later
+        # steps wait in `pending_deliv` until `credit_arrivals` runs at the head of step k.
+        m = cfg.incentive.steps_per_period
+        k_arr = arrival_steps(state.seed_env, state.t_period, cfg)
+        now = k_arr == 0
+        inv_inputs = np.asarray(state.inv_inputs, dtype=float) + np.where(now, credit, 0.0)
+        if pending is None:
+            pending = np.zeros((cfg.supply.n_enterprises, j, m))
+        pending = np.array(pending, dtype=float)
+        later = np.where(now, 0.0, credit)
+        b_idx, j_idx = np.nonzero(later)
+        pending[b_idx, j_idx, k_arr[b_idx, j_idx]] += later[b_idx, j_idx]
+    consumer = phi * np.bincount(sector, weights=shipped * qbar, minlength=j)
+    new_state = dataclasses.replace(
+        state, inv_output=stock - shipped, inv_inputs=inv_inputs, pending_deliv=pending
+    )
+    return new_state, deliv, fill, consumer
 
 
 def select_audits(view: PlannerView, cfg: EnvConfig, t: int) -> Array:
@@ -343,8 +549,10 @@ def select_audits(view: PlannerView, cfg: EnvConfig, t: int) -> Array:
     with `a = cfg.information.audit_rate` and the branch chosen by `cfg.information.audit_mode`.
     Both branches must exist. Phase 1 uses `random`; `targeted` is inert in Phase 1 because
     `view.downstream_shortfall` is all zeros while `shortfall_visibility = 0`, which makes the two
-    branches agree there. `kappa_t` is the targeting-strength coefficient of PLAN section 2.7.4,
-    fixed by WO-023 when the targeted mode is switched on and never chosen here.
+    branches agree there. `kappa_t = cfg.information.audit_target_gain` (P2 revision R4; default
+    4.0), so with `shortfall_visibility > 0` the probability is
+    `p_i = clip(a * (1 + kappa_t * view.downstream_shortfall_i), 0, 1)`, drawn at the same key; with
+    `shortfall_visibility = 0` the targeted mode is exactly the random mode.
 
     `downstream_shortfall_i` is the planner's noisy knowledge of buyers' complaints and is therefore
     an information quantity, which is why `audit_mode` sits in `InformationConfig` even though the
@@ -359,4 +567,82 @@ def select_audits(view: PlannerView, cfg: EnvConfig, t: int) -> Array:
     Binds: `tests/unit/test_planner.py` - the empirical audit frequency matches `audit_rate` over
     many periods, and the selection is deterministic in `(seed_env, t)`. Owning WO: **WO-006**.
     """
-    raise NotImplementedError("PLAN section 2.7.4 - implemented in WO-006")
+    info = cfg.information
+    n = cfg.supply.n_enterprises
+    if info.audit_mode == "random":
+        p = info.audit_rate
+    elif info.audit_mode == "targeted":
+        if info.shortfall_visibility > 0:
+            # P2 revision R4: p_i = clip(a * (1 + kappa_t * downstream_shortfall_i), 0, 1).
+            shortfall = np.asarray(view.downstream_shortfall, dtype=float)
+            p = np.clip(info.audit_rate * (1.0 + info.audit_target_gain * shortfall), 0.0, 1.0)
+        else:
+            p = info.audit_rate  # nothing to target on: exactly the random mode (R4)
+    else:
+        raise ValueError(f"select_audits: unknown audit_mode {info.audit_mode!r}")
+    return np.asarray(
+        draw(cfg.tech.seed_env, "audit", t, shape=(n,), dist="bernoulli", p=p), dtype=bool
+    )
+
+
+def arrival_steps(seed_env: int, t: int, cfg: EnvConfig) -> Array:
+    """Arrival step `k_bj` of each buyer-good delivery of period `t` (PLAN 2.6; P2 revision R6).
+
+    Takes: the episode seed `seed_env`, the plan period `t` and `cfg`. Returns: an integer
+    `(N, J)` array with entries in `0 .. M-1`.
+
+        uniform      k_bj = 0 for every (b, j)                                    (Phase 1)
+        stochastic   k_bj ~ Categorical(cfg.supply.arrival_probs)
+        backloaded   k_bj ~ Categorical(pi),  pi_k proportional to (k + 1)**2, k = 0 .. M-1
+
+    drawn at key `(seed_env, "arrival", t, b, j)`, the trailing good index `j` vectorised through
+    `shape=(J,)` as `gosplan/rng.py` states for every draw (AMBIGUITY-023 item 3). Pure in its
+    arguments and memoised, so the environment's observation builder can recover the schedule
+    `deliver` used without a second set of draws. Takes no `State` (CONTRACT rule 5). Owning WO:
+    **WO-022**.
+    """
+    out = _arrival_steps(int(seed_env), int(t), cfg)
+    return out.copy()
+
+
+@functools.lru_cache(maxsize=16)
+def _arrival_steps(seed_env: int, t: int, cfg: EnvConfig) -> Array:
+    """Memoised body of `arrival_steps` (a pure function of its arguments)."""
+    n, j = cfg.supply.n_enterprises, cfg.supply.n_sectors
+    timing = cfg.supply.delivery_timing
+    if timing == "uniform":
+        return np.zeros((n, j), dtype=int)
+    m = cfg.incentive.steps_per_period
+    if timing == "backloaded":
+        weights = (np.arange(m) + 1.0) ** 2
+        probs = tuple(float(w) for w in weights / weights.sum())
+    elif timing == "stochastic":
+        probs = tuple(float(p) for p in cfg.supply.arrival_probs)
+    else:
+        raise ValueError(f"arrival_steps: unknown delivery_timing {timing!r}")
+    out = np.empty((n, j), dtype=int)
+    for b in range(n):
+        out[b] = draw(seed_env, "arrival", t, b, shape=(j,), dist="categorical", probs=probs)
+    return out
+
+
+def _forwarded_claims(last_report: Array, ministry_prev: Array | None, cfg: EnvConfig) -> Array:
+    """The claims as forwarded by the ministries this period (P2 revision R10).
+
+    Takes arrays, never a `State` (CONTRACT rule 5, T-B4 static check). At
+    `ministry_passthrough = 1` the layer is exactly transparent (R10.4) and this is the seller's
+    own claim `last_report`, which keeps Phase 1 bit-identical. Otherwise it is
+    `ministry_prev` (`State.ministry_prev`), which the ministry stage sets to this period's forward `Rtilde` right
+    after REPORT and which holds its opening value `T_0` before the first forward. A private helper
+    of the two whitelisted `State` readers (`make_planner_view`, `deliver`); it makes no decision.
+    """
+    if cfg.information.ministry_passthrough == 1.0 or ministry_prev is None:
+        return np.asarray(last_report, dtype=float)
+    return np.asarray(ministry_prev, dtype=float)
+
+
+def _sector_mean(values: Array, sector: Array, n_sectors: int) -> Array:
+    """Replace each entry by the mean over its sector (the `"sector"` aggregation, PLAN 2.7.5)."""
+    totals = np.bincount(sector, weights=values, minlength=n_sectors)
+    counts = np.bincount(sector, minlength=n_sectors)
+    return totals[sector] / counts[sector]

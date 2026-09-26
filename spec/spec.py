@@ -40,7 +40,7 @@ Array = np.ndarray
 """Alias for every numeric array in the interface (PLAN section 10). The JAX port substitutes its
 own array type behind the same name; no module may rely on numpy-only methods in a signature."""
 
-SPEC_VERSION = "0.1.0"
+SPEC_VERSION = "2.0.0"
 """Provisional spec version (PLAN section 10 header). Bumped to "1.0.0" by WO-013 at the v1 freeze;
 every later change needs a `spec/CHANGELOG.md` entry (CONTRACT rule 1). Written into every run
 manifest (CONTRACT rule 10)."""
@@ -107,6 +107,9 @@ Purpose = Literal[
     "terminate",
     "trade_visibility",
     "selfobs",
+    "complaint",
+    "bailout",
+    "pricepert",
 ]
 """Enumerated RNG purposes (PLAN section 2.15, plus `selfobs` for the observation noise of WO-008).
 Keying by purpose is what makes draws order-independent, so the NumPy and JAX implementations agree
@@ -263,11 +266,11 @@ class IncentiveConfig:
     """INC. Which fulfilment measure the bonus and the ratchet key on (PLAN section 2.9.2).
     Phase 1: `val`. Historical motivation: `val` is the measure the NNO reforms attacked."""
 
-    ratchet_lambda: float = 0.5  # provisional: replaced at G1
+    ratchet_lambda: float = 0.53  # G1 value, runs/G1_decision.md
     """INC. `lambda`, ratchet coefficient in the target rule of PLAN section 2.7.1. Range [0, 1];
     Weitzman-type models motivate the form, the empirical value is unsourced."""
 
-    growth_directive: float = 0.02  # provisional: replaced at G1
+    growth_directive: float = 0.021  # G1 value, runs/G1_decision.md
     """INC. `g`, the exogenous growth directive multiplying the target every period (PLAN section
     2.7.1). This is the forcing term added for finding F1; it must be a treatment variable because
     at `g = 0` with reports at target the target rule has a fixed point (test T-B2).
@@ -295,7 +298,7 @@ class IncentiveConfig:
     counterfactual knob (smooth arm `w = 0.25`) and the manipulation-strength knob of the
     estimator-bias study (PLAN section 7.2). Grid {0, 0.02, 0.05, 0.10, 0.25}."""
 
-    overfulfilment_slope: float = 0.5  # provisional: replaced at G1
+    overfulfilment_slope: float = 0.331  # G1 value, runs/G1_decision.md
     """INC. `s`, linear bonus slope above target: `s * clip(rho - 1, 0, rho_cap - 1)`
     (PLAN section 2.8). Range [0, 2]; historical anchor is the per-percentage-point bonus increment
     (lead to source, PLAN section 15)."""
@@ -314,12 +317,12 @@ class IncentiveConfig:
     """INC. `f = max(0, R - S_hat) / T` (`positive_part`, Phase 1) or `|R - S_hat| / T` (`absolute`)
     (PLAN section 2.8). Under `positive_part` any under-report incurs no penalty - test T-U8."""
 
-    penalty_scale: float = 60.0  # provisional: replaced at G1
+    penalty_scale: float = 200.0  # G1 value, runs/G1_decision.md
     """INC. `pen`, penalty scale in ratio units (PLAN sections 2.8, 2.9.1; finding F9). Range
     [5, 200]; unsourced, chosen from the regime map. `audit_rate * penalty_scale` is the compound
     quantity the G2 padding-elasticity criterion sweeps (PLAN section 4.5)."""
 
-    effort_cost: float = 0.15  # provisional: replaced at G1
+    effort_cost: float = 0.193  # G1 value, runs/G1_decision.md
     """INC. `kappa` in `c_ik = kappa * e_ik**2 + ...` (PLAN section 2.6). A real cost paid when
     incurred, not shaping (CONTRACT rule 4). Range [0.05, 0.5]; unsourced, from the regime map."""
 
@@ -370,7 +373,7 @@ class InformationConfig:
     """INFO. Level at which the planner observes claims (PLAN section 2.7.5). At `sector` it sees
     only `sum_{i in j} claimed_i` and allocates by planned need alone. Phase 1: `enterprise`."""
 
-    audit_rate: float = 0.10  # provisional: replaced at G1
+    audit_rate: float = 0.10  # G1 value, runs/G1_decision.md
     """INFO (dual: also enters the reward through the penalty; reported separately, PLAN section
     4.3). `a`, per-enterprise per-period audit probability (PLAN section 2.7.4). Range [0.01,
     0.30]; unsourced."""
@@ -409,6 +412,17 @@ class InformationConfig:
     shortfall_visibility: float = 0.0
     """INFO. How much of buyers' complaints the planner sees, gating the `targeted` audit mode
     (PLAN section 2.7.4). Phase 1: 0.0; range [0, 1]."""
+
+    audit_target_gain: float = 4.0
+    """INFO. `kappa_t`, the gain of the `targeted` audit probability
+    `clip(a * (1 + kappa_t * downstream_shortfall_i), 0, 1)` (PLAN section 2.7.4; P2 revision R4).
+    Default 4.0; range [0, 10]. Inert unless `audit_mode = "targeted"` and
+    `shortfall_visibility > 0`."""
+
+    ministry_pad: float = 0.5
+    """INFO. `kappa_m`, how much of a shortfall `max(0, T_i - R_i)` a ministry pads into the claim
+    it forwards (PLAN section 2.14; P2 revision R10). Default 0.5; range [0, 1]. Inert at
+    `ministry_passthrough = 1`."""
 
     self_obs_noise: float = 0.0
     """INFO. Log-sd of multiplicative noise `exp(N(0, s**2))` applied to the agent's own cumulative
@@ -629,6 +643,14 @@ class State:
     seed_env: int  # root environment seed; every draw is keyed from it (section 2.15)
     seed_policy: int  # root policy seed, kept separate from seed_env (CONTRACT rule 9)
 
+    # Phase-2 fields (P2 revision, spec 2.0.0). They default to `None` so a `State` built by hand
+    # for a Phase-1 test stays valid; `gosplan.env.state.ensure_p2_fields` fills them with their
+    # opening values (those of `initial_state`) the first time the step machine sees the state.
+    claim_history: Array | None = None  # (N, 2) claims forwarded to the planner 1, 2 periods ago
+    pending_deliv: Array | None = None  # (N, J, M) deliveries waiting for a later step
+    trade_surplus_acc: Array | None = None  # (N,) trade surplus accrued this period
+    ministry_prev: Array | None = None  # (N,) each ministry's previous forward for i
+
 
 @dataclass
 class EnterpriseAction:
@@ -646,7 +668,7 @@ class EnterpriseAction:
     quality: Array  # (N,) q_ik in [0, 1]; Phase 2
     invest: Array  # (N,) v_ik in [0, 1], fraction of step output diverted to capital; Phase 2
     report_ratio: Array  # (N,) in [0, rho_max]; active in Phase 1; read only at the REPORT step
-    input_request: Array  # (N, J) q_ij in [0, r_max * need_ij]; logged in Phase 1, inert at eta_q=0
+    input_request: Array  # (N, J) multiple of need in [0, r_max]; rescaled by need when read
     trade_offer: Array  # (N, J) in [-1, 1]; positive = offer, negative = want; Phase 2
 
 
@@ -1089,7 +1111,8 @@ def process_reports(state: State, action: EnterpriseAction, cfg: EnvConfig) -> S
 
     The function also stores `last_report_ratio`, `last_report` (the claim in units, kept because
     the ratchet moves `T` later in the same period - PLAN section 2.5 steps 3 then 6) and
-    `request`, clipped to `r_max * need_ij`, and it records whether the report sat at `rho_max`
+    `request = clip(q_ij, 0, r_max) * need_ij` (the action is a multiple of need; AMBIGUITY-008),
+    and it records whether the report sat at `rho_max`
     (CONTRACT rule 8).
 
     Binds: `tests/unit/test_reporting.py` (holding loss applied before `y` is added; the report
@@ -1350,7 +1373,7 @@ class GosplanEnv:
     state: State
     ledger: Optional[Ledger]
 
-    def __init__(self, cfg: EnvConfig) -> None:
+    def __init__(self, cfg: EnvConfig, *, records: bool = True) -> None:
         """Construct the environment for one configuration.
 
         Takes: `cfg`, already validated. Returns: nothing. Stores the configuration, precomputes the
@@ -1372,7 +1395,8 @@ class GosplanEnv:
         Phase 1, and the opening `StepInfo`.
 
         Initial state (PLAN sections 2.1-2.2, 3): `target = T_0`, `capital = cap = 1`,
-        `inv_output = 0`, `inv_inputs = 0`, all `last_*` fields zero, `last_fill = 1`,
+        `inv_output = 0`, `inv_inputs = a_{s(i)j} * T_0_i` (the opening input endowment,
+        ambiguity #62), all `last_*` fields zero, `last_fill = 1`,
         `t_period = 0`, `k_step = 0`, `phase = "produce"`, `plan_prices = initial_prices(cfg)`,
         `planner_io = a`, `alive = True`.
 
@@ -1393,6 +1417,11 @@ class GosplanEnv:
         it runs `process_reports`, `select_audits`, `audit_and_penalise`, the REWARD,
         `update_targets` and the termination draw, in that order; the next period opens with
         DELIVER, which consumes the `PlannerView` built from this period's reports.
+
+        After a step returns, the state's counters sit at the NEXT agent-step (AMBIGUITY-007); the
+        returned `obs` describes the step just executed. A `step` after `done` continues into a
+        fresh episode under the same seeds with `t_period` carried on (AMBIGUITY-004); harnesses
+        treat `done` as the episode boundary and call `reset`.
 
         Nothing here may leak a true quantity into `obs` (CONTRACT rule 6), and every draw goes
         through `draw` (CONTRACT rule 9).
@@ -1501,6 +1530,10 @@ class DPGrid:
 
     value_tol: float = 1e-6
     """Value-iteration convergence tolerance (policy iteration is an acceptable alternative)."""
+
+    max_iterations: int = 5000
+    """Iteration cap. Reaching it without meeting `value_tol` returns the solution with
+    `converged = False` - non-convergence is a result, never silently used (AMBIGUITY-010)."""
 
     sim_episodes: int = 200
     """Episodes simulated under the optimal policy to obtain the stationary report distribution."""
@@ -1739,7 +1772,7 @@ def phenomenon_bunching(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
 
     Pre-registered estimator settings (PLAN section 4.5, hard-coded as defaults and recorded in the
     manifest): bins of width 0.005 over `rho` in [0.6, 1.4]; excluded window [0.95, 1.02];
-    polynomial of degree 7 fitted outside the window; excess mass `b_hat = (observed -
+    polynomial of degree 9 fitted outside the window; excess mass `b_hat = (observed -
     counterfactual mass in [1.00, 1.02]) / mean counterfactual density in the window`; hole mass
     computed identically on [0.95, 1.00); standard error by bootstrap over seeds. Only periods `t
     >= 2` enter, per the measurement window of PLAN section 4.4, and reports at `rho_max` are

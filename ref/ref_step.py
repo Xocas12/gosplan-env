@@ -209,6 +209,24 @@ def _quality_bar(state: RefState, cfg: Config) -> Vec:
     return [state.quality_acc[i] / m if m else 1.0 for i in range(n)]
 
 
+def _digest_at_next_position(state: RefState, cfg: Config) -> str:
+    """`ref_state_digest` of `state` with the step counters moved to the NEXT agent-step.
+
+    AMBIGUITY-007: `GosplanEnv.state` after a step sits at the machine's next position (`advance`,
+    `advance_phase`, `test_env_api`), so the digest renders the counters there: after PRODUCE step
+    `k < M - 1` -> `k + 1`; after the last PRODUCE step -> `(M, "report")`; after REPORT ->
+    `(t + 1, 0, "produce")`. Nothing else in the state is touched.
+    """
+    m = _m(cfg)
+    if state.phase == "report":
+        nxt = replace(state, t_period=state.t_period + 1, k_step=0, phase="produce")
+    elif state.k_step < m - 1:
+        nxt = replace(state, k_step=state.k_step + 1)
+    else:
+        nxt = replace(state, k_step=m, phase="report")
+    return ref_state_digest(nxt)
+
+
 def _run_period(
     state: RefState,
     cfg: Config,
@@ -257,7 +275,7 @@ def _run_period(
                 obs=obs,
                 reward=reward,
                 done=False,
-                state_digest=ref_state_digest(state),
+                state_digest=_digest_at_next_position(state, cfg),
                 val_measured=None,
                 val_true=None,
                 welfare=None,
@@ -308,7 +326,7 @@ def _run_period(
             obs=obs,
             reward=reward,
             done=done,
-            state_digest=ref_state_digest(state),
+            state_digest=_digest_at_next_position(state, cfg),
             val_measured=val_measured,
             val_true=val_true,
             welfare=welfare,
@@ -1216,7 +1234,13 @@ def ref_bonus(rho: float, cfg: Config) -> float:
     cap = _f(inc["overfulfilment_cap"])
     x = float(rho) - 1.0
     indicator = (1.0 if x >= 0.0 else 0.0) if w == 0.0 else 1.0 / (1.0 + math.exp(-x / w))
-    over = max(0.0, x) if not math.isfinite(cap) else min(max(0.0, x), cap - 1.0)
+    if not math.isfinite(cap) and w > 0.0:
+        # smooth arm: softplus at the notch width, so no kink anywhere (AMBIGUITY-006)
+        over = w * (max(x / w, 0.0) + math.log1p(math.exp(-abs(x / w))))
+    elif not math.isfinite(cap):
+        over = max(0.0, x)
+    else:
+        over = min(max(0.0, x), cap - 1.0)
     return beta * indicator + slope * over
 
 
@@ -1683,7 +1707,7 @@ def ref_produce(state: RefState, action: RefAction, cfg: Config) -> tuple[RefSta
             take = min(float(state.inv_inputs[i][j]), row[j] * y_tilde)
             state.inv_inputs[i][j] -= take
             consumed[i][j] = take
-        cost[i] = kappa * e**2 + setup * (1.0 if e > 0.0 else 0.0) + kappa_q * q * e
+        cost[i] = kappa * (e * e) + setup * (1.0 if e > 0.0 else 0.0) + kappa_q * q * e
         state.cum_output[i] += y_out[i]
         state.cum_cost[i] += cost[i]
         state.quality_acc[i] += q
@@ -1755,7 +1779,7 @@ def ref_report(state: RefState, action: RefAction, cfg: Config) -> tuple[RefStat
         state.last_report_ratio[i] = rho
         state.last_report[i] = rho * t_i
         state.request[i] = [
-            min(max(float(action.input_request[i][j]), 0.0), r_max * need[i][j])
+            min(max(float(action.input_request[i][j]), 0.0), r_max) * need[i][j]
             for j in range(n_goods)
         ]
     return state, holding_loss, cap_overflow, period_output
@@ -1790,7 +1814,9 @@ def ref_audit(
     Binds: T-U8, `tests/unit/test_planner.py` (audit frequency) and rows 4.1-4.6 of
     `docs/ref_worked_example.md`.
     """
-    audited = ref_select_audits(view, cfg, state.t_period)
+    # AMBIGUITY-019 B: key the selection by the episode's seed, as every other draw is.
+    audit_cfg = {**cfg, "tech": {**cfg["tech"], "seed_env": int(state.seed_env)}}
+    audited = ref_select_audits(view, audit_cfg, state.t_period)
     penalty, audit_meas = ref_audit_penalty(state, audited, cfg, state.t_period)
     view = replace(view, audited=audited, audit_meas=audit_meas)
     state.last_audited = audited
@@ -2016,7 +2042,11 @@ def ref_rollout(
 
     while len(out) < n_steps:
         state.t_period = period_index
-        seed_obs = ref_observation(state, cfg, initial_targets, zero_deliv)
+        # The policy acts on the observation the environment last RETURNED (AMBIGUITY-008): the
+        # reset observation at the start, otherwise the previous agent-step's record, including
+        # across an auto-continued episode boundary (AMBIGUITY-004), exactly as the golden replay
+        # drives `GosplanEnv`.
+        seed_obs = out[-1].obs if out else ref_observation(state, cfg, initial_targets, zero_deliv)
         state, records = _run_period(
             state,
             cfg,

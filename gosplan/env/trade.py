@@ -27,6 +27,15 @@ Nothing downstream may assume more than the frozen half. Anything in the second 
 implementer needs before the Phase-2 revision is an AMBIGUITY REPORT (CONTRACT rule 3), not a
 judgement call.
 
+**Frozen at the P2 revision (spec 2.0.0, `spec/P2_REVISION.md` R9), and implemented below.**
+Visibility is the first `K = round(horizontal_visibility * (N - 1))` entries of a keyed
+permutation of the other enterprises, and a pair may trade if either side sees the other; supply
+is `max(0, o_ij) X_ij` and demand `max(0, -o_bj) a_{s(b)j} T_b` (true `a`); matching runs per good
+in index order, repeatedly executing the eligible seller-buyer pair with the largest
+`x = min(sup, dem) > 0`, ties to the lowest `(i, b)`; the buyer receives `(1 - tau) x` and `tau x`
+is lost; no money moves (price parity); and the surplus is the change in next step's intended
+output in ratio units, `[Yhat_i(X_after) - Yhat_i(X_before)] / T_i`.
+
 Phase 1. `information.horizontal_visibility = 0.0`, so no counterparty is visible, no match exists,
 `match_trades` returns the state unchanged with an all-zero surplus, and `trade_offer` is not in
 `active_action_dims(cfg)`. The stage still runs (`stage_trade` in `gosplan/env/step.py`) so the
@@ -49,9 +58,13 @@ The imports are type-only here so this skeleton imports cleanly before those mod
 
 from __future__ import annotations
 
+import dataclasses
 from typing import TYPE_CHECKING
 
 import numpy as np
+
+from gosplan.env.production import coverage
+from gosplan.rng import draw
 
 if TYPE_CHECKING:  # type-only: see the cross-module bindings note in the module docstring
     from gosplan.config import EnvConfig
@@ -61,10 +74,12 @@ Array = np.ndarray
 """Alias for every numeric array in this module (PLAN section 10). The Phase-2 JAX port (WO-029)
 substitutes its own array type behind the same name."""
 
-__all__ = ["match_trades", "trade_surplus", "visible_counterparties"]
+__all__ = ["execute_trades", "match_trades", "trade_surplus", "visible_counterparties"]
 
 
-def match_trades(state: State, offers: Array, cfg: EnvConfig, t: int) -> tuple[State, Array]:
+def match_trades(
+    state: State, offers: Array, cfg: EnvConfig, t: int, *, effort: Array | None = None
+) -> tuple[State, Array]:
     """Bilateral horizontal trade after DELIVER (PLAN section 2.13). **Phase-2 sketch.**
 
     Takes: `state`, immediately after the DELIVER stage of period `t`, so `inv_inputs` already holds
@@ -140,8 +155,95 @@ def match_trades(state: State, offers: Array, cfg: EnvConfig, t: int) -> tuple[S
     Binds: T-U1 (the traded quantities and the `tau` loss are terms of the conservation identity),
     T-B1 (under the Phase-1 configuration `TruthfulMyopic` executes no trade), and the Phase-2
     acceptance run of WO-031 through the blat metric of WO-030. Owning WO: **WO-024**.
+
+    **As frozen by P2 revision R9** (this supersedes the sketch above where they differ): the
+    surplus is `[Yhat_i(X_after) - Yhat_i(X_before)] / T_i` in ratio units (the own price cancels,
+    R9.5); the buyer receives `(1 - tau) x` of an executed `x`; visibility is symmetrised by OR
+    (R9.1). The effort at which `Yhat` is evaluated is the keyword argument `effort`, the effort of
+    the step-0 action that carries the offers (AMBIGUITY-023 item 8); the step machine always
+    passes it. The frozen four-argument call stays valid wherever trade is off
+    (`horizontal_visibility = 0`); with trade on, omitting `effort` raises rather than guessing.
     """
-    raise NotImplementedError("PLAN section 2.13 - implemented in WO-024")
+    state, surplus, _sold = trade_stage(state, offers, cfg, t, effort=effort)
+    return state, surplus
+
+
+def trade_stage(
+    state: State, offers: Array, cfg: EnvConfig, t: int, *, effort: Array | None = None
+) -> tuple[State, Array, Array]:
+    """The TRADE stage of P2 revision R9, returning also each enterprise's sold volume.
+
+    Takes: as `match_trades`. Returns: `(state, surplus, sold)` with `surplus` `(N,)` in ratio units
+    and `sold` `(N,)` the quantity each enterprise sold, summed over goods, before the `tau` loss -
+    the ledger's `trade_volume` column (LEAD convention for WO-024). At
+    `horizontal_visibility = 0` nothing is visible and the state is returned unchanged with zero
+    surplus and zero volume. Writes `inv_inputs` only. Owning WO: **WO-024**.
+    """
+    n = cfg.supply.n_enterprises
+    if cfg.information.horizontal_visibility <= 0.0:
+        return state, np.zeros(n), np.zeros(n)
+    sector = np.asarray(cfg.supply.sector_of, dtype=int)
+    a_rows = np.asarray(cfg.supply.io_matrix, dtype=float)[sector]
+    target = np.asarray(state.target, dtype=float)
+    need = a_rows * target[:, None]  # need_bj = a_{s(b)j} T_b, true a (R9.2)
+    visible = visible_counterparties(state, cfg, t)
+    x_before = np.array(state.inv_inputs, dtype=float)
+    x_after, sold = execute_trades(
+        x_before, np.asarray(offers, dtype=float), need, visible, float(cfg.supply.trade_tau)
+    )
+    if effort is None:
+        raise ValueError("trade_stage: the effort at which Yhat is evaluated is required (R9.5)")
+    e = np.clip(np.asarray(effort, dtype=float), 0.0, 1.0)
+    surplus = trade_surplus(state, x_before, x_after, e, cfg)
+    return dataclasses.replace(state, inv_inputs=x_after), surplus, sold
+
+
+def execute_trades(
+    inputs: Array, offers: Array, need: Array, visible: Array, tau: float
+) -> tuple[Array, Array]:
+    """Greedy bilateral matching of P2 revision R9.2-R9.3, on arrays.
+
+    Takes: `inputs` `(N, J)` the stocks `X` before trade; `offers` `(N, J)` in `[-1, 1]`; `need`
+    `(N, J)`, `a_{s(b)j} T_b`; `visible` `(N, N)` bool, `visible[i, b]` = `i` sees `b`; `tau`.
+    Returns: `(inputs_after, sold)`, `sold` `(N,)` the quantity each enterprise sold (pre-`tau`).
+
+        sup_ij = max(0, o_ij) X_ij          dem_bj = max(0, -o_bj) need_bj
+        for each good j in index order:
+            repeat: among pairs (i, b), i != b, with visible[i, b] or visible[b, i], take the one
+                    with the largest x = min(sup_ij, dem_bj) > 0, ties to the lowest (i, b);
+                    X_ij -= x;  X_bj += (1 - tau) x;  sup_ij -= x;  dem_bj -= x
+            until no pair has x > 0
+
+    Every execution exhausts one side, so each good takes at most `2N` executions. Per good,
+    `sum_b X_bj` falls by exactly `tau * sum x` (R12: trade conserves `X` up to `tau`).
+    """
+    x = np.array(inputs, dtype=float)
+    offers = np.asarray(offers, dtype=float)
+    n, n_goods = x.shape
+    eligible = np.asarray(visible, dtype=bool)
+    eligible = (eligible | eligible.T) & ~np.eye(n, dtype=bool)
+    sold = np.zeros(n)
+    sup_all = np.maximum(0.0, offers) * x
+    dem_all = np.maximum(0.0, -offers) * np.asarray(need, dtype=float)
+    for j in range(n_goods):
+        sup = sup_all[:, j].copy()
+        dem = dem_all[:, j].copy()
+        if not (sup > 0.0).any() or not (dem > 0.0).any():
+            continue
+        while True:
+            pair = np.where(eligible, np.minimum(sup[:, None], dem[None, :]), 0.0)
+            best = pair.max()
+            if not best > 0.0:
+                break
+            # np.argmax returns the first maximum in row-major order: the lowest (i, b).
+            i, b = divmod(int(np.argmax(pair)), n)
+            q = pair[i, b]
+            x[i, j] = max(0.0, x[i, j] - q)
+            x[b, j] += (1.0 - tau) * q
+            sup[i] -= q
+            dem[b] -= q
+            sold[i] += q
+    return x, sold
 
 
 def visible_counterparties(state: State, cfg: EnvConfig, t: int) -> Array:
@@ -162,8 +264,36 @@ def visible_counterparties(state: State, cfg: EnvConfig, t: int) -> Array:
     Not part of the frozen interface: this helper is internal to `gosplan/env/trade.py` and may be
     restructured at the Phase-2 spec revision. Only `match_trades` is signature-frozen (PLAN section
     0, finding F14). Owning WO: **WO-024**.
+
+    **As frozen by P2 revision R9.1.** Row `i` holds the first `K = round(horizontal_visibility *
+    (N - 1))` entries of a uniformly random permutation of the other indices (in increasing order),
+    obtained as the argsort of `N - 1` standard normal draws at key
+    `(seed_env, "trade_visibility", t, i)`. The mask returned here is NOT symmetrised; the matcher
+    lets a pair trade when either side sees the other (`execute_trades`). At `K = 0` and
+    `K = N - 1` the answer does not depend on the draw, which is then skipped.
     """
-    raise NotImplementedError("PLAN section 2.13 - implemented in WO-024")
+    n = cfg.supply.n_enterprises
+    k_vis = round(cfg.information.horizontal_visibility * (n - 1))
+    mask = np.zeros((n, n), dtype=bool)
+    if k_vis <= 0:
+        return mask
+    if k_vis >= n - 1:
+        return ~np.eye(n, dtype=bool)
+    for i in range(n):
+        others = np.array([b for b in range(n) if b != i])
+        z = draw(
+            state.seed_env,
+            "trade_visibility",
+            t,
+            i,
+            shape=(n - 1,),
+            dist="normal",
+            mean=0.0,
+            sigma=1.0,
+        )
+        perm = others[np.argsort(z, kind="stable")]
+        mask[i, perm[:k_vis]] = True
+    return mask
 
 
 def trade_surplus(
@@ -193,5 +323,29 @@ def trade_surplus(
 
     Not part of the frozen interface: internal to `gosplan/env/trade.py`, restructurable at the
     Phase-2 spec revision; only `match_trades` is signature-frozen. Owning WO: **WO-024**.
+
+    **As frozen by P2 revision R9.5**, which supersedes the price-weighted form above:
+
+        Yhat_i(X)         = (A_{s(i)} cap_i / M) * e_i * H_i(X)
+        trade_surplus_i   = [Yhat_i(X_after) - Yhat_i(X_before)] / T_i       # ratio units
+
+    with `H` the coverage aggregator of PLAN section 2.6 at the need of that intended output
+    (`need_ij = a_{s(i)j} * y_hat_i`), `e_i` = `effort`, and `T_i = state.target`. The own price
+    cancels in the ratio-unit form. Exactly 0 for an enterprise whose stocks did not move.
     """
-    raise NotImplementedError("PLAN section 2.13 - implemented in WO-024")
+    sup = cfg.supply
+    sector = np.asarray(sup.sector_of, dtype=int)
+    a_rows = np.asarray(sup.io_matrix, dtype=float)[sector]
+    totals = a_rows.sum(axis=1, keepdims=True)
+    omega = np.zeros_like(a_rows)
+    np.divide(a_rows, totals, out=omega, where=totals > 0.0)
+    productivity = np.asarray(sup.productivity, dtype=float)[sector]
+    m = cfg.incentive.steps_per_period
+    y_hat = (productivity * np.asarray(state.capital, dtype=float) / m) * np.asarray(effort)
+    need = a_rows * y_hat[:, None]
+    theta = float(sup.input_complementarity)
+    h_before = coverage(inputs_before, need, omega, theta)
+    h_after = coverage(inputs_after, need, omega, theta)
+    moved = np.any(np.asarray(inputs_after) != np.asarray(inputs_before), axis=1)
+    gain = np.where(moved, y_hat * h_after - y_hat * h_before, 0.0)
+    return gain / np.asarray(state.target, dtype=float)

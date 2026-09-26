@@ -48,9 +48,13 @@ imported under `TYPE_CHECKING` so this module stays importable while its sibling
 
 from __future__ import annotations
 
+import dataclasses
 from typing import TYPE_CHECKING
 
 import numpy as np
+
+from gosplan.env.state import INITIAL_CAPACITY
+from gosplan.rng import draw
 
 if TYPE_CHECKING:  # pragma: no cover - types only; see the binding note in the module docstring
     from gosplan.config import EnvConfig
@@ -73,6 +77,10 @@ def process_reports(state: State, action: EnterpriseAction, cfg: EnvConfig) -> S
 
         S_i <- (1 - h) * S_i + y_i            # holding loss on carried stock, THEN this period's y
         R_i  = clip(rho_i_report, 0, rho_max) * T_i
+
+    and, from Phase 2 (P2 revision R7), the input holding loss at the same step
+
+        X_ij <- (1 - h_X) * X_ij              # h_X = cfg.supply.input_holding_loss; P1: 0
 
     with `h = cfg.supply.holding_loss` (Phase 1: 0.02), `y_i = state.cum_output` (the true output
     accumulated over this period's `M` PRODUCE steps), `rho_i_report = action.report_ratio[i]`,
@@ -112,7 +120,44 @@ def process_reports(state: State, action: EnterpriseAction, cfg: EnvConfig) -> S
     report is clipped to `rho_max` - and test T-B8 in the behavioural suite, which forces `rho = 10`
     in more than 1% of reports and asserts the `BOUND_BINDING` flag appears. Owning WO: **WO-007**.
     """
-    raise NotImplementedError("PLAN section 2.8 - implemented in WO-007")
+    h = cfg.supply.holding_loss
+    rho_max = cfg.tech.report_max_ratio
+    r_max = cfg.tech.request_max_multiple
+    target = np.asarray(state.target, dtype=float)
+
+    # S_i <- (1 - h) * S_i + y_i: loss on the carried stock first, then this period's output.
+    stock = (1.0 - h) * np.asarray(state.inv_output, dtype=float) + np.asarray(
+        state.cum_output, dtype=float
+    )
+    # PLAN section 2.11: stock above S_max = inventory_cap_mult * cap_i is lost.
+    s_max = cfg.tech.inventory_cap_mult * INITIAL_CAPACITY
+    stock = np.minimum(stock, s_max)
+
+    # R_i = clip(rho_i_report, 0, rho_max) * T_i
+    ratio = np.clip(np.asarray(action.report_ratio, dtype=float), 0.0, rho_max)
+    report = ratio * target
+
+    # request clipped to [0, r_max * need_ij], need_ij = planner_io[s(i), j] * T_i (section 2.7.2)
+    sector = np.asarray(cfg.supply.sector_of)
+    need = np.asarray(state.planner_io, dtype=float)[sector] * target[:, None]
+    # `input_request` is a multiple of need, rescaled here (WO-009 card note 9; AMBIGUITY-008).
+    request = np.clip(np.asarray(action.input_request, dtype=float), 0.0, r_max) * need
+
+    # P2 revision R7: input holding loss at the REPORT step, alongside the own-good loss above:
+    # X_ij <- (1 - h_X) * X_ij. Skipped at the Phase-1 value h_X = 0, where it is the identity.
+    inv_inputs = state.inv_inputs
+    h_x = cfg.supply.input_holding_loss
+    if h_x > 0.0:
+        inv_inputs = (1.0 - h_x) * np.asarray(inv_inputs, dtype=float)
+
+    return dataclasses.replace(
+        state,
+        inv_output=stock,
+        inv_inputs=inv_inputs,
+        last_report_ratio=ratio,
+        last_report=report,
+        request=request,
+    )
 
 
 def audit_and_penalise(state: State, audited: Array, cfg: EnvConfig, t: int) -> Array:
@@ -171,4 +216,39 @@ def audit_and_penalise(state: State, audited: Array, cfg: EnvConfig, t: int) -> 
     under-report while `absolute` does not, and `audited = False` gives 0 regardless - plus the
     audit-against-stock check in the same file. Owning WO: **WO-007**.
     """
-    raise NotImplementedError("PLAN section 2.8 - implemented in WO-007")
+    inc = cfg.incentive
+    sigma_aud = cfg.information.audit_noise
+    stock = np.asarray(state.inv_output, dtype=float)
+    report = np.asarray(state.last_report, dtype=float)
+    target = np.asarray(state.target, dtype=float)
+    audited = np.asarray(audited, dtype=bool)
+
+    # S_hat_i = S_i * exp(nu_i), nu_i ~ N(0, sigma_aud**2), key (seed_env, "auditnoise", t, i).
+    # Drawn unconditionally (WO-007 notes): at sigma_aud = 0 the draw is exactly 0.
+    nu = draw(
+        state.seed_env,
+        "auditnoise",
+        t,
+        shape=stock.shape,
+        dist="normal",
+        mean=0.0,
+        sigma=sigma_aud,
+    )
+    s_hat = stock * np.exp(nu)
+
+    if inc.penalty_arg == "positive_part":
+        f = np.maximum(0.0, report - s_hat) / target
+    elif inc.penalty_arg == "absolute":
+        f = np.abs(report - s_hat) / target
+    else:
+        raise ValueError(f"incentive.penalty_arg: unknown value {inc.penalty_arg!r}")
+
+    if inc.penalty_form == "proportional":
+        pen = inc.penalty_scale * f
+    elif inc.penalty_form == "fixed":
+        pen = inc.penalty_scale * (f > 0.0).astype(float)
+    else:
+        raise ValueError(f"incentive.penalty_form: unknown value {inc.penalty_form!r}")
+
+    # penalty_i = 1[audited_i] * Pen_i
+    return np.where(audited, pen, 0.0)

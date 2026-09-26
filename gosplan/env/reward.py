@@ -77,9 +77,12 @@ declaration, which `tests/unit/test_spec_imports.py` enforces. They are imported
 
 from __future__ import annotations
 
+import dataclasses
 from typing import TYPE_CHECKING, Optional
 
 import numpy as np
+
+from gosplan.env.planner import fulfilment_measure, make_planner_view
 
 if TYPE_CHECKING:  # pragma: no cover - types only; see the binding note in the module docstring
     from gosplan.config import EnvConfig, Phase
@@ -89,6 +92,20 @@ Array = np.ndarray
 """Alias for every numeric array in this module (PLAN section 10), mirroring `spec.spec.Array`. The
 Phase-2 JAX port (WO-029) substitutes its own array type behind the same name, so no signature here
 may depend on a numpy-only method."""
+
+_RHO_REF = 1.1
+# `rho_ref` of PLAN section 2.9.1: `scale = 1 / B_cfg(rho_ref = 1.1)`.
+
+
+def _qbar(state: State, cfg: EnvConfig) -> Array:
+    """Period-average quality `qbar_i` (PLAN section 2.9.3; P2 revision R5).
+
+    `quality_acc / M` when `cfg.supply.quality_matters` is on, and exactly 1 otherwise (Phase 1),
+    through the single definition `gosplan.env.production.period_quality`.
+    """
+    from gosplan.env.production import period_quality
+
+    return period_quality(state.quality_acc, cfg)
 
 
 def bonus(rho: Array, cfg: EnvConfig) -> Array:
@@ -136,7 +153,29 @@ def bonus(rho: Array, cfg: EnvConfig) -> Array:
     discontinuous at `rho = 1` if and only if `w = 0`; continuous with continuous derivative if and
     only if `w > 0` and `rho_cap = inf`. Owning WO: **WO-007**.
     """
-    raise NotImplementedError("PLAN section 2.8 - implemented in WO-007")
+    inc = cfg.incentive
+    beta = inc.notch_height
+    w = inc.notch_width
+    slope = inc.overfulfilment_slope
+    rho_cap = inc.overfulfilment_cap
+    x = np.asarray(rho, dtype=float) - 1.0
+
+    if w == 0:
+        lam = (x >= 0.0).astype(float)  # strict >=, a true Heaviside
+    else:
+        with np.errstate(over="ignore"):
+            lam = 1.0 / (1.0 + np.exp(-x / w))
+
+    if np.isinf(rho_cap) and w > 0:
+        # Smooth counterfactual arm: the slope term is smoothed at the notch's own width, so the
+        # arm has no kink anywhere (PLAN section 2.8, T-U3). LEAD ruling AMBIGUITY-006.
+        over = w * np.logaddexp(0.0, x / w)
+    elif np.isinf(rho_cap):
+        over = np.maximum(x, 0.0)  # no cap: not clipped from above
+    else:
+        over = np.clip(x, 0.0, rho_cap - 1.0)
+
+    return beta * lam + slope * over
 
 
 def reward_scale(cfg: EnvConfig) -> float:
@@ -167,7 +206,14 @@ def reward_scale(cfg: EnvConfig) -> float:
     floating-point tolerance, for every configuration in the test matrix, including the notched,
     smooth-counterfactual and kink-only arms of PLAN section 2.8. Owning WO: **WO-007**.
     """
-    raise NotImplementedError("PLAN section 2.9.1 - implemented in WO-007")
+    b_ref = float(np.asarray(bonus(np.array([_RHO_REF]), cfg))[0])
+    if b_ref == 0.0:
+        raise ValueError(
+            "reward_scale: B_cfg(1.1) = 0, so the scale 1 / B_cfg(1.1) is undefined "
+            f"(incentive.notch_height = {cfg.incentive.notch_height}, "
+            f"incentive.overfulfilment_slope = {cfg.incentive.overfulfilment_slope})"
+        )
+    return 1.0 / b_ref
 
 
 def enterprise_reward(
@@ -195,7 +241,10 @@ def enterprise_reward(
 
     with `trade_surplus == 0` throughout Phase 1, `penalty_i = 1[audited_i] * Pen_i` already gated
     by `audit_and_penalise`, and `rho_i = m_i / T_i` where `m_i` is the fulfilment measure of PLAN
-    section 2.9.2 computed by `gosplan.env.planner.fulfilment_measure` from the planner's view.
+    section 2.9.2 computed by `gosplan.env.planner.fulfilment_measure` from the planner's view
+    with its claims replaced by the enterprise's own `R_i` (P2 revision R10.3: the bonus uses the
+    enterprise's own claim, never the lagged, forwarded or noised one). `trade_surplus` is the
+    period's accumulated `State.trade_surplus_acc` (P2 revision R9.5), in ratio units.
 
     THESE ARE THE ONLY TERMS. CONTRACT rule 4 forbids per-step shaping, auxiliary rewards, curiosity
     terms, potential-based terms and running reward normalisation. Concretely, none of the following
@@ -217,7 +266,32 @@ def enterprise_reward(
     five-term formula on random states and must agree exactly - and the T-U2 / T-U3 scale and
     monotonicity tests through `bonus` and `reward_scale`. Owning WO: **WO-007**.
     """
-    raise NotImplementedError("PLAN section 2.9.1 - implemented in WO-007")
+    scale = reward_scale(cfg)
+    if phase == "produce":
+        if cost is None:
+            raise ValueError("enterprise_reward: `cost` is required at a PRODUCE step")
+        return -scale * np.asarray(cost, dtype=float)
+    if phase == "report":
+        if penalty is None or trade_surplus is None:
+            raise ValueError(
+                "enterprise_reward: `penalty` and `trade_surplus` are required at the REPORT step"
+            )
+        # The bonus keys on the enterprise's OWN claim (P2 revision R10.3; as the reference
+        # implementation): lag, ministry forwarding and channel noise change what the planner is
+        # told, not what the enterprise is paid on. In Phase 1 the view's claims equal
+        # `last_report` exactly, so this is the identity there.
+        view = dataclasses.replace(
+            make_planner_view(state, cfg), claims=np.asarray(state.last_report, dtype=float)
+        )
+        rho = np.asarray(fulfilment_measure(view, cfg), dtype=float) / np.asarray(
+            state.target, dtype=float
+        )
+        return scale * (
+            np.asarray(bonus(rho, cfg))
+            - np.asarray(penalty, dtype=float)
+            + np.asarray(trade_surplus, dtype=float)
+        )
+    raise ValueError(f"enterprise_reward: unknown phase {phase!r}")
 
 
 def val_measured(state: State, cfg: EnvConfig) -> float:
@@ -238,7 +312,10 @@ def val_measured(state: State, cfg: EnvConfig) -> float:
     observation" list. It is one half of `padding_index = val_measured / val_true` (PLAN section
     2.9.4) and it is the numerator of the first term of `specification_gap`. Owning WO: **WO-007**.
     """
-    raise NotImplementedError("PLAN section 2.9.3 - implemented in WO-007")
+    prices = np.asarray(state.plan_prices, dtype=float)[np.asarray(cfg.supply.sector_of)]
+    mu = cfg.information.quality_measurability
+    q_hat = 1.0 + mu * (_qbar(state, cfg) - 1.0)
+    return float(np.sum(prices * np.asarray(state.last_report, dtype=float) * q_hat))
 
 
 def val_true(state: State, cfg: EnvConfig) -> float:
@@ -257,7 +334,8 @@ def val_true(state: State, cfg: EnvConfig) -> float:
     `val_measured / val_true` is the `padding_index` of PLAN section 2.9.4 and is at least 1
     whenever output is fictitious. Owning WO: **WO-007**.
     """
-    raise NotImplementedError("PLAN section 2.9.3 - implemented in WO-007")
+    prices = np.asarray(state.plan_prices, dtype=float)[np.asarray(cfg.supply.sector_of)]
+    return float(np.sum(prices * np.asarray(state.cum_output, dtype=float) * _qbar(state, cfg)))
 
 
 def welfare_true(consumer: Array, cfg: EnvConfig) -> float:
@@ -288,7 +366,18 @@ def welfare_true(consumer: Array, cfg: EnvConfig) -> float:
     expected-value MIP oracle of PLAN section 6.2; Phase 1 uses `W_truthful_max` as a clearly
     labelled placeholder denominator. Owning WO: **WO-007**.
     """
-    raise NotImplementedError("PLAN section 2.9.3 - implemented in WO-007")
+    alpha = np.asarray(cfg.supply.ces_alpha, dtype=float)
+    sigma_c = cfg.supply.ces_sigma
+    c = np.asarray(consumer, dtype=float)
+    if sigma_c == 1.0:
+        # the sigma_c -> 1 limit, Cobb-Douglas, as an explicit branch
+        return float(np.prod(c**alpha))
+    rho_ces = (sigma_c - 1.0) / sigma_c
+    # At rho_ces < 0 a zero receipt gives 0**rho_ces = inf, the sum is inf and inf**(1/rho_ces)
+    # is exactly 0: the formula's own value, evaluated without a warning.
+    with np.errstate(divide="ignore"):
+        total = np.sum(alpha * c**rho_ces)
+        return float(total ** (1.0 / rho_ces))
 
 
 def padding_index(val_measured_window: Array, val_true_window: Array) -> float:
@@ -323,7 +412,7 @@ def padding_index(val_measured_window: Array, val_true_window: Array) -> float:
     Binds: `tests/unit/test_reward.py` - the index is exactly 1 on a truthful trajectory, and
     exceeds 1 whenever any claim exceeds the corresponding true output. Owning WO: **WO-007**.
     """
-    raise NotImplementedError("PLAN section 2.9.4 - implemented in WO-007")
+    return float(np.mean(val_measured_window)) / float(np.mean(val_true_window))
 
 
 def welfare_ratio(welfare_window: Array, welfare_oracle: float) -> float:
@@ -351,7 +440,9 @@ def welfare_ratio(welfare_window: Array, welfare_oracle: float) -> float:
     the `sigma_c -> 1` branch of `welfare_true` propagates through unchanged) and the Phase-1 gate
     reporting of PLAN section 4.5. Owning WO: **WO-007**.
     """
-    raise NotImplementedError("PLAN section 2.9.4 - implemented in WO-007")
+    if welfare_oracle <= 0:
+        raise ValueError(f"welfare_ratio: welfare_oracle must be > 0 (got {welfare_oracle})")
+    return float(np.mean(welfare_window)) / float(welfare_oracle)
 
 
 def specification_gap(
@@ -390,4 +481,9 @@ def specification_gap(
     strictly positive when claims are padded while deliveries are unchanged - and the
     price-sensitivity table of PLAN section 7.5. Owning WO: **WO-007**.
     """
-    raise NotImplementedError("PLAN section 2.9.4 - implemented in WO-007")
+    if val_oracle <= 0:
+        raise ValueError(f"specification_gap: val_oracle must be > 0 (got {val_oracle})")
+    if welfare_oracle <= 0:
+        raise ValueError(f"specification_gap: welfare_oracle must be > 0 (got {welfare_oracle})")
+    measured = float(np.mean(val_measured_window)) / float(val_oracle)
+    return measured - welfare_ratio(welfare_window, welfare_oracle)

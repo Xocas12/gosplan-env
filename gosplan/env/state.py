@@ -117,6 +117,14 @@ class State:
     seed_env: int  # root environment seed; every draw is keyed from it (section 2.15)
     seed_policy: int  # root policy seed, kept separate from seed_env (CONTRACT rule 9)
 
+    # Phase-2 fields (P2 revision, spec 2.0.0). They default to `None` so a `State` built by hand
+    # for a Phase-1 test stays valid; `gosplan.env.state.ensure_p2_fields` fills them with their
+    # opening values (those of `initial_state`) the first time the step machine sees the state.
+    claim_history: Array | None = None  # (N, 2) claims forwarded to the planner 1, 2 periods ago
+    pending_deliv: Array | None = None  # (N, J, M) deliveries waiting for a later step
+    trade_surplus_acc: Array | None = None  # (N,) trade surplus accrued this period
+    ministry_prev: Array | None = None  # (N,) each ministry's previous forward for i
+
 
 @dataclass
 class EnterpriseAction:
@@ -196,7 +204,9 @@ def initial_targets(cfg: EnvConfig) -> Array:
     Binds: `tests/unit/test_obs.py` (observation field 2 is 0 at reset), test T-U4 (the target
     floor is respected). Owning WO: **WO-009**.
     """
-    raise NotImplementedError("PLAN sections 2.7.1, 3 - implemented in WO-009")
+    sector = np.asarray(cfg.supply.sector_of, dtype=int)
+    productivity = np.asarray(cfg.supply.productivity, dtype=float)[sector]
+    return cfg.tech.initial_target_frac * productivity * INITIAL_CAPACITY
 
 
 def initial_state(cfg: EnvConfig) -> State:
@@ -220,6 +230,10 @@ def initial_state(cfg: EnvConfig) -> State:
                            `fill = 1` when the claim is zero, so 1 is the consistent opening value
         request            zeros                                             (N, J)
         pending_invest     zeros                                             (N, L)
+        claim_history      T_0 in both columns (P2 revision R2)                (N, 2)
+        pending_deliv      zeros (P2 revision R6)                              (N, J, M)
+        trade_surplus_acc  zeros (P2 revision R9)                              (N,)
+        ministry_prev      T_0 (P2 revision R10)                               (N,)
         t_period           0
         k_step             0
         phase              "produce"
@@ -244,7 +258,63 @@ def initial_state(cfg: EnvConfig) -> State:
     and `tests/golden/*` (T-B7 - the opening state must match `ref/ref_step.py` to 1e-9). Owning
     WO: **WO-009**.
     """
-    raise NotImplementedError("PLAN section 2.2 - implemented in WO-009")
+    from gosplan.env.prices import initial_prices
+
+    n, j = cfg.supply.n_enterprises, cfg.supply.n_sectors
+    lag = cfg.supply.invest_lag
+    target = initial_targets(cfg)
+    a_rows = np.asarray(cfg.supply.io_matrix, dtype=float)[np.asarray(cfg.supply.sector_of)]
+    return State(
+        target=target,
+        capital=np.full(n, INITIAL_CAPACITY),
+        inv_output=np.zeros(n),
+        # Opening input endowment X_ij = a_{s(i)j} * T_0_i (ambiguity #62, CHANGELOG 0.1.4).
+        inv_inputs=a_rows * target[:, None],
+        cum_output=np.zeros(n),
+        cum_cost=np.zeros(n),
+        quality_acc=np.zeros(n),
+        last_report_ratio=np.zeros(n),
+        last_report=np.zeros(n),
+        last_audited=np.zeros(n, dtype=bool),
+        last_penalty=np.zeros(n),
+        last_fill=np.ones(n),
+        request=np.zeros((n, j)),
+        pending_invest=np.zeros((n, lag)),
+        claim_history=np.repeat(target[:, None], 2, axis=1),  # P2 R2: lagged claims start on plan
+        pending_deliv=np.zeros((n, j, cfg.incentive.steps_per_period)),
+        trade_surplus_acc=np.zeros(n),
+        ministry_prev=target.copy(),  # P2 R10: a ministry's first "previous forward" is T_0
+        t_period=0,
+        k_step=0,
+        phase="produce",
+        plan_prices=np.array(initial_prices(cfg), dtype=float),
+        planner_io=np.array(cfg.supply.io_matrix, dtype=float),
+        consumer_delivery=np.zeros(j),
+        alive=True,
+        seed_env=int(cfg.tech.seed_env),
+        seed_policy=int(cfg.tech.seed_policy),
+    )
+
+
+def ensure_p2_fields(state: State, cfg: EnvConfig) -> State:
+    """Fill any Phase-2 field left `None` with its opening value (P2 revision, spec 2.0.0).
+
+    Takes: `state` and `cfg`. Returns: the same `state`, mutated in place where needed. The
+    opening values are those `initial_state` uses: `claim_history` and `ministry_prev` start at
+    the current targets (on-plan claims), `pending_deliv` and `trade_surplus_acc` at zero. A state
+    from `initial_state` passes through unchanged.
+    """
+    n, j = cfg.supply.n_enterprises, cfg.supply.n_sectors
+    target = np.asarray(state.target, dtype=float)
+    if state.claim_history is None:
+        state.claim_history = np.repeat(target[:, None], 2, axis=1)
+    if state.pending_deliv is None:
+        state.pending_deliv = np.zeros((n, j, cfg.incentive.steps_per_period))
+    if state.trade_surplus_acc is None:
+        state.trade_surplus_acc = np.zeros(n)
+    if state.ministry_prev is None:
+        state.ministry_prev = target.copy()
+    return state
 
 
 def reset_period_accumulators(state: State) -> State:
@@ -266,7 +336,11 @@ def reset_period_accumulators(state: State) -> State:
     Binds: test T-U1 (`tests/unit/test_conservation.py`) - the conservation identity is stated per
     period, so an accumulator not zeroed at exactly this boundary breaks it. Owning WO: **WO-009**.
     """
-    raise NotImplementedError("PLAN sections 2.2, 2.5 - implemented in WO-009")
+    state.cum_output = np.zeros_like(np.asarray(state.cum_output, dtype=float))
+    state.cum_cost = np.zeros_like(np.asarray(state.cum_cost, dtype=float))
+    state.quality_acc = np.zeros_like(np.asarray(state.quality_acc, dtype=float))
+    state.consumer_delivery = np.zeros_like(np.asarray(state.consumer_delivery, dtype=float))
+    return state
 
 
 def advance_phase(state: State, cfg: EnvConfig) -> State:
@@ -291,4 +365,14 @@ def advance_phase(state: State, cfg: EnvConfig) -> State:
     agent-steps, and the phase sequence within a period is `M` times "produce" then "report") and
     `tests/golden/*` (T-B7). Owning WO: **WO-009**.
     """
-    raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+    m = cfg.incentive.steps_per_period
+    if state.phase == "report":
+        state.t_period += 1
+        state.k_step = 0
+        state.phase = "produce"
+    elif state.k_step < m - 1:
+        state.k_step += 1
+    else:
+        state.k_step = m
+        state.phase = "report"
+    return state

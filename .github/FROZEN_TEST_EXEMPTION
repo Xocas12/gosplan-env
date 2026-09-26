@@ -1,0 +1,20 @@
+# LEAD fix (AMBIGUITY-005): test_ledger fixture put the penalty_arg config string into the
+# float StepRecord.penalty_arg column. Remove this entry once the change has landed on main.
+tests/unit/test_ledger.py
+tests/unit/test_reward.py
+tests/behavioural/test_no_hardcoded_pathology.py
+tests/behavioural/test_shortage_propagation.py
+tests/unit/test_dp.py
+tests/unit/test_regime_map_runs.py
+tests/unit/test_phenomena_p1.py
+tests/unit/test_train_smoke.py
+tests/behavioural/test_audit_seeding.py
+tests/unit/test_ppo_adapter.py
+tests/unit/test_spec_imports.py
+tests/golden/test_golden_parity.py
+tests/unit/test_oracle.py
+tests/unit/test_llm_ministry.py
+tests/unit/test_phenomena_p2.py
+tests/unit/test_p2_mechanisms.py
+tests/unit/test_phase2_acceptance.py
+tests/unit/test_jax_parity.py

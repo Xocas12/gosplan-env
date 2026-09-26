@@ -202,7 +202,87 @@ def estimate(
     estimator recovers it within 5%, recovers the hole mass likewise, produces a bootstrap SE, and
     has a signature identical to `forensics_core.bunching.estimate`. Owning WO: **WO-016**.
     """
-    raise NotImplementedError("PLAN section 7.3 - implemented in WO-016")
+    # AMBIGUITY-011 resolution (LEAD, under the owner's delegation): `x` is either a sequence of
+    # per-seed arrays - the resampling unit is then the seed, as PLAN section 4.5 requires, and
+    # every gate harness passes it that way - or a single array, in which case the grouping is
+    # unknown and each report is its own unit (documented, never silently promoted to seeds).
+    # Percentile bootstrap, `_BOOTSTRAP_REPLICATES` replicates, level `_BOOTSTRAP_LEVEL`, a
+    # generator keyed on `_BOOTSTRAP_SEED`; all three are recorded in `bunching_settings`.
+    from numpy.polynomial import Polynomial
+
+    from gosplan.metrics.phenomena import (
+        BUNCHING_EXCESS_HI,
+        BUNCHING_EXCESS_LO,
+        BUNCHING_HOLE_HI,
+        BUNCHING_HOLE_LO,
+    )
+
+    if isinstance(x, (list, tuple)):
+        groups = [np.asarray(g, dtype=float).ravel() for g in x]
+    else:
+        groups = None
+    sample = np.concatenate(groups) if groups is not None else np.asarray(x, dtype=float).ravel()
+    n_bins = round((window_hi - window_lo) / bin_width)
+    edges = np.linspace(window_lo, window_hi, n_bins + 1)
+    centres = 0.5 * (edges[:-1] + edges[1:])
+    keep = ~((centres >= excl_lo) & (centres <= excl_hi))
+    # Bins assigned by centre; density = mean counterfactual COUNT PER BIN in the window.
+    excess = (centres >= BUNCHING_EXCESS_LO) & (centres <= BUNCHING_EXCESS_HI)
+    hole = (centres >= BUNCHING_HOLE_LO) & (centres < BUNCHING_HOLE_HI)
+
+    def masses(counts: np.ndarray) -> tuple[float, float, np.ndarray]:
+        cf = Polynomial.fit(centres[keep], counts[keep], degree)(centres)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            b = (counts[excess].sum() - cf[excess].sum()) / cf[excess].mean()
+            h = (cf[hole].sum() - counts[hole].sum()) / cf[hole].mean()  # missing mass
+        return float(b), float(h), cf
+
+    observed, _ = np.histogram(sample, bins=edges)
+    excess_mass, hole_mass, counterfactual = masses(observed.astype(float))
+
+    rng = np.random.default_rng(_BOOTSTRAP_SEED)
+    replicates = np.empty(_BOOTSTRAP_REPLICATES)
+    if groups is not None:
+        per_group = np.array([np.histogram(g, bins=edges)[0] for g in groups], dtype=float)
+        for r in range(_BOOTSTRAP_REPLICATES):
+            pick = rng.integers(0, len(groups), len(groups))
+            replicates[r] = masses(per_group[pick].sum(axis=0))[0]
+    else:
+        # Report-level resampling of an ungrouped sample, drawn exactly as a multinomial over
+        # the window's bins plus one "outside the window" cell.
+        n_total = sample.size
+        outside = n_total - observed.sum()
+        probs = np.append(observed, outside) / max(n_total, 1)
+        for r in range(_BOOTSTRAP_REPLICATES):
+            replicates[r] = masses(rng.multinomial(n_total, probs)[:-1].astype(float))[0]
+    finite = replicates[np.isfinite(replicates)]
+    alpha = 0.5 * (1.0 - _BOOTSTRAP_LEVEL)
+    if finite.size:
+        se = float(np.std(finite, ddof=1)) if finite.size > 1 else 0.0
+        ci_lo, ci_hi = (float(v) for v in np.quantile(finite, [alpha, 1.0 - alpha]))
+    else:
+        se = ci_lo = ci_hi = float("nan")
+    return BunchingResult(
+        excess_mass=excess_mass,
+        hole_mass=hole_mass,
+        se=se,
+        ci_lo=ci_lo,
+        ci_hi=ci_hi,
+        n_obs=int(sample.size),
+        bin_edges=edges,
+        observed_counts=observed,
+        counterfactual_counts=counterfactual,
+    )
+
+
+_BOOTSTRAP_REPLICATES = 1000
+"""Bootstrap replicates for `se` and the interval (AMBIGUITY-011 resolution)."""
+
+_BOOTSTRAP_LEVEL = 0.95
+"""Two-sided level of the percentile interval (AMBIGUITY-011 resolution)."""
+
+_BOOTSTRAP_SEED = 0
+"""Seed of the bootstrap generator, fixed so an interval is reproducible from the data alone."""
 
 
 def ledger_test(
@@ -234,8 +314,47 @@ def ledger_test(
     Binds: `tests/unit/test_phenomena_p1.py` - signature identity with
     `forensics_core.reconciliation.ledger_test`. No Phase-1 behavioural test binds it, because row 7
     is held out. Owning WO: **WO-016** (surface), **WO-030** (its first use).
+
+    Definition (spec/P2_REVISION.md R13.6). `io_matrix` may be the per-enterprise rows
+    `a_{s(i), :}` `(N, J)` and `prices` the per-enterprise `p_{s(i)}` `(N,)`, which is how row 7
+    calls it. `implied_i = min_{j: a_ij > 0} received_ij / a_ij` is the output the receipts support
+    under Leontief; rows with an all-zero `a` row are dropped; `residual_i = price_i (reported_i -
+    implied_i)`; the statistic is the t-statistic of the mean residual with a one-sided normal
+    p-value (claims exceeding what receipts support).
     """
-    raise NotImplementedError("PLAN section 7.3 - implemented in WO-016")
+    import math
+
+    reported = np.asarray(reported_supply, dtype=float).reshape(-1)
+    received = np.asarray(received_inputs, dtype=float)
+    n = reported.shape[0]
+    a = np.asarray(io_matrix, dtype=float)
+    if a.shape[0] != n:
+        raise ValueError(
+            f"ledger_test: io_matrix must be the per-row input coefficients ({n}, J), got {a.shape}"
+        )
+    price = np.broadcast_to(np.asarray(prices, dtype=float).reshape(-1), (n,))
+    implied = np.full(n, np.inf)
+    for i in range(n):
+        mask = a[i] > 0
+        if mask.any():
+            implied[i] = float(np.min(received[i, mask] / a[i, mask]))
+    keep = np.isfinite(implied)
+    residuals = np.full(n, np.nan)
+    residuals[keep] = price[keep] * (reported[keep] - implied[keep])
+    r = residuals[keep]
+    n_obs = int(r.size)
+    if n_obs < 2:
+        return ReconResult(float("nan"), float("nan"), residuals, n_obs)
+    mean, sd = float(r.mean()), float(r.std(ddof=1))
+    if sd == 0.0:
+        if mean == 0.0:
+            return ReconResult(0.0, 0.5, residuals, n_obs)
+        return ReconResult(
+            math.copysign(math.inf, mean), 0.0 if mean > 0 else 1.0, residuals, n_obs
+        )
+    stat = mean / (sd / math.sqrt(n_obs))
+    p = 0.5 * math.erfc(stat / math.sqrt(2.0))
+    return ReconResult(float(stat), float(p), residuals, n_obs)
 
 
 def cross_section(values: Array, groups: Array) -> DispersionResult:
@@ -256,5 +375,21 @@ def cross_section(values: Array, groups: Array) -> DispersionResult:
     Binds: `tests/unit/test_phenomena_p1.py` - signature identity with
     `forensics_core.dispersion.cross_section`. Its consumer (row 5, hoarding) is **held out** until
     the Phase-2 acceptance run. Owning WO: **WO-016** (surface), **WO-030** (its first use).
+
+    Definition (spec/P2_REVISION.md R13.7): the Kruskal-Wallis H test of equal distributions across
+    groups; `group_stats` are group means in order of first appearance; with fewer than two groups
+    or all values identical, `statistic = 0` and `p_value = 1`.
     """
-    raise NotImplementedError("PLAN section 7.3 - implemented in WO-016")
+    from scipy import stats
+
+    v = np.asarray(values, dtype=float).reshape(-1)
+    g = np.asarray(groups).reshape(-1)
+    if v.shape != g.shape:
+        raise ValueError("cross_section: values and groups must have the same length")
+    order = list(dict.fromkeys(g.tolist()))
+    samples = [v[g == label] for label in order]
+    means = np.array([float(x.mean()) for x in samples])
+    if len(order) < 2 or np.all(v == v[0]):
+        return DispersionResult(0.0, 1.0, means, len(order), int(v.size))
+    h, p = stats.kruskal(*samples)
+    return DispersionResult(float(h), float(p), means, len(order), int(v.size))

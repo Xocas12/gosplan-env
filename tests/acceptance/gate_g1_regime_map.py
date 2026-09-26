@@ -84,7 +84,41 @@ def main() -> int:
     Owning WO: none - this is a lead-run gate harness (CONTRACT rule 13); the experiment it drives
     is implemented in **WO-015** on the DP of **WO-014**.
     """
-    raise NotImplementedError("PLAN section 13 (gate G1) - lead-run; experiment in WO-015")
+    from pathlib import Path
+
+    from gosplan.config import p1_default_config
+    from gosplan.experiments import regime_map
+
+    decision = Path("runs/G1_decision.md")
+    if not decision.exists():
+        result = regime_map.run(p1_default_config())
+        print(f"regime map: {result['n_points']} points, regimes {result['regime_counts']}")
+        print(f"interior candidates: {len(result['candidates'])}; see {result['artefacts']}")
+        print("STOP: the selection is the human's. Record it in runs/G1_decision.md, then re-run.")
+        return 0
+
+    text = decision.read_text(encoding="utf-8")
+    required = (
+        "ratchet_lambda",
+        "growth_directive",
+        "overfulfilment_slope",
+        "penalty_scale",
+        "effort_cost",
+        "audit_rate",
+        "a*pen",
+        "b_hat_DP",
+    )
+    missing = [name for name in required if name not in text]
+    hashes = Path(regime_map.CANDIDATES_PATH).read_text(encoding="utf-8")
+    cited = [line for line in text.splitlines() if "config_hash" in line]
+    unmatched = [line for line in cited if not any(tok in hashes for tok in line.split("`"))]
+    training = [
+        p for p in Path("runs").rglob("*") if p.is_dir() and p.name in {"train", "checkpoints"}
+    ]
+    print(f"G1 decision: missing fields {missing or 'none'}")
+    print(f"cited config hashes not in the candidate list: {unmatched or 'none'}")
+    print(f"training artefacts present before G1 (must be none): {training or 'none'}")
+    return 0
 
 
 if __name__ == "__main__":

@@ -69,6 +69,38 @@ prices and under these three. A sign change in `specification_gap` across them i
 suppressed."""
 
 
+def _solve_cost_plus(io: Array, markup: float) -> Array:
+    """Solve `p = (1 + m) * (kappa_labour * 1 + a @ p)` directly (PLAN section 2.10).
+
+    `(I - (1 + m) * a) p = (1 + m) * kappa_labour * 1`. Raises `ValueError` when a row violates the
+    convergence condition `(1 + m) * sum_k a_jk < 1`, rather than returning a diverged vector.
+    """
+    a = np.asarray(io, dtype=float)
+    factor = 1.0 + markup
+    row_sums = factor * a.sum(axis=1)
+    if np.any(row_sums >= 1.0):
+        bad = [int(j) for j in np.flatnonzero(row_sums >= 1.0)]
+        raise ValueError(
+            "cost-plus fixed point does not converge: (1 + m) * sum_k a_jk >= 1 in row(s) "
+            f"{bad} (m = {markup})"
+        )
+    # Plain iteration from p = kappa_labour * (1 + m) until the largest coordinate change is below
+    # 1e-12, summed left to right exactly as ref_initial_prices does, so the prices agree bit for
+    # bit with the reference (the golden state digests compare them exactly).
+    n = a.shape[0]
+    rows = [[float(v) for v in a[j]] for j in range(n)]
+    prices = [LABOUR_COST * factor for _ in range(n)]
+    for _ in range(100000):
+        nxt = [
+            factor * (LABOUR_COST + sum(rows[j][k] * prices[k] for k in range(n))) for j in range(n)
+        ]
+        delta = max(abs(nxt[j] - prices[j]) for j in range(n))
+        prices = nxt
+        if delta < 1e-12:
+            break
+    return np.array(prices, dtype=float)
+
+
 def initial_prices(cfg: EnvConfig) -> Array:
     """Solve the cost-plus plan-price fixed point at `t = 0` (PLAN section 2.10).
 
@@ -104,7 +136,7 @@ def initial_prices(cfg: EnvConfig) -> Array:
     Binds: `tests/unit/test_prices.py` (the WO-007 must-pass list) - the fixed point converges and
     every price is strictly positive. Owning WO: **WO-007**.
     """
-    raise NotImplementedError("PLAN section 2.10 - implemented in WO-007")
+    return _solve_cost_plus(cfg.supply.io_matrix, cfg.supply.price_markup)
 
 
 def recompute_prices(planner_io: Array, cfg: EnvConfig) -> Array:
@@ -134,7 +166,7 @@ def recompute_prices(planner_io: Array, cfg: EnvConfig) -> Array:
     equals `cfg.supply.io_matrix`, which is the Phase-1 state at every `t`. Owning WO: **WO-007**
     (solver), Phase-2 activation with WO-022/WO-023.
     """
-    raise NotImplementedError("PLAN section 2.10 - implemented in WO-007")
+    return _solve_cost_plus(planner_io, cfg.supply.price_markup)
 
 
 def perturbed_price_vectors(prices: Array, seeds: tuple[int, ...]) -> tuple[Array, ...]:
@@ -177,4 +209,24 @@ def perturbed_price_vectors(prices: Array, seeds: tuple[int, ...]) -> tuple[Arra
     the vectors differ from the baseline and from each other. Owning WO: **WO-007** (helper),
     **WO-036** (the tables it feeds).
     """
-    raise NotImplementedError("PLAN sections 2.9.4, 7.5 - implemented in WO-007")
+    from gosplan.rng import draw
+
+    # Resolution (i), recorded in spec/CHANGELOG.md 2.0.0: purpose "pricepert", keyed by each seed.
+    base = np.asarray(prices, dtype=float)
+    return tuple(
+        base
+        * np.exp(
+            np.asarray(
+                draw(
+                    int(seed),
+                    "pricepert",
+                    shape=base.shape,
+                    dist="normal",
+                    mean=0.0,
+                    sigma=PRICE_PERTURBATION_SIGMA,
+                ),
+                dtype=float,
+            )
+        )
+        for seed in seeds
+    )

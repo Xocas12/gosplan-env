@@ -54,14 +54,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+import numpy as np
+
 from gosplan.agents.base import Array, Phase
+from gosplan.env.env import action_spec, active_action_dims
+from gosplan.env.state import EnterpriseAction
 
 if TYPE_CHECKING:  # runtime homes: WO-003 (config) and WO-009 (state), PLAN section 8
-    import numpy as np
-
     from gosplan.agents.dp import DPSolution
     from gosplan.config import EnvConfig
-    from gosplan.env.state import EnterpriseAction
 
 REQUEST_MULTIPLE_NEED = 1.0
 """The `input_request` value that means "request exactly `need_ij`" (PLAN sections 2.3, 6.1). The
@@ -78,6 +79,31 @@ PADDER_REPORT_RATIO = 1.0
 """The constant report ratio of `Padder` (PLAN section 6.1: "rho = 1 always"), i.e. it claims
 exactly its target every period whatever its stock. This is what makes it the fixed point probe of
 test T-B2 and the shortage-channel probe of test T-B3."""
+
+_PHASE_DIMS: dict[str, tuple[str, ...]] = {
+    "produce": ("effort", "quality", "invest"),
+    "report": ("report_ratio", "input_request"),
+}
+# Dimensions the environment reads at each phase (`EnterpriseAction`, gosplan/env/state.py).
+
+
+def _zero_action(cfg: EnvConfig) -> EnterpriseAction:
+    """An all-zero joint action with the shapes of PLAN section 2.3.
+
+    Quality is the one exception: with `quality_matters` on, the fixed heuristics play the
+    non-degrading level `quality = 1` (spec/P2_REVISION.md R13.8), so the truthful reference line
+    carries no quality slack. `Random` overwrites it with its own draw. Phase 1 is unchanged (0).
+    """
+    n = cfg.supply.n_enterprises
+    j = cfg.supply.n_sectors
+    return EnterpriseAction(
+        effort=np.zeros(n),
+        quality=np.ones(n) if cfg.supply.quality_matters else np.zeros(n),
+        invest=np.zeros(n),
+        report_ratio=np.zeros(n),
+        input_request=np.zeros((n, j)),
+        trade_offer=np.zeros((n, j)),
+    )
 
 
 @dataclass
@@ -115,14 +141,23 @@ class Random:
         `gosplan.rng.draw`, which belongs to the environment's `seed_env` stream. Owning WO:
         **WO-010**.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-010")
+        spec = action_spec(self.cfg)
+        drawn = {}
+        for name in active_action_dims(self.cfg):  # one draw per dimension, PLAN sec. 2.3 order
+            shape, lo, hi = spec[name]
+            drawn[name] = rng.uniform(lo, hi, size=shape)
+        action = _zero_action(self.cfg)
+        for name in _PHASE_DIMS[phase]:
+            if name in drawn:
+                setattr(action, name, drawn[name])
+        return action
 
     def reset(self) -> None:
         """No-op: the policy is stateless.
 
         Takes: nothing. Returns: `None`. Owning WO: **WO-010**.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-010")
+        return None
 
 
 @dataclass
@@ -180,14 +215,23 @@ class TruthfulMyopic:
         comparisons of PLAN section 4.1 rows 2 and 5 subtract this agent's trajectory from a
         learned one under the same `seed_env`. Owning WO: **WO-010**.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-010")
+        obs = np.asarray(obs, dtype=float)
+        action = _zero_action(self.cfg)
+        if phase == "produce":
+            action.effort = np.clip(self.cfg.tech.initial_target_frac * np.exp(obs[:, 2]), 0.0, 1.0)
+        else:
+            action.report_ratio = np.clip(
+                _post_report_stock_ratio(obs, self.cfg), 0.0, self.cfg.tech.report_max_ratio
+            )
+            action.input_request[:] = REQUEST_MULTIPLE_NEED
+        return action
 
     def reset(self) -> None:
         """No-op: the policy is stateless.
 
         Takes: nothing. Returns: `None`. Owning WO: **WO-010**.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-010")
+        return None
 
 
 @dataclass
@@ -247,14 +291,20 @@ class Padder:
 
         Owning WO: **WO-010**.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-010")
+        action = _zero_action(self.cfg)
+        if phase == "produce":
+            action.effort[:] = PADDER_EFFORT
+        else:
+            action.report_ratio[:] = PADDER_REPORT_RATIO
+            action.input_request[:] = REQUEST_MULTIPLE_NEED
+        return action
 
     def reset(self) -> None:
         """No-op: the policy is stateless.
 
         Takes: nothing. Returns: `None`. Owning WO: **WO-010**.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-010")
+        return None
 
 
 @dataclass
@@ -311,6 +361,14 @@ class DPGreedy:
     `DPSolution`" of the WO-010 card. Only `policy_effort`, `policy_rho`, `grid` and `config_hash`
     are read; the stationary diagnostics on the solution are for experiments, not for acting."""
 
+    def __post_init__(self) -> None:
+        # WO-010 note 5: check the solution was solved for this configuration before any `act`.
+        if self.solution.config_hash != self.cfg.hash():
+            raise ValueError(
+                "DPGreedy: solution.config_hash "
+                f"{self.solution.config_hash!r} != cfg.hash() {self.cfg.hash()!r}"
+            )
+
     def act(self, obs: Array, phase: Phase, rng: np.random.Generator) -> EnterpriseAction:
         """Look the DP policy up at each enterprise's own `(T_i, S_i)` and return it.
 
@@ -323,7 +381,36 @@ class DPGreedy:
 
         Owning WO: **WO-010**.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-010")
+        # Lead ruling on AMBIGUITY-009: nearest grid point, log-T on the target axis, linear S on
+        # the stock axis, ties to the lower index, clamped at the ends; one DPSolution holds one
+        # grid, so every sector must share the productivity that grid was built for.
+        from gosplan.agents.dp import _nearest_index, _state_grids
+
+        cfg = self.cfg
+        sol = self.solution
+        obs = np.asarray(obs, dtype=float)
+        productivity = np.asarray(cfg.supply.productivity, dtype=float)
+        if not np.all(productivity == productivity[0]):
+            raise ValueError(
+                "DPGreedy: sector productivities differ; one DPSolution holds one (T, S) grid"
+            )
+        a_prod = float(productivity[0])
+        t_grid, s_grid = _state_grids(cfg, sol.grid, a_prod)
+        # T_i = T_0 * exp(obs[:, 2]); S_i = obs[:, 5] * T_i, the stock carried into the period,
+        # which is the DP's state S (PLAN section 5: S' = (1 - h) * S + y is formed after the
+        # decision). Field 5 carries that stock at both PRODUCE and REPORT (AMBIGUITY-008).
+        target = cfg.tech.initial_target_frac * a_prod * np.exp(obs[:, 2])
+        stock = obs[:, 5] * target
+        it = _nearest_index(np.log(t_grid), np.log(target))
+        js = _nearest_index(s_grid, stock)
+        action = _zero_action(cfg)
+        if phase == "produce":
+            action.effort = np.asarray(sol.policy_effort, dtype=float)[it, js]
+        else:
+            rho = np.asarray(sol.policy_rho, dtype=float)[it, js]
+            action.report_ratio = np.clip(rho, 0.0, cfg.tech.report_max_ratio)
+            action.input_request[:] = REQUEST_MULTIPLE_NEED
+        return action
 
     def reset(self) -> None:
         """No-op: the lookup carries no episode state.
@@ -331,12 +418,21 @@ class DPGreedy:
         Takes: nothing. Returns: `None`. The `DPSolution` is run-scoped and is deliberately not
         cleared here. Owning WO: **WO-010**.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-010")
+        return None
+
+
+BERLINER_REPORT_RATIO = 1.0
+"""`Berliner` reports at target, never above (PLAN section 6.1; spec/P2_REVISION.md R13.9)."""
+
+WEITZMAN_MAX_CUT = 0.2
+"""Largest fractional effort cut of `Weitzman`, approached as `lambda -> inf`: effort is
+`e_TM * (1 - WEITZMAN_MAX_CUT * lambda / (1 + lambda))` (spec/P2_REVISION.md R13.9). A readable
+caricature for baselines; the single-enterprise DP is the quantitative ratchet-aware policy."""
 
 
 @dataclass
 class Berliner:
-    """Safety-factor rule: over-produce, report at target, bank the difference. **Phase-2 stub.**
+    """Safety-factor rule: over-produce, report at target, bank the difference.
 
     Rule, verbatim from the PLAN section 6.1 table: *safety-factor rule: aims 5-10% above target,
     reports at target, banks the rest*. Concretely, per enterprise `i`:
@@ -350,8 +446,8 @@ class Berliner:
     which is a **held-out** phenomenon: nothing computed from this agent may be plotted, tabulated
     or tested before the Phase-2 acceptance run (PLAN section 4.1, WO-012 forbidden list).
 
-    Status: interface and rule only. The class exists now so that no type moves later (PLAN section
-    0, finding F14); the body is written by **WO-030** after the Phase-2 spec revision.
+    Status: implemented at WO-030 per spec/P2_REVISION.md R13.9. Requests are need; it never
+    trades.
     """
 
     cfg: EnvConfig
@@ -369,19 +465,27 @@ class Berliner:
         Takes: `obs`, `phase`, `rng` as in the `Agent` protocol. Returns: an `EnterpriseAction` per
         the class docstring. Owning WO: **WO-030**.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-030")
+        obs = np.asarray(obs, dtype=float)
+        action = _zero_action(self.cfg)
+        if phase == "produce":
+            base = self.cfg.tech.initial_target_frac * np.exp(obs[:, 2])
+            action.effort = np.clip((1.0 + self.safety_factor) * base, 0.0, 1.0)
+        else:
+            action.report_ratio[:] = BERLINER_REPORT_RATIO
+            action.input_request[:] = REQUEST_MULTIPLE_NEED
+        return action
 
     def reset(self) -> None:
         """Clear per-episode state.
 
         Takes: nothing. Returns: `None`. Owning WO: **WO-030**.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-030")
+        return None
 
 
 @dataclass
 class Weitzman:
-    """Ratchet-aware effort reduction as a function of `lambda`. **Phase-2 stub.**
+    """Ratchet-aware effort reduction as a function of `lambda`.
 
     Rule, verbatim from the PLAN section 6.1 table: *ratchet-aware effort reduction as a function
     of `lambda`*. The agent anticipates that today's fulfilment raises tomorrow's target through
@@ -389,15 +493,14 @@ class Weitzman:
     -c_dn, c_up)))`) and therefore holds effort below the myopic level that `TruthfulMyopic` uses,
     by an amount increasing in `cfg.incentive.ratchet_lambda` and in `cfg.incentive.tenure`.
 
-    The exact functional form is **not fixed by PLAN section 6.1** and is deliberately left open
-    until the Phase-2 spec revision (PLAN section 0, finding F14). WO-030 must either transcribe
-    the form the revision states or file an AMBIGUITY REPORT (CONTRACT rule 3); inventing a
-    plausible reduction curve here is exactly the failure mode rule 3 exists to prevent. Note also
+    The functional form is fixed by the Phase-2 spec revision (R13.9):
+    `e = e_TM * (1 - WEITZMAN_MAX_CUT * lambda / (1 + lambda))`, report truthful of stock, requests
+    at need. `tenure` is not read. Note also
     that the single-enterprise DP of PLAN section 5 already computes the optimal ratchet-aware
     policy exactly, so this agent is a readable caricature for baselines, never the source of a
     quantitative claim about ratchet effects.
 
-    Status: interface and rule sketch only; body written by **WO-030**.
+    Status: implemented at WO-030 per spec/P2_REVISION.md R13.9.
     """
 
     cfg: EnvConfig
@@ -412,19 +515,31 @@ class Weitzman:
         `cfg.incentive.ratchet_lambda`, per the form frozen at the Phase-2 spec revision. Owning
         WO: **WO-030**.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-030")
+        obs = np.asarray(obs, dtype=float)
+        action = _zero_action(self.cfg)
+        if phase == "produce":
+            lam = self.cfg.incentive.ratchet_lambda
+            cut = WEITZMAN_MAX_CUT * lam / (1.0 + lam)
+            base = np.clip(self.cfg.tech.initial_target_frac * np.exp(obs[:, 2]), 0.0, 1.0)
+            action.effort = base * (1.0 - cut)
+        else:
+            action.report_ratio = np.clip(
+                _post_report_stock_ratio(obs, self.cfg), 0.0, self.cfg.tech.report_max_ratio
+            )
+            action.input_request[:] = REQUEST_MULTIPLE_NEED
+        return action
 
     def reset(self) -> None:
         """Clear per-episode state.
 
         Takes: nothing. Returns: `None`. Owning WO: **WO-030**.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-030")
+        return None
 
 
 @dataclass
 class Kornai:
-    """Request inflation, anticipating a soft budget constraint. **Phase-2 stub.**
+    """Request inflation, anticipating a soft budget constraint.
 
     Rule, verbatim from the PLAN section 6.1 table: *request inflation factor,
     bailout-anticipating*. Concretely, the agent asks for more input than the plan says it needs,
@@ -442,11 +557,11 @@ class Kornai:
     acceptance run, and its inflation factor is an assumption, never evidence that hoarding
     emerged.
 
-    The bailout side of the rule is under-specified until the Phase-2 spec revision fixes what a
-    bailout does (WO-023); until then WO-030 implements the request-inflation half only or files an
-    AMBIGUITY REPORT (CONTRACT rule 3).
+    Per spec/P2_REVISION.md R13.9: effort and report are `TruthfulMyopic`'s; the bailout
+    anticipation is that it keeps full effort under input shortfall and inflates whatever
+    `soft_budget` is, so it differs from `TruthfulMyopic` in its requests only.
 
-    Status: interface and rule sketch only; body written by **WO-030**.
+    Status: implemented at WO-030 per spec/P2_REVISION.md R13.9.
     """
 
     cfg: EnvConfig
@@ -466,17 +581,29 @@ class Kornai:
         whose `input_request` is `request_inflation` per good, with effort and report per the rule
         frozen at the Phase-2 spec revision. Owning WO: **WO-030**.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-030")
+        obs = np.asarray(obs, dtype=float)
+        action = _zero_action(self.cfg)
+        if phase == "produce":
+            action.effort = np.clip(self.cfg.tech.initial_target_frac * np.exp(obs[:, 2]), 0.0, 1.0)
+        else:
+            action.report_ratio = np.clip(
+                _post_report_stock_ratio(obs, self.cfg), 0.0, self.cfg.tech.report_max_ratio
+            )
+            action.input_request[:] = np.clip(
+                self.request_inflation, 0.0, self.cfg.tech.request_max_multiple
+            )
+        return action
 
     def reset(self) -> None:
         """Clear per-episode state.
 
         Takes: nothing. Returns: `None`. Owning WO: **WO-030**.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-030")
+        return None
 
 
 __all__ = [
+    "BERLINER_REPORT_RATIO",
     "PADDER_EFFORT",
     "PADDER_REPORT_RATIO",
     "REQUEST_MULTIPLE_NEED",
@@ -486,5 +613,22 @@ __all__ = [
     "Padder",
     "Random",
     "TruthfulMyopic",
+    "WEITZMAN_MAX_CUT",
     "Weitzman",
 ]
+
+
+def _post_report_stock_ratio(obs: np.ndarray, cfg: EnvConfig) -> np.ndarray:
+    """`S_i / T_i` as the REPORT step leaves it, from what the agent observes exactly.
+
+    AMBIGUITY-008: at the REPORT decision the observation carries the stock carried in (field 5)
+    and this period's output (field 4), both over `T_i`; the REPORT step then sets
+    `S <- min((1 - h) * S + y, S_max)` with `S_max = inventory_cap_mult * Kap` (PLAN sections 2.8,
+    2.11). A report truthful of stock on hand is that post-update ratio. `Kap = obs[:, 6] * Kap_0`
+    with `Kap_0 = 1`, and `T_i = T_0 * exp(obs[:, 2])` with `T_0 = initial_target_frac * A * Kap_0`.
+    """
+    sector = np.asarray(cfg.supply.sector_of, dtype=int)
+    t0 = cfg.tech.initial_target_frac * np.asarray(cfg.supply.productivity, dtype=float)[sector]
+    target = t0 * np.exp(obs[:, 2])
+    s_max_ratio = cfg.tech.inventory_cap_mult * obs[:, 6] / target
+    return np.minimum((1.0 - cfg.supply.holding_loss) * obs[:, 5] + obs[:, 4], s_max_ratio)

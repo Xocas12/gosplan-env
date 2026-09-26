@@ -37,8 +37,10 @@ plus `estimator_version` (CONTRACT rule 10). This module never imports `forensic
 
 from __future__ import annotations
 
+import numpy as np
+
 from gosplan.config import EnvConfig
-from gosplan.metrics.ledger import Ledger
+from gosplan.metrics.ledger import Ledger, StepRecord
 
 # ---------- measurement window (PLAN section 4.4) ----------
 
@@ -82,7 +84,7 @@ fitted *without* (PLAN section 4.5). Passed as `excl_lo`."""
 BUNCHING_EXCL_HI: float = 1.02
 """Upper edge of the excluded window (PLAN section 4.5). Passed as `excl_hi`."""
 
-BUNCHING_POLY_DEGREE: int = 7
+BUNCHING_POLY_DEGREE: int = 9
 """Degree of the counterfactual polynomial fitted outside the excluded window (PLAN section 4.5).
 Passed as `degree`."""
 
@@ -125,7 +127,7 @@ def phenomenon_bunching(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
       * bins of width `BUNCHING_BIN_WIDTH` = 0.005 over `rho` in
         `[BUNCHING_WINDOW_LO, BUNCHING_WINDOW_HI]` = [0.6, 1.4];
       * excluded window `[BUNCHING_EXCL_LO, BUNCHING_EXCL_HI]` = [0.95, 1.02];
-      * polynomial of degree `BUNCHING_POLY_DEGREE` = 7 fitted to the bins *outside* that window;
+      * polynomial of degree `BUNCHING_POLY_DEGREE` = 9 fitted to the bins *outside* that window;
       * `b_hat = (observed - counterfactual mass in [BUNCHING_EXCESS_LO, BUNCHING_EXCESS_HI])
         / (mean counterfactual density in the window)`;
       * `hole_mass` computed identically on `[BUNCHING_HOLE_LO, BUNCHING_HOLE_HI)` = [0.95, 1.00);
@@ -152,7 +154,38 @@ def phenomenon_bunching(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
 
     Owning WO: **WO-016**.
     """
-    raise NotImplementedError("PLAN section 4.1 - implemented in WO-016")
+    # Grouping unit for the seed-level bootstrap: a ledger is one run (one `cfg`, one `seed_env`),
+    # so it carries no seed column; the `episode` column is the grouping unit, per the WO-016 lead
+    # direction for a single ledger. `x` is passed as a LIST of per-episode arrays so the
+    # estimator resamples groups, never individual reports (AMBIGUITY-011 resolution, point 2).
+    from gosplan.metrics import resolve_estimators
+
+    rows = _measured_reports(ledger)
+    by_episode: dict[int, list[float]] = {}
+    for rec in rows:
+        by_episode.setdefault(rec.episode, []).append(rec.report_ratio)
+    x = [np.asarray(by_episode[ep], dtype=float) for ep in sorted(by_episode)]
+    res = resolve_estimators().bunching_estimate(
+        x,
+        BUNCHING_WINDOW_LO,
+        BUNCHING_WINDOW_HI,
+        BUNCHING_BIN_WIDTH,
+        BUNCHING_POLY_DEGREE,
+        BUNCHING_EXCL_LO,
+        BUNCHING_EXCL_HI,
+    )
+    # At-bound reports are in `x` (MEASUREMENT_INCLUDE_AT_BOUND); `at_bound_frac` is their share of
+    # the same measured sample `n_obs` counts (CONTRACT rule 8).
+    at_bound_frac = sum(1 for rec in rows if rec.at_bound) / len(rows)
+    return {
+        "excess_mass": float(res.excess_mass),
+        "hole_mass": float(res.hole_mass),
+        "se": float(res.se),
+        "ci_lo": float(res.ci_lo),
+        "ci_hi": float(res.ci_hi),
+        "n_obs": int(res.n_obs),
+        "at_bound_frac": float(at_bound_frac),
+    }
 
 
 def phenomenon_padding(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
@@ -168,7 +201,8 @@ def phenomenon_padding(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
         padding = mean_i max(0, R_i - S_i) / T_i
 
     over the measurement window of PLAN section 4.4, where `R_i` is the claim, `S_i` the own-good
-    stock on hand at the REPORT step (`inv_output_pre` on the report row, before shipment) and
+    stock the audit compares against - `inv_output_post` on the report row: the period's output
+    booked, before the next period's shipment (LEAD ruling AMBIGUITY-019 A) - and
     `T_i` the target. Reported together with
 
         padding_index = val_measured / val_true                       (PLAN section 2.9.4)
@@ -185,7 +219,35 @@ def phenomenon_padding(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
 
     Binds: `tests/unit/test_phenomena_p1.py` (WO-016). Owning WO: **WO-016**.
     """
-    raise NotImplementedError("PLAN section 4.1 - implemented in WO-016")
+    # LEAD ruling AMBIGUITY-017: `padding_index` is the ratio of window means of the period-level
+    # `val_measured` and `val_true` (one value per (episode, period)); the elasticity across the
+    # three `a * pen` levels is computed by the caller (WO-019/WO-020) from three calls.
+    rows = _measured_reports(ledger)
+    # AMBIGUITY-019 A: `S_i` is the audited stock, `inv_output_post` on the REPORT row (the DP's
+    # `S'`); `inv_output_pre` omits the period's own output and counts truthful reports as padding.
+    ratios = [max(0.0, rec.report - rec.inv_output_post) / rec.target for rec in rows]
+    periods = {(rec.episode, rec.t_period): (rec.val_measured, rec.val_true) for rec in rows}
+    measured = np.mean([vm for vm, _ in periods.values()])
+    true = np.mean([vt for _, vt in periods.values()])
+    index = float(measured / true) if true != 0.0 else float("nan")
+    return {"padding": float(np.mean(ratios)), "padding_index": index}
+
+
+def _measured_reports(ledger: Ledger) -> list[StepRecord]:
+    """REPORT rows inside the PLAN section 4.4 measurement window, at-bound rows included.
+
+    `t_period >= MEASUREMENT_FIRST_PERIOD`; no end-of-episode exclusion
+    (`MEASUREMENT_EXCLUDE_EPISODE_END`); at-bound reports kept (`MEASUREMENT_INCLUDE_AT_BOUND`).
+    The window is applied here, by the reader, never by the ledger writer.
+    """
+    rows = [
+        rec
+        for rec in ledger.records
+        if rec.phase == "report" and rec.t_period >= MEASUREMENT_FIRST_PERIOD
+    ]
+    if not rows:
+        raise ValueError("no REPORT rows inside the PLAN section 4.4 measurement window")
+    return rows
 
 
 # =================================================================================================
@@ -239,7 +301,15 @@ def phenomenon_storming(
 
     Owning WO: **WO-030**.
     """
-    raise NotImplementedError("PLAN section 4.1 - implemented in WO-030")
+    gini, n_zero = _mean_period_gini(ledger, cfg)
+    gini_base, n_zero_base = _mean_period_gini(baseline_ledger, cfg)
+    return {
+        "gini": gini,
+        "gini_baseline": gini_base,
+        "excess": gini - gini_base,
+        "n_zero_effort_periods": float(n_zero),
+        "n_zero_effort_periods_baseline": float(n_zero_base),
+    }
 
 
 def phenomenon_quality(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
@@ -264,7 +334,18 @@ def phenomenon_quality(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
 
     Owning WO: **WO-030**, with the mechanism from **WO-021**.
     """
-    raise NotImplementedError("PLAN section 4.1 - implemented in WO-030")
+    m = cfg.incentive.steps_per_period
+    mu = cfg.information.quality_measurability
+    rows = _measured_reports(ledger)
+    if cfg.supply.quality_matters:
+        qbar = np.array([rec.quality_acc / m for rec in rows], dtype=float)
+    else:
+        qbar = np.ones(len(rows))
+    return {
+        "mean_quality": float(qbar.mean()),
+        "mean_quality_weighted": float(np.mean(1.0 + mu * (qbar - 1.0))),
+        "n_obs": float(qbar.size),
+    }
 
 
 def phenomenon_hoarding(
@@ -302,7 +383,24 @@ def phenomenon_hoarding(
 
     Owning WO: **WO-030**.
     """
-    raise NotImplementedError("PLAN section 4.1 - implemented in WO-030")
+    from gosplan.metrics import resolve_estimators
+
+    run = _hoarding_stats(ledger, cfg)
+    base = _hoarding_stats(baseline_ledger, cfg)
+    backend = resolve_estimators()
+    if run["pair_values"].size:
+        disp = backend.dispersion_cross_section(run["pair_values"], run["pair_groups"])
+        stat, p = float(disp.statistic), float(disp.p_value)
+    else:
+        stat, p = float("nan"), float("nan")
+    return {
+        "request_inflation": run["inflation"],
+        "request_inflation_baseline": base["inflation"],
+        "corr_stock_shortfall": run["corr"],
+        "corr_stock_shortfall_baseline": base["corr"],
+        "dispersion_stat": stat,
+        "dispersion_p": p,
+    }
 
 
 def phenomenon_blat(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
@@ -332,7 +430,21 @@ def phenomenon_blat(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
 
     Owning WO: **WO-030**.
     """
-    raise NotImplementedError("PLAN section 4.1 - implemented in WO-030")
+    rows = [rec for rec in ledger.records if rec.t_period >= MEASUREMENT_FIRST_PERIOD]
+    volume = float(sum(rec.trade_volume for rec in rows))
+    alloc = float(sum(sum(rec.alloc) for rec in rows))
+    if alloc > 0:
+        share = volume / alloc
+    else:
+        share = 0.0 if volume == 0 else float("inf")
+    return {
+        "trade_volume_share": share,
+        "trade_volume": volume,
+        # Pairs are not in the ledger: this counts selling enterprise-periods (P2_REVISION R13.4).
+        "n_matched_pairs": float(sum(1 for rec in rows if rec.trade_volume > 0)),
+        # Not recoverable from the ledger; the surplus is visible only through the reward (R13.4).
+        "mean_surplus": float("nan"),
+    }
 
 
 def phenomenon_hidden_reserves(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
@@ -373,4 +485,109 @@ def phenomenon_hidden_reserves(ledger: Ledger, cfg: EnvConfig) -> dict[str, floa
 
     Owning WO: **WO-030**.
     """
-    raise NotImplementedError("PLAN section 4.1 - implemented in WO-030")
+    from gosplan.env.prices import initial_prices
+    from gosplan.metrics import resolve_estimators
+
+    rows = _measured_reports(ledger)
+    hidden = np.array(
+        [max(0.0, rec.inv_output_post - rec.report) / rec.target for rec in rows], dtype=float
+    )
+    deliv_next = _next_deliver_rows(ledger)
+    a = np.asarray(cfg.supply.io_matrix, dtype=float)
+    prices = np.asarray(initial_prices(cfg), dtype=float)
+    keyed = [(rec, deliv_next.get((rec.episode, rec.t_period + 1, rec.enterprise))) for rec in rows]
+    keyed = [(rec, nxt) for rec, nxt in keyed if nxt is not None]
+    if keyed:
+        result = resolve_estimators().reconciliation_ledger_test(
+            np.array([rec.report for rec, _ in keyed], dtype=float),
+            np.array([nxt.deliv for _, nxt in keyed], dtype=float),
+            a[[rec.sector for rec, _ in keyed]],
+            prices[[rec.sector for rec, _ in keyed]],
+        )
+        stat, p = float(result.statistic), float(result.p_value)
+    else:
+        stat, p = float("nan"), float("nan")
+    return {
+        "hidden_reserves": float(hidden.mean()),
+        "reconciliation_stat": stat,
+        "p_value": p,
+        "n_obs": float(hidden.size),
+    }
+
+
+# ---------- WO-030 helpers (definitions: spec/P2_REVISION.md R13) ----------
+
+
+def _gini(values: np.ndarray) -> float:
+    """`sum_{k,l} |e_k - e_l| / (2 n^2 mean)`; the caller excludes all-zero vectors."""
+    values = np.asarray(values, dtype=float)
+    n = values.size
+    return float(np.abs(values[:, None] - values[None, :]).sum() / (2.0 * n * n * values.mean()))
+
+
+def _mean_period_gini(ledger: Ledger, cfg: EnvConfig) -> tuple[float, int]:
+    """Mean within-period effort Gini over the window, and the count of zero-effort periods."""
+    efforts: dict[tuple[int, int, int], list[float]] = {}
+    for rec in ledger.records:
+        if rec.phase == "produce" and rec.t_period >= MEASUREMENT_FIRST_PERIOD:
+            efforts.setdefault((rec.episode, rec.t_period, rec.enterprise), []).append(rec.effort)
+    ginis, n_zero = [], 0
+    for values in efforts.values():
+        arr = np.asarray(values, dtype=float)
+        if arr.sum() <= 0.0:
+            n_zero += 1
+        else:
+            ginis.append(_gini(arr))
+    return (float(np.mean(ginis)) if ginis else float("nan")), n_zero
+
+
+def _next_deliver_rows(ledger: Ledger) -> dict[tuple[int, int, int], StepRecord]:
+    """The step-0 PRODUCE row (where DELIVER ran) keyed by (episode, t_period, enterprise)."""
+    return {
+        (rec.episode, rec.t_period, rec.enterprise): rec
+        for rec in ledger.records
+        if rec.phase == "produce" and rec.k_step == 0
+    }
+
+
+def _hoarding_stats(ledger: Ledger, cfg: EnvConfig) -> dict[str, object]:
+    """Request inflation, the stock/shortfall correlation and the per-(i, j) inflation values."""
+    rows = _measured_reports(ledger)
+    deliver = _next_deliver_rows(ledger)
+    sector_of = np.asarray(cfg.supply.sector_of, dtype=int)
+    fillbar: dict[tuple[int, int, int], float] = {}
+    by_period: dict[tuple[int, int], list[StepRecord]] = {}
+    for rec in deliver.values():
+        by_period.setdefault((rec.episode, rec.t_period), []).append(rec)
+    for (episode, t), recs in by_period.items():
+        for j in range(cfg.supply.n_sectors):
+            sellers = [r for r in recs if sector_of[r.enterprise] == j]
+            if not sellers:
+                continue
+            w = np.array([r.shipped for r in sellers], dtype=float)
+            f = np.array([r.fill for r in sellers], dtype=float)
+            fillbar[(episode, t, j)] = (
+                float((w * f).sum() / w.sum()) if w.sum() > 0 else float(f.mean())
+            )
+    ratios, stock, shortfall = [], [], []
+    per_pair: dict[tuple[int, int], list[float]] = {}
+    for rec in rows:
+        for j, (q, need) in enumerate(zip(rec.request, rec.need, strict=True)):
+            if need <= 0:
+                continue
+            ratios.append(q / need)
+            per_pair.setdefault((rec.enterprise, j), []).append(q / need)
+            nxt = fillbar.get((rec.episode, rec.t_period + 1, j))
+            if nxt is not None:
+                stock.append(rec.inv_inputs[j])
+                shortfall.append(1.0 - nxt)
+    corr = float("nan")
+    if len(stock) >= 2 and np.std(stock) > 0 and np.std(shortfall) > 0:
+        corr = float(np.corrcoef(stock, shortfall)[0, 1])
+    keys = sorted(per_pair)
+    return {
+        "inflation": float(np.mean(ratios)) if ratios else float("nan"),
+        "corr": corr,
+        "pair_values": np.array([np.mean(per_pair[k]) for k in keys], dtype=float),
+        "pair_groups": np.array([int(sector_of[i]) for i, _ in keys], dtype=int),
+    }
