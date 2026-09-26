@@ -2,7 +2,7 @@
 
 Realises: PLAN section 2.8 (reporting, audit, penalty), PLAN section 2.11 (inventory: holding loss
 and the stock cap) and PLAN section 11 (test architecture; property test **T-U8**). Owning work
-order: **WO-002** (frozen tests; LEAD). Binds the WO-007 must-pass line of PLAN section 12.3,
+order: a later task (frozen tests; maintainer). Binds the corresponding task must-pass line of PLAN section 12.3,
 verbatim - "`tests/unit/test_reporting.py` (T-U8; audit against stock; holding loss applied before
 adding `y`; report clipped to `rho_max`)". Module under test: `gosplan/env/reporting.py`.
 
@@ -29,7 +29,7 @@ CONTRACT RULE 7: the audit comparing the claim to stock on hand rather than to p
 about measurement, not an implementation of hidden reserves; no assertion below asserts a direction
 of agent behaviour.
 
-FROZEN BY CONTRACT RULE 2. SKELETON: every test is `@pytest.mark.skeleton` and skipped until WO-007
+FROZEN BY CONTRACT RULE 2. SKELETON: every test is `@pytest.mark.skeleton` and skipped until a later task
 lands; each docstring states the exact assertion, formula and tolerance.
 """
 
@@ -130,7 +130,7 @@ def test_holding_loss_is_applied_before_this_periods_output_is_added(p1_cfg, imp
     `S_prev = 0` the two forms coincide, so the test must use a non-zero entering stock. The loss
     applies to the stock carried in, never to output just produced.
 
-    Second bullet of the WO-007 reporting must-pass list. The lost quantity `h * S_prev` is a term
+    Second bullet of the corresponding task reporting must-pass list. The lost quantity `h * S_prev` is a term
     of the per-period conservation identity of test T-U1 and must be recorded as
     `StepRecord.holding_loss`, not silently dropped.
     """
@@ -161,7 +161,7 @@ def test_report_is_clipped_to_the_report_bound(p1_cfg, implemented) -> None:
     (`last_report`) as well as in ratio units (`last_report_ratio`), because the ratchet moves `T`
     later in the same period (PLAN section 2.5, steps 3 then 6).
 
-    Third bullet of the WO-007 reporting must-pass list.
+    Third bullet of the corresponding task reporting must-pass list.
     """
     from gosplan.env.reporting import process_reports
 
@@ -272,7 +272,7 @@ def test_audit_measures_stock_on_hand_and_not_production(p1_cfg, implemented) ->
     move. The measurement is `S_hat_i = S_i * exp(nu_i)` on the post-REPORT stock, i.e. after
     `S <- (1 - h) * S + y` has run.
 
-    First bullet of the WO-007 reporting must-pass list. That single choice is what makes
+    First bullet of the corresponding task reporting must-pass list. That single choice is what makes
     accumulated stock protect against audits; asserting *that* an agent accumulates is held out
     (PLAN section 4.1 row 7) and is asserted nowhere.
     """

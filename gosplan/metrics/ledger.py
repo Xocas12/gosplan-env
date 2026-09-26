@@ -5,23 +5,23 @@ single input to every operationalisation of PLAN section 4.1 and to the reconcil
 PLAN section 7.3), PLAN section 4.4 (the measurement window is applied by the readers of this
 ledger, never by the writer - the ledger stores everything), CONTRACT rule 8 (bounds are results:
 the `at_bound` column and the `BOUND_BINDING` flag) and CONTRACT rule 10 (the manifest).
-Owning work order: **WO-011** (`tests/unit/test_ledger.py`; parquet round-trip, every rule-10
+Owning task: a later task (`tests/unit/test_ledger.py`; parquet round-trip, every rule-10
 manifest field present, `BOUND_BINDING` logic - test T-B8).
 
-Direction of information flow. The environment writes `StepInfo` (PLAN section 2.5, WO-009), whose
+Direction of information flow. The environment writes `StepInfo` (PLAN section 2.5, a later task), whose
 `StepRecord`s land here; metrics and lead-run experiments read them. **No agent, no policy and no
 reward term may read a ledger** (CONTRACT rule 6): the rows carry `welfare`, `val_true` and
-`val_measured`, which are logged and never observed. The WO-010 forbidden list states the same
+`val_measured`, which are logged and never observed. The forbidden list states the same
 boundary from the other side ("any agent reading `StepInfo`").
 
 Binding to `spec/spec.py`: `spec/spec.py` is not importable as a package, so `StepRecord`, `Ledger`
 and `write_manifest` are *defined* here and must stay field-for-field and signature-for-signature
-identical to the frozen interface (CONTRACT rule 1). `tests/unit/test_spec_imports.py` (WO-001)
+identical to the frozen interface (CONTRACT rule 1). `tests/unit/test_spec_imports.py`
 enforces the surface; `tests/unit/test_ledger.py` enforces the behaviour.
 
 Dependencies. `pyarrow` is the parquet writer and `pandas` the frame type of `to_dataframe`; both
 are runtime dependencies of *this module only* and are imported **inside** the methods that need
-them (WO-011), never at module scope, so the skeleton imports in an environment that has neither.
+them, never at module scope, so the skeleton imports in an environment that has neither.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ Phase = Literal["produce", "report"]
 
 It is restated rather than imported so that `gosplan/metrics/` imports nothing from `gosplan/env/`:
 the ledger sits strictly downstream of the environment and must not create a cycle between the two
-packages. The runtime definition an environment module uses (`gosplan/env/state.py`, WO-009) and
+packages. The runtime definition an environment module uses (`gosplan/env/state.py`, a later task) and
 this one must be the same two literals; a unit test compares them."""
 
 BOUND_BINDING_FLAG: str = "BOUND_BINDING"
@@ -70,7 +70,7 @@ MANIFEST_FIELDS: tuple[str, ...] = (
 """Every key `runs/<hash>/manifest.json` carries, in this order (CONTRACT rule 10):
 
     config_hash            `cfg.hash()` - the SHA-256 of the canonical JSON encoding, which also
-                           names the run directory (PLAN section 3, WO-003)
+                           names the run directory (PLAN section 3, a later task)
     config                 the full configuration as canonical JSON, so a result can be replayed
                            without the code that produced it
     spec_version           `SPEC_VERSION` of the interface the run was written against, so a result
@@ -79,7 +79,7 @@ MANIFEST_FIELDS: tuple[str, ...] = (
     seed_env               root environment seed (PLAN section 2.15) - shared across arms, which is
                            what makes common random numbers hold by construction
     seed_policy            root policy seed, kept strictly separate (CONTRACT rule 9)
-    reference_ppo_version  pinned version of the reference PPO the adapter wraps (WO-017)
+    reference_ppo_version  pinned version of the reference PPO the adapter wraps
     estimator_version      version of the estimator surface used for PLAN section 4.1 row 1 -
                            `forensics_core.__version__` or `FALLBACK_ESTIMATOR_VERSION`
     estimator_backend      which of the two was resolved, from `gosplan.metrics.resolve_estimators`
@@ -91,7 +91,7 @@ MANIFEST_FIELDS: tuple[str, ...] = (
     solver_version         its version string, verbatim
     solver_optimality_gap  the oracle's relative MIP gap at termination
     bunching_settings      the pre-registered estimator settings of PLAN section 4.5 actually used,
-                           from the constants in `gosplan/metrics/phenomena.py` (WO-016 notes:
+                           from the constants in `gosplan/metrics/phenomena.py` (a later task notes:
                            "settings hard-coded as defaults and recorded in the manifest")
     flags                  every flag raised by the run, notably `BOUND_BINDING`
 
@@ -102,10 +102,10 @@ present."""
 
 @dataclass
 class StepRecord:
-    """One row of the ledger: one enterprise, one agent-step (PLAN sections 2.2, 4; WO-011).
+    """One row of the ledger: one enterprise, one agent-step (PLAN sections 2.2, 4; a later task).
 
     Field-for-field identical to `StepRecord` in `spec/spec.py`; a unit test enforces the identity.
-    Fields are grouped: identifiers, the PLAN section 2.2 state columns, then the WO-011 additions
+    Fields are grouped: identifiers, the PLAN section 2.2 state columns, then the corresponding task additions
     (`y, R, rho, S_pre, S_post, audited, S_hat, f, Pen, fill, deliv, consumer, val_measured,
     val_true, welfare, at_bound`), then the action and conservation columns.
 
@@ -113,7 +113,7 @@ class StepRecord:
     checkable and the reconciliation estimator of PLAN section 7.3 computable - which is exactly why
     no agent may read it (CONTRACT rule 6).
 
-    `J = cfg.supply.n_sectors`; tuple-valued fields have length `J`. Owning WO: **WO-011**.
+    `J = cfg.supply.n_sectors`; tuple-valued fields have length `J`. Owning WO: a later task.
     """
 
     run_hash: str  # EnvConfig.hash() of the run that produced this row
@@ -169,7 +169,7 @@ class StepRecord:
 
 
 class Ledger:
-    """Append-only store of `StepRecord`s for one run, plus the run's flags (WO-011).
+    """Append-only store of `StepRecord`s for one run, plus the run's flags.
 
     One record per enterprise per agent-step, in the order the environment produced them, so the
     period schedule of PLAN section 2.5 is recoverable from the `(episode, t_period, k_step, phase)`
@@ -184,9 +184,9 @@ class Ledger:
     The ledger stores rows unfiltered: the measurement window of PLAN section 4.4 (`t >= 2`, no
     end-of-episode exclusion under geometric termination, at-bound reports included and flagged) is
     applied by the readers in `gosplan/metrics/phenomena.py`, never by the writer. Construction
-    (both attributes start empty) is WO-011's and is not part of the frozen surface.
+    (both attributes start empty) is a later task's and is not part of the frozen surface.
 
-    Owning WO: **WO-011**.
+    Owning WO: a later task.
     """
 
     records: list[StepRecord]
@@ -209,9 +209,9 @@ class Ledger:
 
                 Binds: `tests/unit/test_ledger.py` and test T-B8 (`tests/behavioural/`) - forcing
                 `rho = rho_max` in more than 1% of reports sets `BOUND_BINDING`, and at or below 1% it does
-                not. Owning WO: **WO-011**.
+                not. Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 4 - implemented in WO-011")
+        raise NotImplementedError("PLAN section 4")
 
     def to_parquet(self, path: str) -> None:
         """Write the ledger to a columnar file.
@@ -229,9 +229,9 @@ class Ledger:
         numpy-only).
 
         Binds: `tests/unit/test_ledger.py` - a parquet round-trip preserves every column and dtype.
-        Owning WO: **WO-011**.
+        Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 4 - implemented in WO-011")
+        raise NotImplementedError("PLAN section 4")
 
     def to_dataframe(self) -> object:
         """Return the ledger as an in-memory frame, with the same columns as `to_parquet`.
@@ -248,9 +248,9 @@ class Ledger:
         section 4.4 is applied by the caller - the frame itself is unfiltered.
 
         Binds: `tests/unit/test_ledger.py` - the frame's columns equal the parquet file's, and a
-        round-trip through either preserves the records. Owning WO: **WO-011**.
+        round-trip through either preserves the records. Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 4 - implemented in WO-011")
+        raise NotImplementedError("PLAN section 4")
 
 
 def bound_binding(ledger: Ledger) -> bool:
@@ -274,9 +274,9 @@ def bound_binding(ledger: Ledger) -> bool:
     away, and the G2 hygiene criterion of PLAN section 4.5 requires the flag to be absent from all
     Phase-1 gate runs.
 
-    Binds: test T-B8 (`tests/behavioural/`) and `tests/unit/test_ledger.py`. Owning WO: **WO-011**.
+    Binds: test T-B8 (`tests/behavioural/`) and `tests/unit/test_ledger.py`. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 4 - implemented in WO-011")
+    raise NotImplementedError("PLAN section 4")
 
 
 def write_manifest(run_dir: str, cfg: EnvConfig, extra: dict) -> None:
@@ -303,6 +303,6 @@ def write_manifest(run_dir: str, cfg: EnvConfig, extra: dict) -> None:
     `estimatorversion` would claim provenance it does not have.
 
     Binds: `tests/unit/test_ledger.py` - every rule-10 field is present, and `null` appears where a
-    field does not apply. Owning WO: **WO-011**.
+    field does not apply. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 4 - implemented in WO-011")
+    raise NotImplementedError("PLAN section 4")

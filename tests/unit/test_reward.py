@@ -3,8 +3,8 @@
 Realises: PLAN sections 2.8 (the bonus schedule `B(rho)`), 2.9.1 (the enterprise reward and its
 analytic scale), 2.9.2-2.9.3 (fulfilment measure, `val_measured`, `val_true`, CES welfare), 2.9.4
 (the three headline metrics) and PLAN section 11 (test architecture; property tests **T-U2** and
-**T-U3**, and the components of **T-B6**). Owning work order: **WO-002** (frozen tests; LEAD). Binds
-the WO-007 must-pass line of PLAN section 12.3, verbatim - "`tests/unit/test_reward.py` (T-U2, T-U3,
+**T-U3**, and the components of **T-B6**). Owning task: a later task (frozen tests; maintainer). Binds
+the corresponding task must-pass line of PLAN section 12.3, verbatim - "`tests/unit/test_reward.py` (T-U2, T-U3,
 T-B6 components; `val`, `val_true`, CES welfare with `sigma_c -> 1` limit = Cobb-Douglas)". Module
 under test: `gosplan/env/reward.py`.
 
@@ -26,7 +26,7 @@ CONTRACT RULE 6: `val_measured` and `welfare_true` are logged and never observed
 tests below compute them from a state and a consumer vector; none of them feeds either quantity into
 an observation, a reward or an agent input, and test T-B5 asserts that separation with sentinels.
 
-FROZEN BY CONTRACT RULE 2. SKELETON: every test is `@pytest.mark.skeleton` and skipped until WO-007
+FROZEN BY CONTRACT RULE 2. SKELETON: every test is `@pytest.mark.skeleton` and skipped until a later task
 lands; each docstring states the exact assertion, formula and tolerance.
 """
 
@@ -66,7 +66,7 @@ def _bonus_matrix(cfg):
 def _state(cfg, *, reports=None, outputs=None, prices=None, consumer=None):
     """Build a `State` directly from `cfg` for a pure-function test.
 
-    `initial_state` belongs to WO-009, so a reward-level test that only needs somewhere to hang
+    `initial_state` belongs to a later task, so a reward-level test that only needs somewhere to hang
     `last_report`, `cum_output` and `plan_prices` constructs the dataclass itself rather than
     waiting for the environment. Fields follow PLAN section 2.2 in declaration order.
     """
@@ -418,7 +418,7 @@ def test_welfare_has_an_explicit_cobb_douglas_limit_at_unit_elasticity(p1_cfg, i
     `np.prod(consumer ** np.asarray(alpha))` to 1e-12 - computed by an explicit branch, not by
     evaluating `rho_ces = 0` and dividing by zero - and the CES form converges to it from both
     sides: at `sigma_c = 1 +/- 1e-6` the two agree to 1e-5. The branch is a named item of the
-    WO-007 must-pass list precisely because the general formula is singular there.
+    a later task must-pass list precisely because the general formula is singular there.
     """
     import dataclasses
 

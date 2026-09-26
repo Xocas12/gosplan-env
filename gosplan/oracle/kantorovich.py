@@ -3,7 +3,7 @@
 Realises: PLAN section 6.2 (non-anticipative expected-value MIP and the clairvoyant per-seed
 bound), PLAN section 2.9.4 (`W_oracle` is the denominator of `welfare_ratio` and `val_oracle` the
 denominator inside `specification_gap`), and CONTRACT rule 10 (the solver's version and optimality
-gap are manifest fields). Owning work order: **WO-027** (LEAD formulates the MIP, MID-strong
+gap are manifest fields). Owning task: a later task (maintainer formulates the MIP, MID-strong
 implements it against the chosen solver; parity test against brute force at `N = 2`).
 
 Phase status: **Phase-2 sketch.** The signature below is frozen now so that no type moves later
@@ -13,11 +13,11 @@ that reports it says so (PLAN section 2.9.4) - nothing in Phase 1 calls this mod
 
 Binding to `spec/spec.py`: `spec/spec.py` is not importable as a package, so this module *mirrors*
 its `solve_oracle` signature rather than importing it. The two must stay identical, argument names
-included; `tests/unit/test_spec_imports.py` (WO-001) enforces that the public surface of PLAN
+included; `tests/unit/test_spec_imports.py` enforces that the public surface of PLAN
 section 10 is present and unchanged.
 
 Dependencies: the MIP is built and solved through an open-source solver (HiGHS or CBC, via OR-Tools
-or Pyomo - the lead verifies availability; `ortools` is the `solver` extra in `pyproject.toml`).
+or Pyomo - the maintainer verifies availability; `ortools` is the `solver` extra in `pyproject.toml`).
 That import belongs inside `solve_oracle`, not at module scope, so the skeleton stays importable in
 an environment with no solver installed.
 
@@ -39,7 +39,7 @@ a tuning knob, and a run that uses a different horizon says so in its manifest."
 
 SOLVER_CANDIDATES: tuple[str, ...] = ("HiGHS", "CBC")
 """The open-source MIP solvers PLAN section 6.2 admits, in preference order. Reached through
-OR-Tools or Pyomo; the lead verifies availability before WO-027 is issued. The solver actually used
+OR-Tools or Pyomo; the maintainer verifies availability before a later task is issued. The solver actually used
 and its version are returned in the result mapping and written to the manifest (CONTRACT
 rule 10)."""
 
@@ -122,12 +122,12 @@ def solve_oracle(
     - see its `MANIFEST_FIELDS`. A non-zero gap is carried through to every derived headline number
     rather than being cleared by re-running with a looser tolerance.
 
-    Acceptance criteria (WO-027): a parity test against brute-force enumeration at `N = 2` over a
+    Acceptance criteria: a parity test against brute-force enumeration at `N = 2` over a
     short horizon agrees to solver tolerance; the expected-value solution is weakly dominated by the
     clairvoyant bound on every seed; the returned mapping carries every key of
     `ORACLE_RESULT_KEYS`. No Phase-1 test binds this function - it is not called before the Phase-2
     acceptance run (PLAN section 13, gate G3, "oracle gap recorded").
 
-    Owning WO: **WO-027**.
+    Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 6.2 - implemented in WO-027")
+    raise NotImplementedError("PLAN section 6.2")

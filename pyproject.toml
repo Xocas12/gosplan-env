@@ -14,13 +14,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# JAX port and parity test: PLAN section 12.4 WO-029, required for the Sobol design
+# JAX port and parity test: PLAN section 12.4 a later task, required for the Sobol design
 # of PLAN section 4.3.
 jax = [
     "jax>=0.4.30",
     "jaxlib>=0.4.30",
 ]
-# Regime-map figures: runs/regime_map/{regime.png, bhat.png}, PLAN section 12.3 WO-015.
+# Regime-map figures: runs/regime_map/{regime.png, bhat.png}, PLAN section 12.3 a later task.
 viz = [
     "matplotlib>=3.8",
 ]
@@ -62,8 +62,8 @@ packages = ["gosplan"]
 
 [tool.pytest.ini_options]
 # CONTRACT rule 13 (TESTS ARE NOT EXPERIMENTS): tests/acceptance/ holds the lead-run
-# gate experiments G0-G4 (PLAN section 13). It is not on any work order's must-pass
-# list and is NEVER collected -- by CI or by an implementer session. Only the three
+# gate experiments G0-G4 (PLAN section 13). It is not on any task's must-pass
+# list and is NEVER collected -- by CI or by a contributor. Only the three
 # frozen categories of PLAN section 11 are collected here.
 testpaths = ["tests/unit", "tests/behavioural", "tests/golden"]
 addopts = "-ra"

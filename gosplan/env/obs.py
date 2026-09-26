@@ -1,12 +1,12 @@
 """Observation construction: the enumerated agent-facing vector and its information invariants.
 
 Realises: PLAN section 2.4 (observation table, information invariants) together with the phase
-structure of PLAN section 2.5 that the mask keys on. Owning work order: **WO-008** (Observation;
+structure of PLAN section 2.5 that the mask keys on. Owning task: a later task (Observation;
 MID-fast).
 
 THE TABLE BELOW IS THE INTERFACE. `OBS_TABLE`, `SCALAR_FIELDS` and `PER_GOOD_BLOCKS` are the PLAN
 section 2.4 index table transcribed as data, not as documentation: `obs_spec` composes its answer
-from them, `tests/unit/test_obs.py` compares the layout against them, and the PPO adapter (WO-017)
+from them, `tests/unit/test_obs.py` compares the layout against them, and the PPO adapter
 slices the observation by them. They are therefore real content in a skeleton module - changing a
 name, a width or an order changes the agent interface, and after the v1 freeze it needs a
 `spec/CHANGELOG.md` entry (CONTRACT rule 1). The Phase-1 dimension is `12 + 3 * J` with
@@ -40,10 +40,10 @@ appear anywhere in `gosplan/env/`.
 
 Binding to the frozen interface. `obs_spec` carries the name, argument name and return type of
 `spec.spec.obs_spec` exactly. `build_observation` and `phase_mask` are not in `spec/spec.py` v0;
-they are declared here for the first time and the lead records them in `spec/CHANGELOG.md` at the v1
-freeze (WO-013). `spec/spec.py` is not an importable package, so the runtime dataclasses live in the
-`gosplan` package - `EnvConfig` and the arm configs in `gosplan/config.py` (WO-003), `State` in
-`gosplan/env/state.py` (WO-009) - and each MUST stay field-for-field identical to its `spec/spec.py`
+they are declared here for the first time and the maintainer records them in `spec/CHANGELOG.md` at the v1
+freeze. `spec/spec.py` is not an importable package, so the runtime dataclasses live in the
+`gosplan` package - `EnvConfig` and the arm configs in `gosplan/config.py`, `State` in
+`gosplan/env/state.py` - and each MUST stay field-for-field identical to its `spec/spec.py`
 declaration, which `tests/unit/test_spec_imports.py` enforces. They are imported under
 `TYPE_CHECKING` so this module stays importable while its siblings are skeletons.
 """
@@ -60,7 +60,7 @@ if TYPE_CHECKING:  # pragma: no cover - types only; see the binding note in the 
 
 Array = np.ndarray
 """Alias for every numeric array in this module (PLAN section 10), mirroring `spec.spec.Array`. The
-Phase-2 JAX port (WO-029) substitutes its own array type behind the same name, so no signature here
+Phase-2 JAX port substitutes its own array type behind the same name, so no signature here
 may depend on a numpy-only method."""
 
 
@@ -177,7 +177,7 @@ def obs_spec(cfg: EnvConfig) -> list[str]:
     The Phase-2 peer block is appended only when `cfg.information.horizontal_visibility > 0`; at the
     Phase-1 default of 0.0 the returned length is exactly `12 + 3J`. The answer is a pure function
     of the configuration and must not change within a run, because the PPO adapter fixes its input
-    dimension from it once at construction (WO-017).
+    dimension from it once at construction.
 
     NEVER PRESENT, IN ANY PHASE, is every entry of `NEVER_OBSERVED`: `welfare_true`,
     `val_measured`, any other enterprise's `y`, `S` or `X`, the audit selection for the current
@@ -187,9 +187,9 @@ def obs_spec(cfg: EnvConfig) -> list[str]:
     Binds: `tests/unit/test_obs.py` (the layout equals this list; the dimension is `12 + 3J`; phase
     masking) and test T-B5 in `tests/behavioural/test_welfare_blindness.py`, which feeds sentinel
     values into the forbidden fields and asserts they appear in no observation. Owning WO:
-    **WO-008**.
+    a later task.
     """
-    raise NotImplementedError("PLAN section 2.4 - implemented in WO-008")
+    raise NotImplementedError("PLAN section 2.4")
 
 
 def build_observation(state: State, cfg: EnvConfig, deliv: Array, need: Array) -> Array:
@@ -199,7 +199,7 @@ def build_observation(state: State, cfg: EnvConfig, deliv: Array, need: Array) -
     physical receipts this period returned by `gosplan.env.planner.deliver`; and `need` `(N, J)`,
     the period's planned input need `need_ij = a_{s(i)j} * T_i` - the same quantity the allocation
     weights of PLAN section 2.7.2 key on. Both are passed in by the caller
-    (`gosplan/env/step.py`, WO-009) rather than recomputed here, so the observation can never
+    (`gosplan/env/step.py`, a later task) rather than recomputed here, so the observation can never
     disagree with the delivery that produced it. Returns: `obs` `(N, d)` with
     `d = len(obs_spec(cfg))`, i.e. `12 + 3J` in Phase 1, in the exact order `obs_spec` declares.
 
@@ -222,7 +222,7 @@ def build_observation(state: State, cfg: EnvConfig, deliv: Array, need: Array) -
         12+J : 12+2J sector_onehot  1.0 at j = cfg.supply.sector_of[i], else 0.0
         12+2J: 12+3J deliv_cov_j    deliv[i, j] / need[i, j]
 
-    `need = 0` GIVES A COVERAGE FIELD OF 1.0 (WO-008 card). Wherever `need[i, j] == 0` - a good the
+    `need = 0` GIVES A COVERAGE FIELD OF 1.0 (task specification). Wherever `need[i, j] == 0` - a good the
     enterprise's row of `a` does not call for - fields `input_cov_j` and `deliv_cov_j` are 1.0, not
     a division by zero, not a NaN and not 0.0; a good that is not needed is fully covered by
     definition, exactly as `coverage` in `gosplan/env/production.py` treats it (PLAN section 2.6).
@@ -234,7 +234,7 @@ def build_observation(state: State, cfg: EnvConfig, deliv: Array, need: Array) -
     `(seed_env, "selfobs", t, k)` taking `shape=(N,)` - the enterprise index `i` is the TRAILING
     INDEX AND IS VECTORISED THROUGH `shape`, never folded into the key (CONTRACT rule 9). That is
     the convention `gosplan/rng.py` states for every draw, and the idiom the `yield` draw already
-    uses; ambiguity report #53 resolved the conflict in favour of the convention, so one key yields
+    uses; open question #53 resolved the conflict in favour of the convention, so one key yields
     the whole `(N,)` vector. No other field is noised, and the two share the layout of the draw so
     the branch is a single multiply. Phase 1 sets `sigma = 0.0`, which
     makes those fields exact - the agent observes `S_i` and `y_i` exactly at the REPORT step, so the
@@ -250,9 +250,9 @@ def build_observation(state: State, cfg: EnvConfig, deliv: Array, need: Array) -
 
     Binds: `tests/unit/test_obs.py` (layout equals `obs_spec(cfg)`; dimension `12 + 3J`; `need = 0`
     gives 1.0; the `self_obs_noise = 0` case is exact) and test T-B5 in
-    `tests/behavioural/test_welfare_blindness.py`. Owning WO: **WO-008**.
+    `tests/behavioural/test_welfare_blindness.py`. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.4 - implemented in WO-008")
+    raise NotImplementedError("PLAN section 2.4")
 
 
 def phase_mask(cfg: EnvConfig, phase: Phase) -> Array:
@@ -265,7 +265,7 @@ def phase_mask(cfg: EnvConfig, phase: Phase) -> Array:
     function of `(cfg, phase)` - it never touches a `State` - and `build_observation` applies it as
     its final operation, so a masked component is 0.0 rather than stale.
 
-    Phase-1 consequence, stated so an implementer does not go looking for a rule that is not there:
+    Phase-1 consequence, stated so an contributor does not go looking for a rule that is not there:
     PLAN section 2.4 tabulates no per-field phase gate, and by the schedule of PLAN section 2.5
     every one of the `12 + 3J` Phase-1 components is already defined at both phases. DELIVER runs at
     the head of the period and fixes `last_fill`, `deliv_cov_j` and `inputs_delivered_total`; the
@@ -283,14 +283,14 @@ def phase_mask(cfg: EnvConfig, phase: Phase) -> Array:
     `self_obs_noise` and `horizontal_visibility`, and every one of them is applied where it is
     defined, not here.
 
-    Note for the implementer (CONTRACT rules 2 and 3): `tests/unit/test_obs.py` is frozen and checks
+    Note for the contributor (CONTRACT rules 2 and 3): `tests/unit/test_obs.py` is frozen and checks
     that `build_observation` "masks by phase". If the frozen test expects a convention other than
     the all-ones Phase-1 mask described above - for example a mask over action dimensions rather
-    than observation components - file an AMBIGUITY REPORT against WO-008 and stop. Do not
+    than observation components - file an OPEN QUESTION against a later task and stop. Do not
     special-case the implementation to pass it, and do not invent a per-field gate that PLAN section
     2.4 does not state.
 
     Binds: `tests/unit/test_obs.py` (the mask has length `len(obs_spec(cfg))`; every entry is 0.0 or
-    1.0; `build_observation` writes 0.0 in every masked position). Owning WO: **WO-008**.
+    1.0; `build_observation` writes 0.0 in every masked position). Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.4 - implemented in WO-008")
+    raise NotImplementedError("PLAN section 2.4")

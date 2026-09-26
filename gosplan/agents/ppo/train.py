@@ -1,12 +1,12 @@
-"""Training harness for the `IPPO` adapter (PLAN section 12.3, card WO-018).
+"""Training harness for the `IPPO` adapter (PLAN section 12.3, task a later task).
 
 Realises: the Phase-1 training path of PLAN sections 6.1 (the `IPPO` agent), 4.3 (common random
 numbers), 4.4 (measurement window), 4.5 (the G2 criteria this harness produces runs for), 2.12
 (geometric episodes) and 14 (compute budget), under CONTRACT rules 4 (reward terms), 6 (welfare
-blindness), 9 (RNG) and 10 (manifest). Owning work order: **WO-018**; it drives
-`gosplan/agents/ppo/adapter.py` (WO-017) and writes through `gosplan/metrics/ledger.py` (WO-011).
+blindness), 9 (RNG) and 10 (manifest). Owning task: a later task; it drives
+`gosplan/agents/ppo/adapter.py` and writes through `gosplan/metrics/ledger.py`.
 
-What the card requires, and therefore what this module contains: a vectorised environment batch,
+What the task requires, and therefore what this module contains: a vectorised environment batch,
 checkpoints, periodic evaluation through the ledger, manifest writing, common random numbers by
 `seed_env`, wall-clock logging, and the entropy anneal 0.01 -> 0.001. Must pass: a smoke test of
 100 updates at `N = 1`.
@@ -27,7 +27,7 @@ Boundaries this harness does not cross:
   from the ledger; they may not be evaluation targets used to select a checkpoint.
 
   *No held-out phenomenon.* Periodic evaluation computes rows 1 (bunching) and 4 (padding) of PLAN
-  section 4.1 only - the Phase-1 rows WO-016 implements. Rows 2, 5, 6 and 7 are held out: no plot,
+  section 4.1 only - the Phase-1 rows a later task implements. Rows 2, 5, 6 and 7 are held out: no plot,
   table or test of them is produced before the Phase-2 acceptance run (PLAN section 4.1).
 
   *No silent bound change.* If the ledger raises `BOUND_BINDING` (more than 1% of reports at
@@ -43,7 +43,7 @@ from typing import TYPE_CHECKING
 
 from gosplan.agents.ppo.adapter import IPPO, PPOConfig
 
-if TYPE_CHECKING:  # runtime homes: WO-003 (config), WO-009 (env), WO-011 (ledger); PLAN section 8
+if TYPE_CHECKING:  # runtime homes: config, env, ledger; PLAN section 8
     from gosplan.config import EnvConfig
     from gosplan.env.env import GosplanEnv
     from gosplan.metrics.ledger import Ledger
@@ -51,15 +51,15 @@ if TYPE_CHECKING:  # runtime homes: WO-003 (config), WO-009 (env), WO-011 (ledge
 
 @dataclass(frozen=True)
 class TrainConfig:
-    """Everything one training run needs beyond the environment and PPO configurations (WO-018).
+    """Everything one training run needs beyond the environment and PPO configurations.
 
     Frozen and hashable, and written verbatim into the run manifest (CONTRACT rule 10) so a
     learning curve can always be traced to the budget that produced it.
 
     Sizing fields carry **no defaults**. PLAN fixes the hyper-parameters that are TECH (`gamma`,
     `lambda_GAE`, the learning rate, the clip coefficient, the entropy endpoints - all in
-    `PPOConfig`) but not the batch shape or the training budget; those follow the experiment card
-    that commissions the run (WO-019's `N = 1` DP comparison, WO-020's `N = 20` gate) within the
+    `PPOConfig`) but not the batch shape or the training budget; those follow the experiment task
+    that commissions the run (a later task's `N = 1` DP comparison, a later task's `N = 20` gate) within the
     compute envelope of PLAN section 14. Inventing a default here would make an unrecorded
     experimental choice look like a specification (CONTRACT rule 3).
     """
@@ -79,7 +79,7 @@ class TrainConfig:
     """Agent-steps collected per environment per update, before one PPO update. An agent-step is
     one PRODUCE or REPORT step, so a period is `cfg.incentive.steps_per_period + 1` of them (PLAN
     section 2.5); choosing a rollout that is not a whole number of periods is legal but means an
-    update boundary can fall inside a period, which the card's smoke test does not forbid and the
+    update boundary can fall inside a period, which the task's smoke test does not forbid and the
     manifest records."""
 
     total_agent_steps: int
@@ -103,7 +103,7 @@ class TrainConfig:
 
 
 def make_env_batch(cfg: EnvConfig, n_envs: int, seed_env: int) -> list[GosplanEnv]:
-    """Build the vectorised environment batch for one training run (WO-018).
+    """Build the vectorised environment batch for one training run.
 
     Takes: `cfg`; `n_envs`, the number of copies; `seed_env`, the run's root environment seed.
     Returns: a list of `n_envs` constructed `GosplanEnv` objects, each already `reset` onto its own
@@ -115,7 +115,7 @@ def make_env_batch(cfg: EnvConfig, n_envs: int, seed_env: int) -> list[GosplanEn
     must therefore (a) derive each episode's seed from `seed_env` by a deterministic function of the
     batch index and the episode counter alone - never from wall-clock time, process id, or the
     order in which episodes happen to finish - and (b) use the identical derivation in every arm.
-    The derivation is not fixed by PLAN; WO-018 states it once, records it in the manifest, and does
+    The derivation is not fixed by PLAN; a later task states it once, records it in the manifest, and does
     not vary it between arms. `seed_policy` is a separate stream and is never mixed into these keys
     (CONTRACT rule 9).
 
@@ -124,21 +124,21 @@ def make_env_batch(cfg: EnvConfig, n_envs: int, seed_env: int) -> list[GosplanEn
     to keep the batch aligned, because that would put an end-game into an environment designed not
     to have one (finding F4).
 
-    Owning WO: **WO-018**.
+    Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 12.3 WO-018 - implemented in WO-018")
+    raise NotImplementedError("PLAN section 12.3 a later task")
 
 
 def entropy_coefficient(update: int, n_updates: int, ppo_cfg: PPOConfig) -> float:
-    """The annealed entropy bonus for one update (WO-018: entropy anneal 0.01 -> 0.001).
+    """The annealed entropy bonus for one update (a later task: entropy anneal 0.01 -> 0.001).
 
     Takes: `update`, the zero-based update index; `n_updates`, the total number of updates in the
     run (`total_agent_steps // (n_envs * rollout_steps)`); `ppo_cfg`, holding the endpoints.
     Returns: the entropy coefficient for this update, `ppo_cfg.entropy_coef_start` at `update = 0`
     and `ppo_cfg.entropy_coef_end` at the last update.
 
-    The card fixes the endpoints (0.01 -> 0.001) and not the shape; the schedule is linear in the
-    update index unless WO-018 records otherwise, and whichever is used is written into the manifest
+    The task fixes the endpoints (0.01 -> 0.001) and not the shape; the schedule is linear in the
+    update index unless a later task records otherwise, and whichever is used is written into the manifest
     (CONTRACT rule 10) so two runs can be compared. Edge cases: `n_updates <= 1` returns the start
     value; `update` beyond the last update clamps to the end value rather than extrapolating past
     it.
@@ -148,21 +148,21 @@ def entropy_coefficient(update: int, n_updates: int, ppo_cfg: PPOConfig) -> floa
     distribution to be a policy property rather than an exploration artefact - G2 criterion 1
     compares that distribution to the DP's with a Wasserstein-1 tolerance of 0.03.
 
-    Owning WO: **WO-018**.
+    Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 12.3 WO-018 - implemented in WO-018")
+    raise NotImplementedError("PLAN section 12.3 a later task")
 
 
 def evaluate(
     agent: IPPO, cfg: EnvConfig, n_episodes: int, seed_env: int
 ) -> tuple[dict[str, float], Ledger]:
-    """Run a periodic evaluation through the ledger (WO-018).
+    """Run a periodic evaluation through the ledger.
 
     Takes: `agent`, the adapter under training; `cfg`; `n_episodes`, evaluation episodes;
     `seed_env`, the root seed for the evaluation block, disjoint from the training block so
     evaluation never perturbs the training shock sequence. Returns: `(metrics, ledger)` - a mapping
     of scalar diagnostics and the `Ledger` holding one `StepRecord` per enterprise per agent-step
-    of the evaluation (WO-011).
+    of the evaluation.
 
     Policy: the evaluation uses the deterministic policy - the squashed Gaussian mean rather than a
     sample - so successive evaluations differ only through the environment's own draws. The sampled
@@ -189,13 +189,13 @@ def evaluate(
     end-of-episode exclusion under geometric termination, and reports at `rho_max` are included in
     the histograms and flagged.
 
-    Owning WO: **WO-018** (harness), **WO-016** (the estimators it calls).
+    Owning WO: a later task (harness), a later task (the estimators it calls).
     """
-    raise NotImplementedError("PLAN section 12.3 WO-018 - implemented in WO-018")
+    raise NotImplementedError("PLAN section 12.3 a later task")
 
 
 def checkpoint_path(run_dir: Path, update: int) -> Path:
-    """Where the checkpoint for one update goes (WO-018).
+    """Where the checkpoint for one update goes.
 
     Takes: `run_dir`, the run directory (`TrainConfig.run_root / env_cfg.hash()`); `update`, the
     update index. Returns: the path `run_dir / "checkpoints" / f"update_{update:06d}.ckpt"`,
@@ -206,19 +206,19 @@ def checkpoint_path(run_dir: Path, update: int) -> Path:
     `PPOConfig` alongside the parameters; a checkpoint whose hash disagrees with the environment it
     is loaded against is an error, not a warning.
 
-    Owning WO: **WO-018**.
+    Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 12.3 WO-018 - implemented in WO-018")
+    raise NotImplementedError("PLAN section 12.3 a later task")
 
 
 def log_update(run_dir: Path, row: dict[str, float]) -> None:
-    """Append one update's progress row to the run's training log (WO-018).
+    """Append one update's progress row to the run's training log.
 
     Takes: `run_dir`; `row`, a flat mapping of scalars for this update. Returns: `None`. Appends the
     row as one JSON object per line to `run_dir / "train_log.jsonl"`, flushed each call so a killed
     run keeps everything up to its last update.
 
-    The card requires **wall-clock logging**, so each row carries at least: `update`,
+    The task requires **wall-clock logging**, so each row carries at least: `update`,
     `agent_steps_total`, `wall_clock_s` (seconds since the run started), `steps_per_second`,
     `entropy_coef` (from `entropy_coefficient`), the PPO diagnostics the reference implementation
     exposes (policy loss, value loss, entropy, approximate KL, clip fraction) and the evaluation
@@ -229,9 +229,9 @@ def log_update(run_dir: Path, row: dict[str, float]) -> None:
     steer training; logging `welfare_true` for post-hoc plots is fine, selecting a checkpoint on it
     is not.
 
-    Owning WO: **WO-018**.
+    Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 12.3 WO-018 - implemented in WO-018")
+    raise NotImplementedError("PLAN section 12.3 a later task")
 
 
 def train_manifest_extra(
@@ -252,13 +252,13 @@ def train_manifest_extra(
     the MIP solver version and its optimality gap - are written as `null`, never omitted, so a
     missing field is always a bug and never an ambiguity.
 
-    Owning WO: **WO-018** (this assembly), **WO-011** (`write_manifest`).
+    Owning WO: a later task (this assembly), a later task (`write_manifest`).
     """
-    raise NotImplementedError("CONTRACT rule 10 - implemented in WO-018")
+    raise NotImplementedError("CONTRACT rule 10")
 
 
 def train(train_cfg: TrainConfig) -> Path:
-    """Run one training job end to end (WO-018).
+    """Run one training job end to end.
 
     Takes: `train_cfg`. Returns: the run directory `train_cfg.run_root / env_cfg.hash()`, which by
     then holds `manifest.json`, `train_log.jsonl`, the `checkpoints/` tree and the parquet ledger of
@@ -286,10 +286,10 @@ def train(train_cfg: TrainConfig) -> Path:
     reveals periods remaining, and never bootstraps a truncated episode as if it had terminated -
     the distinction matters because the agent must not be able to infer the horizon (test T-B9).
 
-    Binds: the WO-018 smoke test - 100 updates at `N = 1` complete, write a manifest carrying every
-    CONTRACT rule 10 field, and leave a loadable checkpoint. Owning WO: **WO-018**.
+    Binds: the corresponding task smoke test - 100 updates at `N = 1` complete, write a manifest carrying every
+    CONTRACT rule 10 field, and leave a loadable checkpoint. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 12.3 WO-018 - implemented in WO-018")
+    raise NotImplementedError("PLAN section 12.3 a later task")
 
 
 __all__ = [

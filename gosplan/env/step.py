@@ -1,23 +1,22 @@
 """Period schedule of PLAN section 2.5 as an explicit state machine; horizon of section 2.12.
 
 Realises: PLAN section 2.5 (typed period schedule), PLAN section 2.12 (geometric horizon and
-termination), and the `env/step.py` row of the PLAN section 8 layout ("LEAD: period schedule
-section 2.5, assembles modules"). Owning work order: **WO-009** (Step function and env wrapper).
+termination), and the `env/step.py` row of the PLAN section 8 layout ("maintainer: period schedule
+section 2.5, assembles modules"). Owning task: a later task (Step function and env wrapper).
 
-**This unit is LEAD-owned.** PLAN sections 12.3 and 1.3 (finding F14) mark the step function, the
-JAX port and the PPO adapter as the three units the lead writes itself rather than delegating: the
+**This unit is maintainer-owned.** PLAN sections 12.3 and 1.3 (finding F14) mark the step function, the
+JAX port and the PPO adapter as the three units the maintainer writes itself rather than delegating: the
 step function is where the information invariants of CONTRACT rules 5, 6 and 9 are either preserved
-or quietly broken, and it is reviewed line by line against CONTRACT rule 7. An implementer session
-that finds itself editing this file has taken the wrong card.
+or quietly broken, and it is reviewed line by line against CONTRACT rule 7. An contributor
+that finds itself editing this file has taken the wrong task.
 
 What this module is. The eight stages of one plan period, in order, as data (`PeriodStage`,
 `PERIOD_SCHEDULE`) plus one function per stage. Each stage function is a thin assembler: it calls
 into the module that owns the arithmetic and threads the `State` through. **No formula of PLAN
-sections 2.6-2.11 is restated here** - production lives in `gosplan/env/production.py` (WO-005),
-the planner rules and physical delivery in `gosplan/env/planner.py` (WO-006), reporting, audit,
-penalty, bonus, reward, val and welfare in `gosplan/env/reporting.py` and `gosplan/env/reward.py`
-(WO-007), the observation in `gosplan/env/obs.py` (WO-008), and the two Phase-2 sketches in
-`gosplan/env/trade.py` (WO-024) and `gosplan/env/ministry.py` (WO-025). Duplicating a formula here
+sections 2.6-2.11 is restated here** - production lives in `gosplan/env/production.py`,
+the planner rules and physical delivery in `gosplan/env/planner.py`, reporting, audit,
+penalty, bonus, reward, val and welfare in `gosplan/env/reporting.py` and `gosplan/env/reward.py`, the observation in `gosplan/env/obs.py`, and the two Phase-2 sketches in
+`gosplan/env/trade.py` and `gosplan/env/ministry.py`. Duplicating a formula here
 would create a second place for the golden files (T-B7) to disagree with `ref/ref_step.py`.
 
 One period (PLAN section 2.5, verbatim ordering):
@@ -51,7 +50,7 @@ never the Phase-1 setting.
 
 `psi` is *tenure*: an economic parameter (managerial rotation), classified in the INC arm of PLAN
 section 3, and deliberately distinct from the technical PPO discount `gamma = 0.99`, which is a TECH
-constant that lives with the adapter (WO-017) and which the environment never reads. They multiply
+constant that lives with the adapter and which the environment never reads. They multiply
 only inside the single-enterprise DP of PLAN section 5, whose Bellman operator discounts at
 `psi * gamma`. Conflating the two is exactly the confound finding F2 records; the separation is what
 lets a sweep over tenure be an economic treatment rather than an optimiser setting.
@@ -64,7 +63,7 @@ agent's path reads them. CONTRACT rule 7: not one line here implements bunching,
 hoarding, shaving or trade - the stages call rules, and the phenomena are consequences of those
 rules or they are not results at all.
 
-Binding tests (PLAN section 11, WO-009 must-pass list): `tests/golden/*` (T-B7, agreement with
+Binding tests (PLAN section 11, a later task must-pass list): `tests/golden/*` (T-B7, agreement with
 `ref/ref_step.py` to 1e-9 on seeded trajectories), `tests/unit/test_conservation.py` (T-U1, the
 per-period, per-good conservation identity to 1e-9), `tests/unit/test_env_api.py`, and
 `tests/behavioural/test_termination.py` (T-B9, empirical continuation equals `psi` and no
@@ -75,7 +74,7 @@ runtime declarations of `gosplan/env/state.py`, `PlannerView` that of `gosplan/e
 the configuration dataclasses those of `gosplan/config.py`. Each must stay field-for-field and
 name-for-name identical to `spec/spec.py`, which is not importable as a package;
 `tests/unit/test_env_api.py` enforces the match. Those imports are type-only here so this skeleton
-imports cleanly before the modules that own them land; the implementer promotes the ones it calls at
+imports cleanly before the modules that own them land; the contributor promotes the ones it calls at
 runtime.
 """
 
@@ -92,7 +91,7 @@ if TYPE_CHECKING:  # type-only: see the cross-module bindings note in the module
     from gosplan.env.state import EnterpriseAction, Phase, State, StepInfo
 
 Array = np.ndarray
-"""Alias for every numeric array in this module (PLAN section 10). The Phase-2 JAX port (WO-029)
+"""Alias for every numeric array in this module (PLAN section 10). The Phase-2 JAX port
 substitutes its own array type behind the same name, so no signature here may rely on a
 numpy-only method."""
 
@@ -107,7 +106,7 @@ class PeriodStage(Enum):
     records the typed schedule with a separate REPORT step as the fix for the original sequencing
     ambiguity.
 
-    Owning WO: **WO-009**.
+    Owning WO: a later task.
     """
 
     DELIVER = 0
@@ -161,7 +160,7 @@ PERIOD_SCHEDULE: tuple[PeriodStage, ...] = (
 the environment, the reference implementation and the tests. PRODUCE appears once here and is
 repeated `cfg.incentive.steps_per_period` times at execution; `stages_for_step` expresses that
 repetition. Reordering this tuple changes the dynamics and therefore requires regenerated golden
-files (WO-013)."""
+files."""
 
 AGENT_STAGES: tuple[PeriodStage, ...] = (PeriodStage.PRODUCE, PeriodStage.REPORT)
 """The two stages at which an agent acts, matching the `Phase` literal `("produce", "report")` of
@@ -193,9 +192,9 @@ def stages_for_step(state: State, cfg: EnvConfig) -> tuple[PeriodStage, ...]:
 
     Binds: `tests/unit/test_env_api.py` - the three cases above; the union over one period of the
     returned tuples equals `PERIOD_SCHEDULE` with PRODUCE repeated `M` times, in order. Owning WO:
-    **WO-009**.
+    a later task.
     """
-    raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+    raise NotImplementedError("PLAN section 2.5")
 
 
 def stage_deliver(state: State, cfg: EnvConfig) -> tuple[State, Array, Array, Array, Array]:
@@ -206,8 +205,7 @@ def stage_deliver(state: State, cfg: EnvConfig) -> tuple[State, Array, Array, Ar
     quantities; `deliv` (N, J), physical receipts; `fill` (N,), the per-seller fill ratio; and
     `consumer` (J,), the final-demand sink's receipts.
 
-    Delegates, in this order and with no arithmetic of its own, to `gosplan/env/planner.py`
-    (WO-006):
+    Delegates, in this order and with no arithmetic of its own, to `gosplan/env/planner.py`:
 
         view  = make_planner_view(state, cfg)   # the single State -> planner boundary, rule 5
         alloc = allocate(view, cfg)             # promises in claimed units, PLAN section 2.7.2
@@ -230,9 +228,9 @@ def stage_deliver(state: State, cfg: EnvConfig) -> tuple[State, Array, Array, Ar
 
     Binds: T-U1 (the delivered and shipped quantities are terms of the per-period conservation
     identity), T-B3 (`tests/behavioural/test_shortage_propagation.py`), T-B7 (golden parity).
-    Owning WO: **WO-009**; the arithmetic is **WO-006**.
+    Owning WO: a later task; the arithmetic is a later task.
     """
-    raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+    raise NotImplementedError("PLAN section 2.5")
 
 
 def stage_trade(
@@ -244,8 +242,7 @@ def stage_trade(
     the plan period `t`, which keys the visibility draw. Returns: `(state, surplus)` with `surplus`
     (N,) in reward units before `reward_scale`.
 
-    Delegates to `match_trades(state, action.trade_offer, cfg, t)` in `gosplan/env/trade.py`
-    (WO-024), whose signature is frozen now and whose behaviour is frozen only at the Phase-2 spec
+    Delegates to `match_trades(state, action.trade_offer, cfg, t)` in `gosplan/env/trade.py`, whose signature is frozen now and whose behaviour is frozen only at the Phase-2 spec
     revision (PLAN section 0, finding F14).
 
     Phase-1 branch: `information.horizontal_visibility = 0.0`, so no counterparty is visible, no
@@ -260,10 +257,10 @@ def stage_trade(
     reports its own gain.
 
     Binds: T-U1 (traded units and the `tau` loss are terms of the conservation identity), T-B1
-    (`TruthfulMyopic` executes no trade under the Phase-1 configuration). Owning WO: **WO-009**; the
-    matching rule is **WO-024**.
+    (`TruthfulMyopic` executes no trade under the Phase-1 configuration). Owning WO: a later task; the
+    matching rule is a later task.
     """
-    raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+    raise NotImplementedError("PLAN section 2.5")
 
 
 def stage_produce(
@@ -275,7 +272,7 @@ def stage_produce(
     and `invest`) is read; `cfg`. Returns: `(state, y, c)` - the updated state, output realised this
     step (N,), and cost incurred this step (N,).
 
-    Delegates to `produce_step(state, action, cfg)` in `gosplan/env/production.py` (WO-005), which
+    Delegates to `produce_step(state, action, cfg)` in `gosplan/env/production.py`, which
     owns every formula of PLAN section 2.6: intended output, the per-good need, the CES coverage
     aggregator, the lognormal yield shock drawn with purpose `yield` at key
     `(seed_env, "yield", t, k, i)`, the investment diversion, the input consumption capped at stock,
@@ -285,12 +282,12 @@ def stage_produce(
     `quality_acc`, `pending_invest`, `k_step`. May NOT write: `inv_output` - this period's output
     reaches `S` only at REPORT, after the holding loss has been applied to the stock carried in
     (PLAN section 2.8, order matters) - nor `target`, nor any `last_*` field. May NOT read reports,
-    targets or rewards at all (the WO-005 forbidden list).
+    targets or rewards at all (the forbidden list).
 
     Binds: T-U1 (per-period conservation), T-U7 (the coverage aggregator), T-B7 (golden parity).
-    Owning WO: **WO-009**; the arithmetic is **WO-005**.
+    Owning WO: a later task; the arithmetic is a later task.
     """
-    raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+    raise NotImplementedError("PLAN section 2.5")
 
 
 def stage_report(state: State, action: EnterpriseAction, cfg: EnvConfig) -> State:
@@ -299,7 +296,7 @@ def stage_report(state: State, action: EnterpriseAction, cfg: EnvConfig) -> Stat
     Takes: `state` at the REPORT step, after the period's `M` PRODUCE steps; `action`, of which
     `report_ratio` (N,) and `input_request` (N, J) are read; `cfg`. Returns: the updated state.
 
-    Delegates to `process_reports(state, action, cfg)` in `gosplan/env/reporting.py` (WO-007), which
+    Delegates to `process_reports(state, action, cfg)` in `gosplan/env/reporting.py`, which
     owns PLAN section 2.8: the holding loss applied to carried stock *before* this period's output
     is added, the claim `R_i = clip(rho_i, 0, rho_max) * T_i`, the `S_max` cap with its logged
     overflow, the request clipped to `r_max * need_ij`, and the `at_bound` flag of CONTRACT rule 8.
@@ -315,10 +312,10 @@ def stage_report(state: State, action: EnterpriseAction, cfg: EnvConfig) -> Stat
     prescribed (CONTRACT rule 7).
 
     Binds: T-U1, T-B7, T-B8 (the `BOUND_BINDING` flag when over 1% of reports sit at `rho_max` -
-    bounds are results, and this one is never silently moved). Owning WO: **WO-009**; the arithmetic
-    is **WO-007**.
+    bounds are results, and this one is never silently moved). Owning WO: a later task; the arithmetic
+    is a later task.
     """
-    raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+    raise NotImplementedError("PLAN section 2.5")
 
 
 def stage_audit(
@@ -331,9 +328,9 @@ def stage_audit(
     `cfg`; and the plan period `t`, which keys both draws. Returns: `(state, audited, penalty)` with
     `audited` (N,) bool and `penalty` (N,) zero wherever `audited` is False.
 
-    Delegates to `select_audits(view, cfg, t)` in `gosplan/env/planner.py` (WO-006), whose Phase-1
+    Delegates to `select_audits(view, cfg, t)` in `gosplan/env/planner.py`, whose Phase-1
     branch draws `Bernoulli(audit_rate)` at key `(seed_env, "audit", t, i)`, and then to
-    `audit_and_penalise(state, audited, cfg, t)` in `gosplan/env/reporting.py` (WO-007), which draws
+    `audit_and_penalise(state, audited, cfg, t)` in `gosplan/env/reporting.py`, which draws
     the measurement noise at key `(seed_env, "auditnoise", t, i)` and applies the penalty of PLAN
     section 2.8 in ratio units (finding F9).
 
@@ -347,9 +344,9 @@ def stage_audit(
     outcome - is in the observation vector at index 8.
 
     Binds: T-U8 (`positive_part` gives exactly 0 for any under-report; `audited = False` gives 0),
-    T-B7 (golden parity). Owning WO: **WO-009**; the arithmetic is **WO-006** and **WO-007**.
+    T-B7 (golden parity). Owning WO: a later task; the arithmetic is later tasks.
     """
-    raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+    raise NotImplementedError("PLAN section 2.5")
 
 
 def stage_reward(
@@ -368,7 +365,7 @@ def stage_reward(
     `spec/spec.py` exactly. Returns: `r` (N,).
 
     Delegates to `enterprise_reward(state, cfg, phase, cost, penalty, trade_surplus)` in
-    `gosplan/env/reward.py` (WO-007), which owns the formula of PLAN section 2.9.1:
+    `gosplan/env/reward.py`, which owns the formula of PLAN section 2.9.1:
 
         PRODUCE step k:   r_ik = - scale * c_ik
         REPORT step:      r_i  =   scale * ( B(rho_i) - penalty_i + trade_surplus_i )
@@ -378,7 +375,7 @@ def stage_reward(
     curiosity term, no potential-based term, and no running reward normalisation - running
     statistics change the effective reward over training and, with heavy-tailed penalties, shrink
     the notch in normalised units. Per-batch advantage normalisation inside PPO is permitted and
-    belongs to WO-017, not here. Effort cost is a real cost paid when it is incurred, not shaping.
+    belongs to a later task, not here. Effort cost is a real cost paid when it is incurred, not shaping.
 
     The period-level metrics `val_measured`, `val_true` and `welfare_true` (PLAN section 2.9.3) are
     computed by `advance` alongside this stage and placed in `StepInfo` for the ledger. They are
@@ -389,10 +386,10 @@ def stage_reward(
     reward is returned, not stored on the state.
 
     Binds: T-B6 (the reward recomputed independently from the formula on random states must agree
-    exactly), T-U2 (`reward_scale(cfg) * bonus(1.1, cfg) == 1`), T-B7. Owning WO: **WO-009**; the
-    arithmetic is **WO-007**.
+    exactly), T-U2 (`reward_scale(cfg) * bonus(1.1, cfg) == 1`), T-B7. Owning WO: a later task; the
+    arithmetic is a later task.
     """
-    raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+    raise NotImplementedError("PLAN section 2.5")
 
 
 def stage_target(state: State, view: PlannerView, cfg: EnvConfig) -> State:
@@ -402,7 +399,7 @@ def stage_target(state: State, view: PlannerView, cfg: EnvConfig) -> State:
     through (CONTRACT rule 5 - the target rule sees claims, never stock or output); `cfg`. Returns:
     the updated state.
 
-    Delegates to `update_targets(view, cfg)` in `gosplan/env/planner.py` (WO-006), which owns PLAN
+    Delegates to `update_targets(view, cfg)` in `gosplan/env/planner.py`, which owns PLAN
     section 2.7.1: the fulfilment measure, the capped multiplicative step, the deadband, the growth
     directive `(1 + g)` and the floor at `target_floor_frac * T_0`.
 
@@ -416,9 +413,9 @@ def stage_target(state: State, view: PlannerView, cfg: EnvConfig) -> State:
 
     Binds: T-U4 (fixed point at `rho = 1, g = 0`; step bounded by `c_up` / `c_dn`; floor respected;
     deadband inert outside `|rho - 1| <= delta`) and T-B2 (`Padder` at `g = 0` keeps `T` constant;
-    at `g > 0` it grows at exactly `(1 + g)`). Owning WO: **WO-009**; the arithmetic is **WO-006**.
+    at `g > 0` it grows at exactly `(1 + g)`). Owning WO: a later task; the arithmetic is a later task.
     """
-    raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+    raise NotImplementedError("PLAN section 2.5")
 
 
 def stage_terminate(state: State, cfg: EnvConfig) -> tuple[State, bool]:
@@ -457,9 +454,9 @@ def stage_terminate(state: State, cfg: EnvConfig) -> tuple[State, bool]:
 
     Binds: T-B9 in `tests/behavioural/test_termination.py` - the empirical continuation frequency
     equals `tenure` after `min_periods`, the cap at `max_periods` binds, and the regression
-    coefficient of every observation field on periods remaining is about 0. Owning WO: **WO-009**.
+    coefficient of every observation field on periods remaining is about 0. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.12 - implemented in WO-009")
+    raise NotImplementedError("PLAN section 2.12")
 
 
 def advance(
@@ -497,9 +494,9 @@ def advance(
     call may be reordered to make a phenomenon appear (CONTRACT rule 7).
 
     Binds: T-B7 (golden parity with `ref/ref_step.py` to 1e-9 on seeded trajectories), T-U1
-    (conservation), `tests/unit/test_env_api.py`. Owning WO: **WO-009**.
+    (conservation), `tests/unit/test_env_api.py`. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+    raise NotImplementedError("PLAN section 2.5")
 
 
 def run_period(
@@ -529,6 +526,6 @@ def run_period(
                              + holding loss + cap overflow
 
     Binds: `tests/unit/test_conservation.py` (T-U1), `tests/golden/*` (T-B7), and the Monte-Carlo
-    sanity harness of WO-012. Owning WO: **WO-009**.
+    sanity harness of a later task. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.5 - implemented in WO-009")
+    raise NotImplementedError("PLAN section 2.5")

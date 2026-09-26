@@ -1,10 +1,10 @@
-"""Phase-1 gate experiment - PLAN sections 4.4, 4.5 (criteria 2-4), 7.5, 12.3 (WO-020) and 14.
+"""Phase-1 gate experiment - PLAN sections 4.4, 4.5 (criteria 2-4), 7.5, 12.3 and 14.
 
-Realises: gate G2 criteria 2, 3 and 4 of PLAN section 4.5 and the WO-020 card of PLAN section 12.3.
-Owning work order: **WO-020** (MID-strong, difficulty 3; depends on WO-016 metrics and WO-018
+Realises: gate G2 criteria 2, 3 and 4 of PLAN section 4.5 and its task specification of PLAN section 12.3.
+Owning task: a later task (MID-strong, difficulty 3; depends on a later task metrics and a later task
 training harness). Gate: **G2 criteria 2-4** - bunching present at the notched schedule and absent
 at the smooth counterfactual, the padding elasticity in `a * pen`, and the hygiene flags. Criterion
-1 is the neighbouring experiment `gosplan.experiments.dp_vs_ppo` (WO-019).
+1 is the neighbouring experiment `gosplan.experiments.dp_vs_ppo`.
 
     THE RESULT CLAUSE (PLAN section 4.5, verbatim in substance). Failure of criterion 1 is a
     training-stack failure and blocks everything. **Failure of criterion 2 with criterion 1 passing
@@ -23,21 +23,21 @@ Inputs
     `runs/G1_decision.md` - the human's gate G1 record: the Phase-1 values of the daggered PLAN
     section 3 rows, the three `a * pen` levels, and the `b_hat_DP` thresholds. Read, never chosen
     here.
-    `gosplan.metrics.phenomena.phenomenon_bunching` and `phenomenon_padding` (WO-016), whose
+    `gosplan.metrics.phenomena.phenomenon_bunching` and `phenomenon_padding`, whose
     defaults are the pre-registered estimator settings of PLAN section 4.5 - bins of width 0.005 on
     `rho` in [0.6, 1.4], excluded window [0.95, 1.02], polynomial degree 7, excess mass on
     [1.00, 1.02], hole mass on [0.95, 1.00), bootstrap SE over seeds. This module must NOT restate
-    those numbers: they have exactly one home (WO-016) and are recorded in the manifest from there.
-    `gosplan.agents.ppo.train` (WO-018) with the pinned reference PPO of WO-017.
-    `gosplan.experiments.price_sensitivity` (WO-036) for the standing price-vector check the WO-020
-    card requires on the headline table.
+    those numbers: they have exactly one home and are recorded in the manifest from there.
+    `gosplan.agents.ppo.train` with the pinned reference PPO of a later task.
+    `gosplan.experiments.price_sensitivity` for the standing price-vector check the corresponding task
+    task requires on the headline table.
 
 Outputs
     `runs/phase1_gate/report.md`      the gate G2 artefact of PLAN section 13, carrying one
                                       **pass/fail line per criterion** (2, 3, 4), the per-seed
                                       counts behind each, the price-sensitivity table, and every
                                       hygiene flag
-    `runs/phase1_gate/table.parquet`  per-(arm, seed) estimates and CIs; a WO-020 convention
+    `runs/phase1_gate/table.parquet`  per-(arm, seed) estimates and CIs; a a later task convention
     `runs/<config-hash>/`             per-run directory with `manifest.json` (CONTRACT rule 10) and
                                       the ledger
 
@@ -49,7 +49,7 @@ is no end-of-episode exclusion. Reports at `rho_max` are included in the histogr
 (CONTRACT rule 8) - a bound is never silently moved to change a result.
 
 Held out. Rows 2, 5, 6 and 7 of PLAN section 4.1 are not computed here, not plotted here and not
-tested here. Phase 1 touches rows 1 (bunching) and 4 (padding) only; WO-030 computes the held-out
+tested here. Phase 1 touches rows 1 (bunching) and 4 (padding) only; a later task computes the held-out
 rows for the first time, in the Phase-2 acceptance run.
 
 Runtime bindings. `EnvConfig` is `gosplan.config.EnvConfig` (field-for-field identical to
@@ -121,7 +121,7 @@ MEASUREMENT_WINDOW_START_PERIOD = 2
 
 CRITERIA: tuple[str, ...] = ("criterion_2", "criterion_3", "criterion_4")
 """The criteria this experiment evaluates: bunching present/absent (2), padding elasticity (3),
-hygiene (4). Criterion 1 belongs to `gosplan.experiments.dp_vs_ppo` (WO-019). The report carries one
+hygiene (4). Criterion 1 belongs to `gosplan.experiments.dp_vs_ppo`. The report carries one
 pass/fail line per name in this tuple, and G2 passes only if all four criteria pass across the two
 reports (PLAN section 4.5)."""
 
@@ -132,7 +132,7 @@ REPORT_PATH = OUT_DIR / "report.md"
 """The gate G2 artefact named in PLAN section 13."""
 
 TABLE_PATH = OUT_DIR / "table.parquet"
-"""Per-(arm, seed) estimates, CIs and flags; a WO-020 convention, not a PLAN-named artefact."""
+"""Per-(arm, seed) estimates, CIs and flags; a a later task convention, not a PLAN-named artefact."""
 
 G1_DECISION_PATH = Path("runs/G1_decision.md")
 """The gate G1 record supplying the Phase-1 values, the three `a * pen` levels and the `b_hat_DP`
@@ -170,18 +170,18 @@ def run(
         "passed"             bool, all three criteria passed
         "artefacts"          dict[str, str], the paths written
 
-    Procedure (PLAN section 4.5, criteria 2-4; WO-020 card):
+    Procedure (PLAN section 4.5, criteria 2-4; task specification):
 
-      1. Train `n_seeds` runs per arm in `ARMS` on the G1-recorded configuration with the WO-018
+      1. Train `n_seeds` runs per arm in `ARMS` on the G1-recorded configuration with the corresponding task
          harness, logging every step to a `Ledger` and writing `runs/<hash>/manifest.json` with the
          estimator version and the reference-PPO version (CONTRACT rule 10).
       2. Criterion 2. Per seed, evaluate over the measurement window and call
-         `phenomenon_bunching` (WO-016) with its pre-registered PLAN section 4.5 defaults. The
+         `phenomenon_bunching` with its pre-registered PLAN section 4.5 defaults. The
          notched arm's condition is `b_hat >= BHAT_DP_FRACTION * b_hat_dp` with the bootstrap CI
          excluding 0; the smooth arm's condition is that the CI covers 0. Each must hold in at least
          `SEED_PASS_FRACTION` of seeds. Hole mass on [0.95, 1.00) is reported alongside, as PLAN
          section 4.1 row 1 requires.
-      3. Criterion 3. Per level in `ap_levels`, evaluate `phenomenon_padding` (WO-016) and compare
+      3. Criterion 3. Per level in `ap_levels`, evaluate `phenomenon_padding` and compare
          the learned fictitious padding with the DP's at the same level: monotone decreasing in
          `PADDING_MONOTONE_IN`, and within `PADDING_DP_TOL` at each level.
       4. Criterion 4. `BOUND_FLAG` must be absent from every run's manifest, and the fraction of
@@ -200,9 +200,9 @@ def run(
 
     Binds: gate G2 criteria 2, 3 and 4 of PLAN section 4.5, in full.
 
-    Realises: PLAN sections 4.4, 4.5, 7.5, 12.3 (WO-020), 13, 14. Owning WO: **WO-020**.
+    Realises: PLAN sections 4.4, 4.5, 7.5, 12.3, 13, 14. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 4.5 (WO-020) - implemented in WO-020")
+    raise NotImplementedError("PLAN section 4.5")
 
 
 def main() -> int:
@@ -219,9 +219,9 @@ def main() -> int:
     lead on this report together with `runs/dp_vs_ppo/report.md` (PLAN section 13). A criterion-2
     failure is a result to be reported, not an error to be retried.
 
-    Realises: PLAN sections 4.5, 12.3 (WO-020), 13. Owning WO: **WO-020**.
+    Realises: PLAN sections 4.5, 12.3, 13. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 4.5 (WO-020) - implemented in WO-020")
+    raise NotImplementedError("PLAN section 4.5")
 
 
 if __name__ == "__main__":

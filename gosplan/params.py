@@ -1,8 +1,8 @@
 """Parameter registry - PLAN section 3 transcribed as data.
 
 Realises: PLAN section 3 (parameter registry), with the dual-classification and reporting rule of
-PLAN section 4.3 and the locked Phase-2 mechanism values of PLAN section 4.2. Owning work order:
-**WO-001** (Spec v0, CONTRACT, registry; LEAD). Consumed by **WO-003** (`gosplan/config.py`), whose
+PLAN section 4.3 and the locked Phase-2 mechanism values of PLAN section 4.2. Owning task:
+a later task (Spec v0, CONTRACT, registry; maintainer). Consumed by a later task (`gosplan/config.py`), whose
 `tests/unit/test_config.py` asserts that `p1_default_config()` agrees field by field with the data
 below - the two must never drift.
 
@@ -18,7 +18,7 @@ CONTRACT rule 11, verbatim:
 
 The arm split is what makes the C_OGAS / C_INC contrasts of PLAN section 4.3 well defined, so an
 arm is never adjusted to make a contrast come out: moving one is a `spec/CHANGELOG.md` entry
-(version, reason, affected work orders) signed off by the lead. `audit_rate` is the one
+(version, reason, affected tasks) signed off by the maintainer. `audit_rate` is the one
 dual-classified row - INFO by architecture and also a reward input through the audit penalty of
 PLAN section 2.8 - and PLAN section 4.3 requires it to be reported separately and never folded into
 the C_OGAS information contrast; the comment on its entry repeats this.
@@ -39,7 +39,7 @@ absent from `REGISTRY` because inventing registry rows for them would put values
 document that the design document does not contain: `sector_of`, `io_matrix`, `productivity`,
 `arrival_probs` (its Phase-2 locked value is in PLAN section 4.2), `ces_alpha`, `ces_sigma`,
 `quality_matters`, `quality_cost`, `n_ministries`, `seed_env`, `seed_policy` and
-`EnvConfig.spec_version`. The `p1_default_config()` cross-check of WO-003 therefore compares the
+`EnvConfig.spec_version`. The `p1_default_config()` cross-check of a later task therefore compares the
 fields `REGISTRY` names and asserts the remainder against `spec/spec.py` instead.
 """
 
@@ -61,7 +61,7 @@ value switches its mechanism on. `P2` where the table's Phase-1 cell is "-" (`in
 `trade_tau`), i.e. PLAN section 3 states no Phase-1 value because the mechanism is inert in Phase
 1; for those two the `default` field carries the Phase-2 locked value or the placeholder declared
 in `spec/spec.py`, and `notes` says which. It is **not** a claim about when a code path is written:
-that is the work-order DAG of PLAN section 12."""
+that is the task DAG of PLAN section 12."""
 
 SourceStatus = Literal[
     "historical",
@@ -72,7 +72,7 @@ SourceStatus = Literal[
     "mechanism-toggle",
 ]
 """Provenance of a parameter's value and range, taken from the "Source status" column of PLAN
-section 3: `historical` (a documented schedule or series is the anchor, even where the lead has
+section 3: `historical` (a documented schedule or series is the anchor, even where the maintainer has
 still to source it, PLAN section 15); `qualitative` (the literature constrains the structure or the
 direction, not the number); `unsourced` (no defensible range - the value is a prior, and G1 picks
 it from the DP regime map); `design` (a modelling choice of PLAN section 2); `engineering` (a
@@ -80,7 +80,7 @@ bound, size or horizon fixed across all arms); `mechanism-toggle` (the row exist
 mechanism on, and PLAN section 3 marks it a toggle or a Phase-2 mechanism).
 
 `SOURCED` / `PARTIAL` / `UNSOURCED` in `docs/params_sources.md` is a different, finer vocabulary
-answering a different question (has WO-000 sourced this yet); WO-000 has not been executed, so no
+answering a different question (has a later task sourced this yet); a later task has not been executed, so no
 value here is a historical claim."""
 
 
@@ -88,7 +88,7 @@ value here is a historical claim."""
 class Range:
     """A continuous sweep or prior range `[lo, hi]` from PLAN section 3.
 
-    Fields only - a skeleton dataclass carries no methods (no membership test, no sampler). WO-015
+    Fields only - a skeleton dataclass carries no methods (no membership test, no sampler). a later task
     (regime map) and the Phase-3 Saltelli design of PLAN section 4.3 read `lo` and `hi` directly
     and must state these ranges as an assumption in the same table as any Sobol index they report.
     """
@@ -123,8 +123,7 @@ Default = bool | int | float | str | tuple[float, ...]
 """Type of a Phase-1 default: a scalar, a string for the `Literal`-typed parameters, or a tuple for
 the per-sector vectors (`yield_sigma`, `final_demand_share`) and for the annealed PPO entropy
 coefficient. Infinity is `float("inf")` (`price_lag`; a member of the `overfulfilment_cap` and
-`input_complementarity` grids) and is serialised as the string "inf" by `EnvConfig.hash`
-(WO-003)."""
+`input_complementarity` grids) and is serialised as the string "inf" by `EnvConfig.hash`."""
 
 
 @dataclass(frozen=True)
@@ -133,8 +132,7 @@ class ParamSpec:
 
     Frozen and hashable so a registry row is a value: it can key a sweep dictionary and it is safe
     to copy into a run manifest (CONTRACT rule 10). Fields only - no `__post_init__`, no computed
-    property, no validation. Range checking of an actual configuration is `EnvConfig.validate`
-    (WO-003), which is where PLAN section 3's ranges are enforced.
+    property, no validation. Range checking of an actual configuration is `EnvConfig.validate`, which is where PLAN section 3's ranges are enforced.
     """
 
     name: str
@@ -161,7 +159,7 @@ class ParamSpec:
     """Provenance of the value and the range; the PLAN section 3 cell is quoted in `notes` wherever
     it says more than the six-value vocabulary can carry.
 
-    The authority for this field is `docs/params_sources.md` (WO-000), not PLAN section 3's own
+    The authority for this field is `docs/params_sources.md`, not PLAN section 3's own
     Source status column. Where the memo could not retrieve a source for a figure PLAN section 3
     calls historical, this field reads `unsourced` and `notes` records which memo item looked and
     what it found. A `source` of `historical` is a claim that a document was read; it is never
@@ -177,7 +175,7 @@ class ParamSpec:
     notes: str
     """The symbol PLAN section 2 uses, the role of the parameter, any locked Phase-2 value (PLAN
     section 4.2), the PLAN section 3 source cell where it is richer than `source`, and the work
-    order that reads it. This is the field an implementer reads."""
+    order that reads it. This is the field an contributor reads."""
 
     plan_section: str
     """The PLAN sections this row is governed by, semicolon-separated, always including `3`."""
@@ -204,7 +202,7 @@ REGISTRY: tuple[ParamSpec, ...] = (
         provisional=False,
         notes=(
             "Periods of delay before a report reaches the planner's rules. PLAN section 3 source "
-            "cell: qualitative (annual reporting cycles). The lag branch exists in WO-006 even "
+            "cell: qualitative (annual reporting cycles). The lag branch exists in a later task even "
             "though the Phase-1 value 0 makes it the identity, and the identity case is tested."
         ),
         plan_section="3; 2.7.1; 2.7.5",
@@ -220,7 +218,7 @@ REGISTRY: tuple[ParamSpec, ...] = (
         notes=(
             "Level at which the planner observes claims. At `sector` it sees only the per-sector "
             "sum of claims and allocates on planned need alone. PLAN section 3 source cell: "
-            "qualitative (2,000 vs millions). Read by WO-006."
+            "qualitative (2,000 vs millions). Read by a later task."
         ),
         plan_section="3; 2.4; 2.7.5",
     ),
@@ -252,7 +250,7 @@ REGISTRY: tuple[ParamSpec, ...] = (
         provisional=False,
         notes=(
             "`sigma_aud`, log-sd of the audit measurement error `S_hat = S * exp(nu)`, "
-            "`nu ~ N(0, sigma_aud**2)`, drawn with purpose `auditnoise`. Read by WO-007."
+            "`nu ~ N(0, sigma_aud**2)`, drawn with purpose `auditnoise`. Read by a later task."
         ),
         plan_section="3; 2.8",
     ),
@@ -265,9 +263,9 @@ REGISTRY: tuple[ParamSpec, ...] = (
         source="qualitative",
         provisional=False,
         notes=(
-            "Audit selection rule. Phase 1 is `random` (WO-006). `targeted` raises the probability "
+            "Audit selection rule. Phase 1 is `random`. `targeted` raises the probability "
             "with the planner's noisy knowledge of downstream complaints and therefore requires "
-            "`shortfall_visibility > 0`; it is a Phase-2 information mechanism (WO-023)."
+            "`shortfall_visibility > 0`; it is a Phase-2 information mechanism."
         ),
         plan_section="3; 2.7.4",
     ),
@@ -283,7 +281,7 @@ REGISTRY: tuple[ParamSpec, ...] = (
             "`sigma_ch`, log-sd of the reporting-channel distortion "
             "`claimed_i <- claimed_i * exp(xi)`, `xi ~ N(0, sigma_ch**2)`, purpose `channel`. One "
             "of the three information filters of PLAN section 2.7.5; the identity at the Phase-1 "
-            "value, and the branch is still implemented and tested (WO-006)."
+            "value, and the branch is still implemented and tested."
         ),
         plan_section="3; 2.7.5",
     ),
@@ -298,8 +296,8 @@ REGISTRY: tuple[ParamSpec, ...] = (
         notes=(
             "`pi` in the ministry forwarding rule; 1.0 is a fully transparent ministry, so the "
             "layer is inert in Phase 1. PLAN section 3 source cell: qualitative (OGAS "
-            "resistance). Read by the rule-based ministry (WO-025) and the LLM ministry study "
-            "(WO-026)."
+            "resistance). Read by the rule-based ministry and the LLM ministry study "
+            "."
         ),
         plan_section="3; 2.14; 7.4",
     ),
@@ -314,7 +312,7 @@ REGISTRY: tuple[ParamSpec, ...] = (
         notes=(
             "Fraction of the other `N - 1` enterprises visible as trade counterparties, and the "
             "gate on the horizontal block of the observation. Locked Phase-2 value 1.0 for the "
-            "blat phenomenon, alongside `trade_tau = 0.05` (PLAN section 4.2; WO-024)."
+            "blat phenomenon, alongside `trade_tau = 0.05` (PLAN section 4.2; a later task)."
         ),
         plan_section="3; 2.4; 2.13; 4.2",
     ),
@@ -329,7 +327,7 @@ REGISTRY: tuple[ParamSpec, ...] = (
         notes=(
             "`mu` in the measured quality factor `q_hat = 1 + mu * (qbar - 1)` used by the "
             "`quality_weighted` objective metric. Phenomenon 3 compares `objective_metric = val` "
-            "against `quality_weighted` at `mu = 1` (PLAN section 4.1; WO-021)."
+            "against `quality_weighted` at `mu = 1` (PLAN section 4.1; a later task)."
         ),
         plan_section="3; 2.9.2; 4.1",
     ),
@@ -344,7 +342,7 @@ REGISTRY: tuple[ParamSpec, ...] = (
         notes=(
             "How much of buyers' complaints the planner sees; it gates the `targeted` audit mode "
             "and fills `PlannerView.downstream_shortfall`. C_OGAS sets it to 1 (PLAN section "
-            "4.3). Phase-2 mechanism (WO-023)."
+            "4.3). Phase-2 mechanism."
         ),
         plan_section="3; 2.7.4; 4.3",
     ),
@@ -360,7 +358,7 @@ REGISTRY: tuple[ParamSpec, ...] = (
             "Log-sd of the multiplicative noise `exp(N(0, s**2))` on the agent's own cumulative "
             "output and stock observation fields, drawn with purpose `selfobs`; those fields are "
             "exact at the Phase-1 value. PLAN section 3 source cell: mechanism toggle (shape "
-            "study). Read by WO-008."
+            "study). Read by a later task."
         ),
         plan_section="3; 2.4",
     ),
@@ -411,7 +409,7 @@ REGISTRY: tuple[ParamSpec, ...] = (
             "at target the target rule has a fixed point (test T-B2). PLAN section 3 source cell: "
             "five-year-plan annual growth targets (lead to source, PLAN section 15). Phenomenon 7 "
             "is checked at the Phase-1 value (PLAN section 4.2). Provisional: replaced at G1."
-            "WO-000 memo item 2: the FORM is attested - Harrison 2007 describes planning from the achieved level, plus an increment to allow for growth - but no directive (as opposed to realised) growth rate was retrieved, so the magnitude is unsourced."
+            "a later task memo item 2: the FORM is attested - Harrison 2007 describes planning from the achieved level, plus an increment to allow for growth - but no directive (as opposed to realised) growth rate was retrieved, so the magnitude is unsourced."
         ),
         plan_section="3; 2.7.1; 4.2",
     ),
@@ -442,7 +440,7 @@ REGISTRY: tuple[ParamSpec, ...] = (
         notes=(
             "`c_dn`, cap on the negative per-period ratchet step; shares its PLAN section 3 row "
             "with `ratchet_cap_up` (0.3 / 0.3, fixed, engineering (F4)). `validate` rejects a "
-            "negative cap (WO-003)."
+            "negative cap."
         ),
         plan_section="3; 2.7.1",
     ),
@@ -506,7 +504,7 @@ REGISTRY: tuple[ParamSpec, ...] = (
             "`s`, linear bonus slope above target: `s * clip(rho - 1, 0, rho_cap - 1)`. PLAN "
             "section 3 source cell: historical - per-percentage-point bonus increments (lead to "
             "source, PLAN section 15). Provisional: replaced at G1."
-            "WO-000 memo item 1: not obtained. Berliner 1957 has no retrievable full text and the one secondary source carrying bonus percentages now returns HTTP 404, so no per-percentage-point increment is sourced."
+            "a later task memo item 1: not obtained. Berliner 1957 has no retrievable full text and the one secondary source carrying bonus percentages now returns HTTP 404, so no per-percentage-point increment is sourced."
         ),
         plan_section="3; 2.8",
     ),
@@ -522,9 +520,9 @@ REGISTRY: tuple[ParamSpec, ...] = (
             "`rho_cap`, the ratio at which the overfulfilment bonus stops accruing. `inf` means "
             "no cap and hence no kink, and is half of the smooth counterfactual "
             "(`notch_width = 0.25`, `overfulfilment_cap = inf`). `validate` rejects `rho_cap < 1` "
-            "(WO-003). PLAN section 3 source cell: historical - capped overfulfilment bonuses "
+            ". PLAN section 3 source cell: historical - capped overfulfilment bonuses "
             "(lead to source)."
-            "WO-000 memo item 1: not obtained. No cap on bonus accrual was sourced; the grid {1.1, 1.2, inf} is a design sweep, not a historical finding."
+            "a later task memo item 1: not obtained. No cap on bonus accrual was sourced; the grid {1.1, 1.2, inf} is a design sweep, not a historical finding."
         ),
         plan_section="3; 2.8; 4.3",
     ),
@@ -601,7 +599,7 @@ REGISTRY: tuple[ParamSpec, ...] = (
         provisional=False,
         notes=(
             "Soft-budget intensity. PLAN section 3 source cell: Kornai (P2 definition: bailout "
-            "probability on `fill < 1`). Inert at the Phase-1 value; implemented by WO-023."
+            "probability on `fill < 1`). Inert at the Phase-1 value; implemented by a later task."
         ),
         plan_section="3",
     ),
@@ -633,7 +631,7 @@ REGISTRY: tuple[ParamSpec, ...] = (
             "with purpose `terminate`. An economic parameter (managerial rotation; lead to "
             "source), deliberately distinct from the technical PPO discount `gamma`; it enters "
             "the DP Bellman operator as `psi * gamma` (PLAN section 5)."
-            "WO-000 memo item 5: not obtained. No distribution of Soviet enterprise director tenure was retrieved. Note the memo's conversion caveat: a per-year survival hazard is not a per-plan-period hazard unless the plan period is one year."
+            "a later task memo item 5: not obtained. No distribution of Soviet enterprise director tenure was retrieved. Note the memo's conversion caveat: a per-year survival hazard is not a per-plan-period hazard unless the plan period is one year."
         ),
         plan_section="3; 2.12; 5",
     ),
@@ -680,7 +678,7 @@ REGISTRY: tuple[ParamSpec, ...] = (
         notes=(
             "Dispersion of sector-specific bonus schedules around `notch_height`. PLAN section 3 "
             "source cell: historical (sector-specific schedules). Inert at the Phase-1 value."
-            "WO-000 memo item 1: not obtained. Sector-specific bonus schedules are asserted by PLAN section 3 but no source for them was retrieved."
+            "a later task memo item 1: not obtained. Sector-specific bonus schedules are asserted by PLAN section 3 but no source for them was retrieved."
         ),
         plan_section="3; 2.8",
     ),
@@ -697,7 +695,7 @@ REGISTRY: tuple[ParamSpec, ...] = (
             "`theta` in the CES coverage aggregator "
             "`H = (sum_j omega_j * min(1, X_j / need_j)**(-theta))**(-1/theta)`; `theta = inf` "
             "reduces to Leontief `min`. PLAN section 3 source cell: design; near-Leontief. "
-            "`validate` rejects `theta < 1` (WO-003); locked at 8 for the hoarding phenomenon "
+            "`validate` rejects `theta < 1`; locked at 8 for the hoarding phenomenon "
             "(PLAN section 4.2)."
         ),
         plan_section="3; 2.6; 4.2",
@@ -795,7 +793,7 @@ REGISTRY: tuple[ParamSpec, ...] = (
             "at step 0. PLAN section 3 source cell: storming mechanism; locked section 4.2 - the "
             "locked Phase-2 setting is `stochastic` with "
             "`arrival_probs = (0.25, 0.25, 0.25, 0.25)`, uniform-random arrival, so there is no "
-            "mechanical backloading and any effort-Gini excess is behavioural (WO-022)."
+            "mechanical backloading and any effort-Gini excess is behavioural."
         ),
         plan_section="3; 2.6; 4.2",
     ),
@@ -842,7 +840,7 @@ REGISTRY: tuple[ParamSpec, ...] = (
         notes=(
             "`h_X`, per-period loss on held input stocks. 0 in Phase 1 by design, so hoarding "
             "carries no direct carrying cost; the locked Phase-2 value is 0.01 for the hoarding "
-            "phenomenon (PLAN section 4.2; WO-023). Shares its PLAN section 3 row with "
+            "phenomenon (PLAN section 4.2; a later task). Shares its PLAN section 3 row with "
             "`holding_loss`."
         ),
         plan_section="3; 2.11; 4.2",
@@ -876,7 +874,7 @@ REGISTRY: tuple[ParamSpec, ...] = (
         notes=(
             "Periods between price recomputations; `inf` means plan prices are fixed after "
             '`t = 0`. Serialised as the string "inf" by `EnvConfig.hash` and decoded back by '
-            "`load_config` (WO-003). Shares its PLAN section 3 row with `price_markup`."
+            "`load_config`. Shares its PLAN section 3 row with `price_markup`."
         ),
         plan_section="3; 2.10",
     ),
@@ -908,7 +906,7 @@ REGISTRY: tuple[ParamSpec, ...] = (
             "`tau`, per-unit transaction cost on bilateral trade; `tau > 0` is what makes wash "
             "trades unprofitable. PLAN section 3 gives NO Phase-1 value (cell `-`) because there "
             "is no trade in Phase 1; 0.05 is the locked Phase-2 value for the blat phenomenon "
-            "(PLAN section 4.2), alongside `horizontal_visibility = 1.0` (WO-024)."
+            "(PLAN section 4.2), alongside `horizontal_visibility = 1.0`."
         ),
         plan_section="3; 2.13; 4.2",
     ),
@@ -1080,7 +1078,7 @@ REGISTRY: tuple[ParamSpec, ...] = (
             "Policy-parameter sharing across enterprises. PLAN section 3 records the Phase-1 "
             "value as `shared (sector one-hot)`: one policy, with sector identity carried by the "
             "one-hot block of the observation (PLAN sections 2.4, 6.1). Read by the PPO adapter "
-            "(WO-017), not by the environment."
+            ", not by the environment."
         ),
         plan_section="3; 6.1",
     ),
@@ -1096,11 +1094,11 @@ REGISTRY: tuple[ParamSpec, ...] = (
             "PPO discount `gamma`, from the PLAN section 3 row "
             "`PPO: gamma, lambda_GAE, lr, clip, entropy = 0.99, 0.97, 3e-4, 0.2, 0.01 -> 0.001` "
             "(engineering; fixed across arms). NOT an `EnvConfig` field: the PPO "
-            "hyper-parameters live with the adapter (WO-017) because the environment never reads "
+            "hyper-parameters live with the adapter because the environment never reads "
             "them, which is why the registry name is prefixed `ppo_`. Distinct from `tenure`, the "
             "economic continuation probability."
         ),
-        plan_section="3; 6.1; 12.3 (WO-017)",
+        plan_section="3; 6.1; 12.3",
     ),
     ParamSpec(
         name="ppo_lambda_gae",
@@ -1112,9 +1110,9 @@ REGISTRY: tuple[ParamSpec, ...] = (
         provisional=False,
         notes=(
             "GAE parameter `lambda_GAE`, from the PLAN section 3 PPO row; fixed across arms. Not "
-            "an `EnvConfig` field (WO-017)."
+            "an `EnvConfig` field."
         ),
-        plan_section="3; 12.3 (WO-017)",
+        plan_section="3; 12.3",
     ),
     ParamSpec(
         name="ppo_lr",
@@ -1126,9 +1124,9 @@ REGISTRY: tuple[ParamSpec, ...] = (
         provisional=False,
         notes=(
             "Learning rate, from the PLAN section 3 PPO row; fixed across arms. Not an "
-            "`EnvConfig` field (WO-017)."
+            "`EnvConfig` field."
         ),
-        plan_section="3; 12.3 (WO-017)",
+        plan_section="3; 12.3",
     ),
     ParamSpec(
         name="ppo_clip",
@@ -1140,9 +1138,9 @@ REGISTRY: tuple[ParamSpec, ...] = (
         provisional=False,
         notes=(
             "PPO clipping parameter, from the PLAN section 3 PPO row; fixed across arms. Not an "
-            "`EnvConfig` field (WO-017)."
+            "`EnvConfig` field."
         ),
-        plan_section="3; 12.3 (WO-017)",
+        plan_section="3; 12.3",
     ),
     ParamSpec(
         name="ppo_entropy_coef",
@@ -1154,22 +1152,22 @@ REGISTRY: tuple[ParamSpec, ...] = (
         provisional=False,
         notes=(
             "Entropy coefficient, from the PLAN section 3 PPO row, which writes it as the anneal "
-            "`0.01 -> 0.001`; the tuple is (start, end) and WO-018 anneals between them over "
-            "training. Fixed across arms; not an `EnvConfig` field (WO-017). CONTRACT rule 4 "
+            "`0.01 -> 0.001`; the tuple is (start, end) and a later task anneals between them over "
+            "training. Fixed across arms; not an `EnvConfig` field. CONTRACT rule 4 "
             "still governs the reward itself: no shaping, no reward normalisation, per-batch "
             "advantage normalisation only."
         ),
-        plan_section="3; 12.3 (WO-017, WO-018)",
+        plan_section="3; 12.3",
     ),
 )
 """The PLAN section 3 table as data: one `ParamSpec` per parameter, in table order (INFO, INC,
 SUPPLY, TECH), with the compound PLAN rows split into one entry per parameter.
 
-Binds: `tests/unit/test_config.py` (WO-003) - `p1_default_config()` agrees with this table field by
-field for every entry that names an `EnvConfig` field; `tests/unit/test_spec_imports.py` (WO-001) -
-the module imports and exposes this surface. Consumers: WO-015 (the regime-map LHS over these
-ranges), WO-020 (Phase-1 gate arms), WO-032 and WO-033 (contrasts and the optional Sobol design,
-which must state these ranges as an assumption in the same table as any index it reports)."""
+Binds: `tests/unit/test_config.py` - `p1_default_config()` agrees with this table field by
+field for every entry that names an `EnvConfig` field; `tests/unit/test_spec_imports.py` -
+the module imports and exposes this surface. Consumers: the regime-map LHS over these
+ranges, Phase-1 gate arms, a later task and contrasts and the optional Sobol design,
+which must state these ranges as an assumption in the same table as any index it reports."""
 
 
 _BY_NAME: dict[str, ParamSpec] = {spec.name: spec for spec in REGISTRY}
@@ -1184,12 +1182,12 @@ def by_name(name: str) -> ParamSpec:
     `"audit_rate"`, `"yield_sigma"`, `"ppo_gamma"`). Returns: the single `ParamSpec` with that
     name; raises `KeyError` if the registry has no such row - a missing row means the parameter is
     not tabulated in PLAN section 3 (the module docstring lists the `EnvConfig` fields that section
-    deliberately omits), and the response is an AMBIGUITY REPORT, not a row invented here
+    deliberately omits), and the response is an OPEN QUESTION, not a row invented here
     (CONTRACT rule 3).
 
-    Realises: PLAN section 3 (registry lookup). Binds: `tests/unit/test_config.py` (WO-003), which
+    Realises: PLAN section 3 (registry lookup). Binds: `tests/unit/test_config.py`, which
     uses it to compare `p1_default_config()` against the registry defaults field by field, and
-    `tests/unit/test_spec_imports.py` (WO-001).
+    `tests/unit/test_spec_imports.py`.
     """
     return _BY_NAME[name]
 
@@ -1207,8 +1205,8 @@ def by_arm(arm: Arm) -> tuple[ParamSpec, ...]:
     (contrast C_AUDIT) and never folded into C_OGAS. Changing any arm assignment requires a
     CHANGELOG entry (CONTRACT rule 11).
 
-    Realises: PLAN sections 3 and 4.3. Binds: `tests/unit/test_config.py` (WO-003) and the contrast
-    harness of WO-032.
+    Realises: PLAN sections 3 and 4.3. Binds: `tests/unit/test_config.py` and the contrast
+    harness of a later task.
     """
     return tuple(spec for spec in REGISTRY if spec.arm == arm)
 
@@ -1221,13 +1219,13 @@ def provisional() -> tuple[ParamSpec, ...]:
     `overfulfilment_slope`, `penalty_scale`, `effort_cost`.
 
     These six defaults are placeholders. Gate G1 replaces them with values a human selects from the
-    interior of the bunching region of the DP regime map (WO-014, WO-015) and records in
+    interior of the bunching region of the DP regime map and records in
     `runs/G1_decision.md` before any training run, together with the three
     `audit_rate * penalty_scale` levels for G2 and the `b_hat_DP` thresholds (PLAN sections 5, 13).
     Until then no report may present a quantity computed at these values as evidence about
-    anything; `docs/params_sources.md` (WO-000, not yet executed) records their sourcing status.
+    anything; `docs/params_sources.md` (a later task, not yet executed) records their sourcing status.
 
-    Realises: PLAN sections 3 and 13 (gate G1). Binds: `tests/unit/test_config.py` (WO-003), which
-    checks the provisional set against the registry, and the G1 artefact check of WO-015.
+    Realises: PLAN sections 3 and 13 (gate G1). Binds: `tests/unit/test_config.py`, which
+    checks the provisional set against the registry, and the G1 artefact check of a later task.
     """
     return tuple(spec for spec in REGISTRY if spec.provisional)
