@@ -216,3 +216,14 @@ _DIST_PARAMS: dict[str, tuple[str, ...]] = {
 }
 """The distribution-parameter table of the WO-004 card: for each `Dist`, exactly the keyword
 parameters `draw` accepts. A missing or unknown parameter raises; none is defaulted or aliased."""
+
+
+def uniforms(seed_env: int, purpose: Purpose, *indices: int, shape: tuple[int, ...]) -> Array:
+    """The uniforms behind `draw(..., dist="bernoulli", p=p)` at the same key: that draw is exactly
+    `uniforms(...) < p`. Exists for the JAX port (WO-029), whose audit probability is computed from
+    state on the device and is compared against these host-side keyed uniforms, so the two backends
+    agree by construction (PLAN section 2.15, CONTRACT rule 9)."""
+    if purpose not in PURPOSES:
+        raise ValueError(f"uniforms: unknown purpose {purpose!r}; must be one of {PURPOSES}")
+    seq = np.random.SeedSequence([seed_env, zlib.crc32(purpose.encode()), *indices])
+    return np.random.default_rng(seq).random(size=shape)
