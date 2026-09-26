@@ -105,7 +105,17 @@ windows.
   `f in {0, 0.05, 0.1, 0.2, 0.3, 0.5}` of enterprise-periods by 20%. The inflation is keyed by
   replicate seed.
 - Power is the rejection rate of `ledger_test` at 5%. At `f = 0` this is the size.
-- The rest of the reconciliation call follows R13.5-6.
+- **Amended (2026-09-26, before any P3 run and before any G3 number was read).** The call is made
+  per (period, good), not per enterprise-period. The sellers' claimed intermediate supply
+  `(1 - phi_j) sum R_i` is set against the buyers' total receipts of good j at the next DELIVER,
+  with a unit `io` row. This is PLAN section 7.3's reading ("claimed supply of each good against
+  buyers' receipts of it").
+  - R13.5's per-enterprise form, which compares a seller's claim with its *own* input receipts, has
+    no power. Under truthful play its statistic is about -77 (receipts are allocated by the buyer's
+    next target, not the seller's output), so it never rejects at any inflation share.
+  - The per-good form has size 0.05 and power 0.90 at a 5% inflated share.
+  - G3's row-7 `reconciliation_stat` was computed under R13.5 and is therefore uninformative. The
+    G3 record says so. Row 7's pass rule never used it.
 
 Digit tests and calibration claims stay out of scope.
 
