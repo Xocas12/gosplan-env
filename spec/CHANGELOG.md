@@ -456,3 +456,37 @@ attached, behaviour is unchanged. `GosplanEnv.step` also copies the state field-
 
 **Approver.** LEAD.
 
+
+## 2.0.0 - 2026-09-26
+
+**Reason.** Gate G2 closed with the owner's decision (a) (`runs/G2_record.md`); PLAN section 12
+schedules the Phase-2 spec revision (LEAD) before WO-021 to WO-031. Its full text is
+`spec/P2_REVISION.md`, which freezes every Phase-2 sketch and resolves AMB-WO006-B, -D, -E, -F.
+
+**Change.**
+- `InformationConfig`: `audit_target_gain` (`kappa_t`, default 4.0, range [0, 10]; R4) and
+  `ministry_pad` (`kappa_m`, default 0.5, range [0, 1]; R10).
+- `State`: `claim_history (N, 2)`, `pending_deliv (N, J, M)`, `trade_surplus_acc (N,)` and
+  `ministry_prev (N,)`, appended with a `None` default. `gosplan.env.state.ensure_p2_fields`
+  fills them with their opening values, which are also what `initial_state` sets.
+- `Purpose`: `complaint` (R3) and `bailout` (R8).
+- `EnvConfig.validate()`:
+  - range checks for the two new fields, `report_lag in {0, 1, 2}` and
+    `1 <= n_ministries <= N`;
+  - rejects out-of-scope toggles (R1): `irs_alpha`, `capital_dep`, `tech_drift_sigma`, finite
+    `price_lag` and `bonus_heterogeneity`.
+- `gosplan.config.p2_default_config()` (R11).
+
+**Frozen-test edits (LEAD, exemption-listed).**
+- `tests/unit/test_spec_imports.py`: the two new `InformationConfig` fields.
+- `tests/golden/test_golden_parity.py`: the four Phase-2 `State` fields are excluded from the
+  Phase-1 state digest; the reference implementation remains the Phase-1 oracle (R12).
+
+**Affected work orders.** WO-021 to WO-031 (all Phase 2).
+
+**Golden files.** Regenerated: `ref/gen_golden.py`'s literal configuration gains the two new
+fields (config hash). The digests' Phase-1 content is unchanged.
+
+**Suite.** Full suite: 473 passed, 1 skipped, 0 failed.
+
+**Approver.** LEAD, under the owner's instruction to continue building after G2.

@@ -192,7 +192,14 @@ def _render_state(state):
             return render(arr.item())
         return "[" + ",".join(render(v) for v in arr) + "]"
 
-    parts = [f"{f.name}={render(getattr(state, f.name))};" for f in dataclasses.fields(state)]
+    # Spec 2.0.0 (P2 revision, LEAD edit): the four Phase-2 fields appended to `State` are outside
+    # the Phase-1 reference's scope and are excluded from the Phase-1 digest.
+    p2_fields = {"claim_history", "pending_deliv", "trade_surplus_acc", "ministry_prev"}
+    parts = [
+        f"{f.name}={render(getattr(state, f.name))};"
+        for f in dataclasses.fields(state)
+        if f.name not in p2_fields
+    ]
     return hashlib.sha256("".join(parts).encode("utf-8")).hexdigest()
 
 

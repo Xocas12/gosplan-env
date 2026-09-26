@@ -117,6 +117,14 @@ class State:
     seed_env: int  # root environment seed; every draw is keyed from it (section 2.15)
     seed_policy: int  # root policy seed, kept separate from seed_env (CONTRACT rule 9)
 
+    # Phase-2 fields (P2 revision, spec 2.0.0). They default to `None` so a `State` built by hand
+    # for a Phase-1 test stays valid; `gosplan.env.state.ensure_p2_fields` fills them with their
+    # opening values (those of `initial_state`) the first time the step machine sees the state.
+    claim_history: Array | None = None  # (N, 2) claims forwarded to the planner 1, 2 periods ago
+    pending_deliv: Array | None = None  # (N, J, M) deliveries waiting for a later step
+    trade_surplus_acc: Array | None = None  # (N,) trade surplus accrued this period
+    ministry_prev: Array | None = None  # (N,) each ministry's previous forward for i
+
 
 @dataclass
 class EnterpriseAction:
@@ -222,6 +230,10 @@ def initial_state(cfg: EnvConfig) -> State:
                            `fill = 1` when the claim is zero, so 1 is the consistent opening value
         request            zeros                                             (N, J)
         pending_invest     zeros                                             (N, L)
+        claim_history      T_0 in both columns (P2 revision R2)                (N, 2)
+        pending_deliv      zeros (P2 revision R6)                              (N, J, M)
+        trade_surplus_acc  zeros (P2 revision R9)                              (N,)
+        ministry_prev      T_0 (P2 revision R10)                               (N,)
         t_period           0
         k_step             0
         phase              "produce"
@@ -268,6 +280,10 @@ def initial_state(cfg: EnvConfig) -> State:
         last_fill=np.ones(n),
         request=np.zeros((n, j)),
         pending_invest=np.zeros((n, lag)),
+        claim_history=np.repeat(target[:, None], 2, axis=1),  # P2 R2: lagged claims start on plan
+        pending_deliv=np.zeros((n, j, cfg.incentive.steps_per_period)),
+        trade_surplus_acc=np.zeros(n),
+        ministry_prev=target.copy(),  # P2 R10: a ministry's first "previous forward" is T_0
         t_period=0,
         k_step=0,
         phase="produce",
@@ -278,6 +294,27 @@ def initial_state(cfg: EnvConfig) -> State:
         seed_env=int(cfg.tech.seed_env),
         seed_policy=int(cfg.tech.seed_policy),
     )
+
+
+def ensure_p2_fields(state: State, cfg: EnvConfig) -> State:
+    """Fill any Phase-2 field left `None` with its opening value (P2 revision, spec 2.0.0).
+
+    Takes: `state` and `cfg`. Returns: the same `state`, mutated in place where needed. The
+    opening values are those `initial_state` uses: `claim_history` and `ministry_prev` start at
+    the current targets (on-plan claims), `pending_deliv` and `trade_surplus_acc` at zero. A state
+    from `initial_state` passes through unchanged.
+    """
+    n, j = cfg.supply.n_enterprises, cfg.supply.n_sectors
+    target = np.asarray(state.target, dtype=float)
+    if state.claim_history is None:
+        state.claim_history = np.repeat(target[:, None], 2, axis=1)
+    if state.pending_deliv is None:
+        state.pending_deliv = np.zeros((n, j, cfg.incentive.steps_per_period))
+    if state.trade_surplus_acc is None:
+        state.trade_surplus_acc = np.zeros(n)
+    if state.ministry_prev is None:
+        state.ministry_prev = target.copy()
+    return state
 
 
 def reset_period_accumulators(state: State) -> State:
