@@ -3,8 +3,8 @@
 Realises: PLAN section 6.1 (agents and baselines) and PLAN section 5 (the analytical layer whose
 policy `DPGreedy` replays), read under CONTRACT rules 6 (welfare blindness - no agent reads
 `StepInfo`, `State` or `PlannerView`) and 9 (policy randomness comes from the `seed_policy` stream).
-Owning work orders: **WO-010** (`base`, `heuristic`), **WO-014** (`dp`), **WO-017** (`ppo.adapter`),
-**WO-018** (`ppo.train`), **WO-026**/**WO-035** (`llm_ministry`).
+Owning tasks: a later task (`base`, `heuristic`), a later task (`dp`), a later task (`ppo.adapter`),
+a later task (`ppo.train`), a later task (`llm_ministry`).
 
 The package re-exports the Phase-1 surface that every experiment script needs:
 

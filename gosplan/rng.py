@@ -1,8 +1,8 @@
 """Key-based randomness: the single source of every environment draw.
 
 Realises: PLAN section 2.15 (RNG, key-based rather than stream-based), with the common-random-number
-requirement of PLAN section 4.3 and the NumPy/JAX parity requirement of PLAN section 12.4 (WO-029).
-Owning work order: **WO-004** (RNG; P1; MID-fast; depends on WO-001). Must pass
+requirement of PLAN section 4.3 and the NumPy/JAX parity requirement of PLAN section 12.4.
+Owning task: a later task (RNG; P1; MID-fast; depends on a later task). Must pass
 `tests/unit/test_rng.py` (test **T-U6**), which covers the four distributions
 `lognormal(mean_log, sigma)`, `normal`, `bernoulli` and `categorical`.
 
@@ -20,7 +20,7 @@ conventionally `t`, then `k`, then `i`, with the trailing index vectorised throu
 Three consequences the rest of the design leans on, and which the implementation must not break:
 
   * **Order independence.** The value of a draw depends only on its key, never on how many draws
-    were taken before it. So the NumPy environment and the Phase-2 JAX port (WO-029) agree by
+    were taken before it. So the NumPy environment and the Phase-2 JAX port agree by
     construction, and reordering the period schedule of PLAN section 2.5 cannot silently change a
     trajectory.
   * **Common random numbers.** Two arms that share `seed_env` see identical shocks for identical
@@ -33,13 +33,13 @@ Three consequences the rest of the design leans on, and which the implementation
 
 **No global generators.** This module holds no module-level `Generator`, no cached `SeedSequence`,
 no counter and no memo keyed on anything but the arguments of a call: a global would reintroduce
-call-order dependence through the back door and is forbidden by the WO-004 card. `draw` is a pure
+call-order dependence through the back door and is forbidden by its task specification. `draw` is a pure
 function of `(seed_env, purpose, indices, shape, dist, params)`. If the cost of respawning a
 generator per key ever matters, the fix is a pure, key-addressed cache proposed through an
-AMBIGUITY REPORT (CONTRACT rule 3), not a hidden stream.
+OPEN QUESTION (CONTRACT rule 3), not a hidden stream.
 
 **Skeleton status.** The purpose list and the type aliases are real content; `draw` raises
-`NotImplementedError` until WO-004 lands.
+`NotImplementedError` until a later task lands.
 """
 
 from __future__ import annotations
@@ -65,10 +65,10 @@ Purpose = Literal[
     "selfobs",
 ]
 """The enumerated RNG purposes of PLAN section 2.15, plus `selfobs` for the observation noise of
-WO-008. Mirrors `spec.spec.Purpose`. Keying by purpose is what makes draws order-independent."""
+a later task. Mirrors `spec.spec.Purpose`. Keying by purpose is what makes draws order-independent."""
 
 Dist = Literal["lognormal", "normal", "bernoulli", "categorical"]
-"""The distributions `draw` must support (the WO-004 must-pass list). Mirrors `spec.spec.Dist`.
+"""The distributions `draw` must support (the corresponding task must-pass list). Mirrors `spec.spec.Dist`.
 `lognormal` is parameterised by `(mean_log, sigma)`; the yield shock of PLAN section 2.6 uses
 `mean_log = -sigma**2 / 2` so that `E[eps] = 1`."""
 
@@ -97,7 +97,7 @@ PURPOSES: tuple[Purpose, ...] = (
                       (PLAN section 2.12)
     trade_visibility  which counterparties are visible for bilateral trade (PLAN section 2.13)
     selfobs           noise on the agent's own observation fields, gated by `self_obs_noise`
-                      (PLAN section 2.4; added for WO-008)
+                      (PLAN section 2.4; added for a later task)
 
 Two draws with different purposes are independent by construction even at identical indices, which
 is why a new kind of randomness is added by adding a purpose here (and to `Purpose` and to
@@ -133,14 +133,14 @@ def draw(
     re-derives the same table independently and states that it must match element for element, and
     `tests/golden/` compares the two: `gen.random(size=shape) < p` and
     `gen.binomial(1, p, shape).astype(bool)` draw the same distribution but consume the generator
-    differently, so a substitution here diverges every later draw and surfaces at WO-009 as an
-    unexplained golden-parity break. Pinned by ambiguity report #52; `ref/` is not on WO-004's
-    whitelist, so the table has to live here for the card to be executable at all.
+    differently, so a substitution here diverges every later draw and surfaces at a later task as an
+    unexplained golden-parity break. Pinned by open question #52; `ref/` is not on a later task's
+    whitelist, so the table has to live here for the task to be executable at all.
 
     Returns: an `Array` of exactly the requested `shape` (boolean for `bernoulli`, integer for
     `categorical`, float otherwise).
 
-    Construction (PLAN section 2.15, WO-004 notes), which the implementation must follow exactly
+    Construction (PLAN section 2.15, a later task notes), which the implementation must follow exactly
     because every reproducibility property below depends on it:
 
         SeedSequence([seed_env, crc32(purpose), *indices])   ->   Generator   ->   values
@@ -151,7 +151,7 @@ def draw(
 
     Properties the construction buys, all of which `tests/unit/test_rng.py` checks:
       * deterministic in `(seed_env, purpose, indices, shape, dist, params)` and **independent of
-        call order**, so the NumPy and JAX implementations agree by construction (the WO-029 parity
+        call order**, so the NumPy and JAX implementations agree by construction (the corresponding task parity
         test) and the period schedule of PLAN section 2.5 can be reordered safely;
       * common random numbers across arms whenever `seed_env` is shared (PLAN section 4.3);
       * `seed_policy` is an entirely separate stream and never appears in a key here (CONTRACT rule
@@ -166,11 +166,11 @@ def draw(
 
     Interface note. PLAN section 10 types `purpose` and `dist` as `str`; `spec/spec.py` narrows
     them to the `Purpose` and `Dist` literals, which enumerate exactly the values PLAN section 2.15
-    and the WO-004 card name. The narrowing is recorded in `spec/CHANGELOG.md` at the v1 freeze.
+    and its task specification name. The narrowing is recorded in `spec/CHANGELOG.md` at the v1 freeze.
 
     Binds: test **T-U6** in `tests/unit/test_rng.py` - `draw` is deterministic in
     `(seed_env, purpose, indices)` and independent of call order, and each distribution has the
     stated moments (the PLAN section 2.6 yield shock has mean 1 to 1e-3 over 1e5 draws, which
-    `tests/unit/test_production.py` also checks). Owning WO: **WO-004**.
+    `tests/unit/test_production.py` also checks). Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.15 - implemented in WO-004")
+    raise NotImplementedError("PLAN section 2.15")

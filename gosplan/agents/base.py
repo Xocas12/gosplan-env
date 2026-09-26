@@ -2,8 +2,8 @@
 
 Realises: PLAN sections 6.1 (the agent table), 2.3 (action dimensions), 2.4 (observation) and 2.5
 (phase within a plan period), under CONTRACT rules 6 (welfare blindness) and 9 (RNG). Owning work
-order: **WO-010** (heuristic agents; this module is its first deliverable), with `IPPO` supplied by
-**WO-017** and `DPGreedy` by **WO-010**/**WO-014**.
+order: a later task (heuristic agents; this module is its first deliverable), with `IPPO` supplied by
+a later task and `DPGreedy` by another.
 
 Relation to the frozen interface. `spec/spec.py` is the frozen interface (CONTRACT rule 1) but is
 not an importable package, so this module re-declares `Agent`, `Array` and `Phase` with signatures
@@ -18,7 +18,7 @@ section 2.4, the current `phase`, and a policy-stream generator. It receives **n
 those. This is CONTRACT rule 6 (welfare blindness): `welfare_true` and `val_measured` are logged and
 never appear in an observation, a reward or any agent input; `StepInfo` is written by the
 environment for `gosplan/metrics/ledger.py` and for lead-run experiments only, and "any agent
-reading `StepInfo`" is on the WO-010 forbidden list. An agent that needs a configuration constant
+reading `StepInfo`" is on the forbidden list. An agent that needs a configuration constant
 (sector productivity, the initial target, the action bounds) holds an `EnvConfig` given to it at
 construction time and reads the *configuration*, which is public, never the *state*, which is not.
 
@@ -39,12 +39,13 @@ from typing import TYPE_CHECKING, Literal, Protocol
 
 import numpy as np
 
-if TYPE_CHECKING:  # runtime home of the action record: gosplan/env/state.py (WO-009, PLAN sec. 8)
+if (
+    TYPE_CHECKING
+):  # runtime home of the action record: gosplan/env/state.py (a later task, PLAN sec. 8)
     from gosplan.env.state import EnterpriseAction
 
 Array = np.ndarray
-"""Alias for every numeric array in the agent layer (PLAN section 10). The Phase-2 JAX port
-(WO-029) substitutes its own array type behind the same name, so no agent may rely on a
+"""Alias for every numeric array in the agent layer (PLAN section 10). The Phase-2 JAX port substitutes its own array type behind the same name, so no agent may rely on a
 numpy-only method in a signature. Identical to `spec/spec.py`'s alias by construction."""
 
 Phase = Literal["produce", "report"]
@@ -63,9 +64,9 @@ class Agent(Protocol):
     """The interface every policy implements - heuristic, DP-derived, learned or LLM-driven.
 
     Implementations (PLAN section 6.1): `Random`, `TruthfulMyopic`, `Padder` (sanity only) and
-    `DPGreedy` in Phase 1 (`gosplan/agents/heuristic.py`, WO-010, WO-014); `Berliner`, `Weitzman`,
-    `Kornai` and the LLM ministry study of PLAN section 7.4 in Phase 2 (WO-030, WO-026); `IPPO` as
-    a thin adapter over a pinned reference PPO (`gosplan/agents/ppo/adapter.py`, WO-017).
+    `DPGreedy` in Phase 1 (`gosplan/agents/heuristic.py`, a later task); `Berliner`, `Weitzman`,
+    `Kornai` and the LLM ministry study of PLAN section 7.4 in Phase 2; `IPPO` as
+    a thin adapter over a pinned reference PPO (`gosplan/agents/ppo/adapter.py`, a later task).
 
     The protocol is structural: an implementation matches it by defining `act` and `reset` with
     these signatures and does not inherit from it. Argument names are part of the interface - the
@@ -97,9 +98,9 @@ class Agent(Protocol):
 
         Reference behaviours are stated on each class in `gosplan/agents/heuristic.py`, transcribed
         from the PLAN section 6.1 table. Binds: T-B1 (no hard-coded pathology), T-B2 (fixed point),
-        T-B3 (shortage propagation), T-B5 (welfare blindness). Owning WO: **WO-010**.
+        T-B3 (shortage propagation), T-B5 (welfare blindness). Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-010")
+        raise NotImplementedError("PLAN section 6.1")
 
     def reset(self) -> None:
         """Clear any per-episode internal state.
@@ -111,9 +112,9 @@ class Agent(Protocol):
         clears everything episode-scoped here. It must not touch anything run-scoped: the
         configuration, the loaded `DPSolution`, or the policy parameters.
 
-        Owning WO: **WO-010**.
+        Owning WO: a later task.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-010")
+        raise NotImplementedError("PLAN section 6.1")
 
 
 __all__ = ["Agent", "Array", "Phase"]

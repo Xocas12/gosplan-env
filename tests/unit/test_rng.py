@@ -1,8 +1,8 @@
 """Key-based randomness: determinism, order-independence and distributions (PLAN section 2.15).
 
 Realises: PLAN section 2.15 (RNG - key-based, not stream-based) and PLAN section 11 (test
-architecture; property test **T-U6**). Owning work order: **WO-002** (frozen tests; LEAD). Binds the
-WO-004 must-pass line of PLAN section 12.3, verbatim - "`tests/unit/test_rng.py` (T-U6;
+architecture; property test **T-U6**). Owning task: a later task (frozen tests; maintainer). Binds the
+a later task must-pass line of PLAN section 12.3, verbatim - "`tests/unit/test_rng.py` (T-U6;
 distributions: `lognormal(mean_log, sigma)`, `normal`, `bernoulli`, `categorical`)". Module under
 test: `gosplan/rng.py`.
 
@@ -13,11 +13,11 @@ CONTRACT RULE 9 is what this module defends: all environment randomness goes thr
 `rng.draw(seed_env, purpose, *indices)`, there are no direct `numpy.random` or `jax.random` calls
 inside `gosplan/env/`, no module-level global generator anywhere, and `seed_policy` is a separate
 stream. Three design properties depend on the tests below holding: the NumPy and JAX implementations
-agree by construction (WO-029 parity), common random numbers across arms hold whenever `seed_env` is
+agree by construction (a later task parity), common random numbers across arms hold whenever `seed_env` is
 shared (PLAN section 4.3), and a new kind of randomness is added by adding a *purpose* rather than
 by reusing an existing one at shifted indices.
 
-FROZEN BY CONTRACT RULE 2. SKELETON: every test is `@pytest.mark.skeleton` and skipped until WO-004
+FROZEN BY CONTRACT RULE 2. SKELETON: every test is `@pytest.mark.skeleton` and skipped until a later task
 lands `gosplan/rng.py`; each docstring states the exact assertion, formula and tolerance.
 """
 
@@ -41,7 +41,7 @@ def test_draw_is_deterministic_in_seed_purpose_and_indices(rng_seed, implemented
     hold across separate processes as well as within one, because the golden files of PLAN section
     11 are generated once and compared for the life of the repository.
 
-    Mechanism (WO-004 notes): `numpy.random.SeedSequence([seed_env, crc32(purpose), *indices])`
+    Mechanism (a later task notes): `numpy.random.SeedSequence([seed_env, crc32(purpose), *indices])`
     spawns an independent generator per key, so the key alone determines the bits.
     """
     from gosplan.rng import PURPOSES, draw
@@ -69,7 +69,7 @@ def test_draw_is_independent_of_call_order(rng_seed, implemented) -> None:
     unrelated draw between two calls does not change either result. There is no hidden stream state
     to advance.
 
-    Why it is load-bearing: order-independence is what lets the JAX port of WO-029 vectorise the
+    Why it is load-bearing: order-independence is what lets the JAX port of a later task vectorise the
     same draws in a different execution order and still match to 1e-9, and what makes common random
     numbers across arms (PLAN section 4.3) a property of the seed rather than of the code path.
     """
@@ -103,7 +103,7 @@ def test_distinct_purposes_are_independent_at_identical_indices(rng_seed, implem
     same `(seed_env, *indices)` with the same shape and distribution differ, and over a large
     sample their empirical correlation is statistically indistinguishable from zero. `PURPOSES`
     itself must equal the values of the `Purpose` literal, so the closed list and the type cannot
-    drift (PLAN section 2.15 plus `selfobs`, added for WO-008).
+    drift (PLAN section 2.15 plus `selfobs`, added for a later task).
 
     Why it matters: keying by purpose is what makes the yield shock, the audit selection, the audit
     noise, the arrival draw, the channel noise, the drift, the termination draw, the trade

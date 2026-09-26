@@ -1,10 +1,10 @@
 """Production: one PRODUCE step of the period schedule.
 
 Realises: PLAN section 2.6 (intended output, the CES input-coverage aggregator, the log-normal
-yield shock, the investment diversion, input consumption and the effort cost). Owning work order:
-**WO-005** (Production; MID-strong, depends on WO-003 and WO-004).
+yield shock, the investment diversion, input consumption and the effort cost). Owning task:
+a later task (Production; MID-strong, depends on a later task).
 
-Scope, stated as a prohibition (the WO-005 forbidden list). Nothing in this module may reference a
+Scope, stated as a prohibition (the forbidden list). Nothing in this module may reference a
 report, a target, a bonus, a penalty, an audit or a reward - not in code, not in a docstring, not
 in an example. Production is physical: it turns effort and input stocks into output and cost, and
 it knows nothing about what will later be claimed about that output. The separation is what makes
@@ -21,10 +21,10 @@ Dimensions: `N = cfg.supply.n_enterprises`, `J = cfg.supply.n_sectors`,
 in `State.planner_io` and is never read here.
 
 Cross-module bindings. `State` and `EnterpriseAction` are the runtime dataclasses of
-`gosplan/env/state.py` (WO-009) and `EnvConfig` that of `gosplan/config.py` (WO-003); each must
+`gosplan/env/state.py` and `EnvConfig` that of `gosplan/config.py`; each must
 stay field-for-field identical to its `spec/spec.py` declaration, which is not importable as a
 package. They are imported under `TYPE_CHECKING` so this module stays importable while its
-siblings are still skeletons; the implementer promotes the ones it calls at runtime, and
+siblings are still skeletons; the contributor promotes the ones it calls at runtime, and
 `gosplan.rng.draw` is the one it will need.
 """
 
@@ -71,7 +71,7 @@ def coverage(X: Array, need: Array, weights: Array, theta: float) -> Array:
       * `X_ij / need_ikj == 0` with `theta` finite sends one term to infinity and `H` to 0; the
         implementation must return 0 there rather than a NaN.
 
-    `weights` is the caller's responsibility, not this function's: `GosplanEnv.__init__` (WO-009)
+    `weights` is the caller's responsibility, not this function's: `GosplanEnv.__init__`
     precomputes `omega_j = a_{s(i)j} / sum_j a_{s(i)j}` once per run, because `a` is fixed within a
     run in Phase 1 (`cfg.supply.tech_drift_sigma = 0.0`). The weights of a row of `a` that is
     entirely zero are undefined; that row takes the `H = 1` branch above and its weights are never
@@ -79,9 +79,9 @@ def coverage(X: Array, need: Array, weights: Array, theta: float) -> Array:
 
     Binds: test T-U7 in `tests/unit/test_production.py` (PLAN section 11) - `theta = inf` equals
     `min`; `theta -> 1` equals the weighted harmonic mean `1 / sum_j (omega_j / r_ij)`; `H = 1`
-    when no inputs are needed. Owning WO: **WO-005**.
+    when no inputs are needed. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.6 - implemented in WO-005")
+    raise NotImplementedError("PLAN section 2.6")
 
 
 def produce_step(
@@ -123,11 +123,11 @@ def produce_step(
     State fields written: `inv_inputs` loses the consumed inputs; `cum_output` accumulates `y_ik`;
     `cum_cost` accumulates `c_ik`. `quality_acc` accumulates the Phase-2 period-average quality
     `qbar_i` and stays untouched in Phase 1, where `q == 1`; its accumulation rule is frozen at the
-    Phase-2 spec revision (WO-021). `pending_invest` receives `y_tilde_ik * v_ik` in Phase 2; its
-    column convention and its maturing rule are frozen at the Phase-2 spec revision (WO-021), and
+    Phase-2 spec revision. `pending_invest` receives `y_tilde_ik * v_ik` in Phase 2; its
+    column convention and its maturing rule are frozen at the Phase-2 spec revision, and
     in Phase 1 `v == 0` leaves the buffer at zero. No other field of `State` may be written here -
     in particular not `inv_output`: own-good stock receives the period's accumulated output only at
-    the close of the period, under PLAN section 2.8 (`gosplan/env/reporting.py`, WO-007).
+    the close of the period, under PLAN section 2.8 (`gosplan/env/reporting.py`, a later task).
 
     Randomness (CONTRACT rule 9, PLAN section 2.15). The yield shock is drawn through
     `gosplan.rng.draw` with purpose `"yield"` and indices `(t, k)`, vectorised over the trailing
@@ -138,7 +138,7 @@ def produce_step(
     `sigma_j` and `mean_log = -sigma_j**2 / 2`, at the same key and `shape=(N,)`, each enterprise
     then taking entry `i` of the array drawn for its own sector. That keeps the key, the mean of 1
     and the order-independence of T-U6 intact. The convention must agree with `ref/ref_step.py` to
-    1e-9 (T-B7), so WO-002 fixes it in the reference and WO-005 follows the reference.
+    1e-9 (T-B7), so a later task fixes it in the reference and a later task follows the reference.
 
     Phase-2 toggles that route through this function, every one of them off at
     `p1_default_config()`:
@@ -163,9 +163,9 @@ def produce_step(
                      behavioural (PLAN section 4.2)
         backloaded   arrival_probs concentrated on late steps
 
-    Binds: `tests/unit/test_production.py` (the WO-005 must-pass list) - T-U7 on `coverage`; the
+    Binds: `tests/unit/test_production.py` (the corresponding task must-pass list) - T-U7 on `coverage`; the
     yield shock has mean 1 to 1e-3 over 1e5 draws; the `v` diversion; the cost formula; inputs
     consumed equal `a * y_tilde` capped at stock; `H = 1` when the enterprise's row of `a` is zero
-    - and test T-U1, the per-period conservation identity, to 1e-9 per good. Owning WO: **WO-005**.
+    - and test T-U1, the per-period conservation identity, to 1e-9 per good. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 2.6 - implemented in WO-005")
+    raise NotImplementedError("PLAN section 2.6")

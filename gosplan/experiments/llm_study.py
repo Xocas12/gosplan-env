@@ -1,9 +1,9 @@
-"""LLM ministry study - PLAN sections 2.14, 7.4, 12.5 (WO-035), 13 (gate G4) and 14.
+"""LLM ministry study - PLAN sections 2.14, 7.4, 12.5, 13 (gate G4) and 14.
 
 Realises: the study design of PLAN section 7.4, run against the ministry layer of PLAN section 2.14
-through the adapter of WO-026. Owning work order: **WO-035** (MID-strong, Phase 3; **the lead writes
+through the adapter of a later task. Owning task: a later task (MID-strong, Phase 3; **the maintainer writes
 both framing prompts and the manipulation-check prompt** - this module never contains prompt text,
-it loads the lead's files). Gate: **G4** - the final report needs the LLM study (PLAN section 13).
+it loads the maintainer's files). Gate: **G4** - the final report needs the LLM study (PLAN section 13).
 
     Separate from the factorial. PLAN section 7.4 is explicit: this study stands beside the
     contrasts of PLAN section 4.3, it is not a cell in them. Nothing here feeds a `Delta_X`, and no
@@ -35,10 +35,10 @@ transparent forwarding. Model ids and versions are pinned and recorded in the ma
 prompt and every completion is logged** (CONTRACT rule 10).
 
 Inputs
-    The lead's prompt files: one per framing plus the manipulation-check prompt, loaded from the
-    directory passed to `run` (their location is fixed when WO-035 is issued and recorded in the
+    The maintainer's prompt files: one per framing plus the manipulation-check prompt, loaded from the
+    directory passed to `run` (their location is fixed when a later task is issued and recorded in the
     manifest). The Phase-2 configuration with an active ministry layer (`n_ministries > 1`,
-    `ministry_passthrough` under the model's control), the adapter of WO-026, and the pinned model
+    `ministry_passthrough` under the model's control), the adapter of a later task, and the pinned model
     ids.
 
 Outputs
@@ -51,8 +51,8 @@ Outputs
                                      exchanges (CONTRACT rule 10)
     `runs/<config-hash>/`            per-run directories with `manifest.json`
 
-    PLAN section 12.5 names no artefact paths for WO-035; these follow the `runs/<experiment>/`
-    convention of the Phase-1 cards.
+    PLAN section 12.5 names no artefact paths for a later task; these follow the `runs/<experiment>/`
+    convention of the Phase-1 tasks.
 
 Cost (PLAN section 14): 2 framings x 3 arms x 2 models x 20 episodes x about 12 ministry decisions x
 about 1.5k tokens - about 4M tokens, tens of dollars.
@@ -70,8 +70,8 @@ from gosplan.config import EnvConfig
 
 FRAMINGS: tuple[str, ...] = ("neutral", "historical")
 """The two framings of PLAN section 7.4: neutral vocabulary and historical (Soviet-planning)
-vocabulary. The prompt text for each is written by the lead (WO-035 card) and loaded from disk; this
-module holds the names only, so a prompt can never be edited by an implementer session in passing.
+vocabulary. The prompt text for each is written by the maintainer (task specification) and loaded from disk; this
+module holds the names only, so a prompt can never be edited by a contributor in passing.
 The framing contrast is the study's **secondary** measure."""
 
 PAYOFF_ARMS: dict[str, dict[str, dict[str, object]]] = {
@@ -89,7 +89,7 @@ PAYOFF_ARMS: dict[str, dict[str, dict[str, object]]] = {
 
 Only the two values PLAN section 7.4 states numerically appear here. The magnitudes it states
 qualitatively - "pen large" (`incentive.penalty_scale`) and "s large"
-(`incentive.overfulfilment_slope`) - are not invented in this module: the lead sets each when WO-035
+(`incentive.overfulfilment_slope`) - are not invented in this module: the maintainer sets each when a later task
 is issued, to the smallest value inside the PLAN section 3 range for which the stated dominance is
 *strict* under `bonus` and the penalty of PLAN section 2.8, verifies it analytically before any
 model call, and records both the value and the verification in the manifest. A payoff arm whose
@@ -106,11 +106,11 @@ DOMINANCE_CONDITIONS: dict[str, str] = {
     ),
 }
 """The property each non-baseline arm must satisfy before it is run (PLAN section 7.4), written out
-so the verification the lead performs has a stated target and the report can quote it. `baseline`
+so the verification the maintainer performs has a stated target and the report can quote it. `baseline`
 has no dominance condition by construction."""
 
 MIN_MODELS = 2
-"""At least two models (PLAN section 7.4). The ids and versions are pinned by the lead at issue time
+"""At least two models (PLAN section 7.4). The ids and versions are pinned by the maintainer at issue time
 and recorded in the manifest (CONTRACT rule 10); they are not constants here, because a model
 version that changed under a study is a result-invalidating event and must be visible in the run
 record rather than in source."""
@@ -163,7 +163,7 @@ manipulation-check exchanges included. Declared as data so a report can state th
 exist and where they are."""
 
 OUT_DIR = Path("runs/llm_study")
-"""Artefact directory, relative to the repository root; a WO-035 convention."""
+"""Artefact directory, relative to the repository root; a a later task convention."""
 
 REPORT_PATH = OUT_DIR / "report.md"
 """The tracking measure, the stratified manipulation check, the fallback rates, the pinned model
@@ -187,8 +187,8 @@ def run(
     """Run the LLM ministry study and write its report and transcripts.
 
     Takes: `cfg`, the Phase-2 configuration with an active ministry layer, already validated;
-    `prompt_dir`, the directory holding the lead's prompt files - one per name in `FRAMINGS` plus
-    the manipulation-check prompt (the WO-035 card assigns their authorship to the lead, so this
+    `prompt_dir`, the directory holding the maintainer's prompt files - one per name in `FRAMINGS` plus
+    the manipulation-check prompt (its task specification assigns their authorship to the maintainer, so this
     module loads them and never contains prompt text); `model_ids`, the pinned model identifiers,
     at least `MIN_MODELS` of them, each including its version; `out_dir`, where the artefacts are
     written; `n_episodes`, episodes per cell; `seed_env`, the root environment seed - `None` means
@@ -207,7 +207,7 @@ def run(
         "parse_failures"       dict, per cell: first-attempt failures, retries, and
                                `FALLBACK_PASSTHROUGH` invocations
         "model_versions"       dict[str, str], the pinned ids and versions actually called
-        "dominance_verified"   dict[str, bool], per non-baseline arm, from the lead's pre-run check
+        "dominance_verified"   dict[str, bool], per non-baseline arm, from the maintainer's pre-run check
                                against `DOMINANCE_CONDITIONS`
         "artefacts"            dict[str, str], the paths written
 
@@ -217,7 +217,7 @@ def run(
          verified dominance check against `DOMINANCE_CONDITIONS`, and unless `len(model_ids) >=
          MIN_MODELS`.
       2. For each (model, framing, arm) cell, run `n_episodes` episodes in which the ministry
-         decision of PLAN section 2.14 is taken by the model through the WO-026 adapter: it receives
+         decision of PLAN section 2.14 is taken by the model through the corresponding task adapter: it receives
          a text rendering of a `MinistryView` and nothing else (CONTRACT rules 5, 6), and returns
          strict JSON. On a parse failure, retry once (`JSON_RETRIES`), then fall back to
          `FALLBACK_PASSTHROUGH` and count it.
@@ -234,16 +234,16 @@ def run(
 
     Binds: gate G4 of PLAN section 13 - "LLM study" - and the design of PLAN section 7.4.
 
-    Realises: PLAN sections 2.14, 7.4, 12.5 (WO-035), 13, 14. Owning WO: **WO-035**.
+    Realises: PLAN sections 2.14, 7.4, 12.5, 13, 14. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 7.4 (WO-035) - implemented in WO-035")
+    raise NotImplementedError("PLAN section 7.4")
 
 
 def main() -> int:
     """Entry point: run every cell of the LLM ministry study and write the report.
 
-    Takes: nothing; the configuration, the lead's prompt directory and the pinned model ids come
-    from the WO-035 issue record, the design is `FRAMINGS` x `PAYOFF_ARMS` x models x
+    Takes: nothing; the configuration, the maintainer's prompt directory and the pinned model ids come
+    from the corresponding task issue record, the design is `FRAMINGS` x `PAYOFF_ARMS` x models x
     `N_EPISODES_PER_CELL`. Any command-line surface, client construction and rate limiting is built
     inside this function.
 
@@ -252,9 +252,9 @@ def main() -> int:
     dominance condition was not verified, or a model version could not be pinned. The exit code says
     nothing about the finding: whether behaviour tracks the payoff arms is read off the report.
 
-    Realises: PLAN sections 7.4, 12.5 (WO-035), 13. Owning WO: **WO-035**.
+    Realises: PLAN sections 7.4, 12.5, 13. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 7.4 (WO-035) - implemented in WO-035")
+    raise NotImplementedError("PLAN section 7.4")
 
 
 if __name__ == "__main__":

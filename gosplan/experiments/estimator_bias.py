@@ -1,7 +1,7 @@
-"""Estimator-bias study - PLAN sections 4.5, 5, 7.2, 7.3, 12.5 (WO-034), 13 (gate G4) and 14.
+"""Estimator-bias study - PLAN sections 4.5, 5, 7.2, 7.3, 12.5, 13 (gate G4) and 14.
 
 Realises: PLAN section 7.2, the load-bearing payback of the `forensics_core` coupling, with the
-interface scoped in PLAN section 7.3. Owning work order: **WO-034** (MID-strong, Phase 3). Gate:
+interface scoped in PLAN section 7.3. Owning task: a later task (MID-strong, Phase 3). Gate:
 **G4** - the final report needs the estimator-bias curves (PLAN section 13).
 
 What it answers. The bunching estimator of PLAN section 4.5 is used to *measure* manipulation. This
@@ -32,8 +32,8 @@ ledgers whose fictitious output is known by construction.
     and any use of Phase-1 output for the archival anchor.
 
 Inputs
-    `gosplan.agents.dp.solve_single_enterprise` (WO-014) per arm, on the PLAN section 5 `DPGrid`
-    defaults; `gosplan.agents.ppo.train` (WO-018) for the simulated arms; the ledgers of WO-011; the
+    `gosplan.agents.dp.solve_single_enterprise` per arm, on the PLAN section 5 `DPGrid`
+    defaults; `gosplan.agents.ppo.train` for the simulated arms; the ledgers of a later task; the
     estimator interface of PLAN section 7.3.
 
 Outputs
@@ -48,8 +48,8 @@ Outputs
     `runs/<config-hash>/`                   per-run directories with `manifest.json` (CONTRACT rule
                                             10, estimator version included)
 
-    PLAN section 12.5 names no artefact paths for WO-034; these follow the `runs/<experiment>/`
-    convention of the Phase-1 cards.
+    PLAN section 12.5 names no artefact paths for a later task; these follow the `runs/<experiment>/`
+    convention of the Phase-1 tasks.
 
 Cost (PLAN section 14): 10 arms x 30 seeds plus the DP solves, on JAX or NumPy - hours.
 
@@ -115,11 +115,11 @@ ESTIMATOR_GRID_AXES: tuple[str, ...] = ("excluded_window", "degree", "bin_width"
 7.3 interface: "excluded window" is `(excl_lo, excl_hi)`, "polynomial degree" is `degree`, and
 "bandwidth" is `bin_width` - the interface exposes no separate bandwidth argument. If the interface
 agreed with the `forensics_core` owner at G1 gains one, this tuple gains a fourth axis and the
-change is recorded in the manifest. The *extent* of each axis is fixed by the lead at issue time and
+change is recorded in the manifest. The *extent* of each axis is fixed by the maintainer at issue time and
 printed in the table; the pre-registered PLAN section 4.5 point must be a member of the grid and is
 labelled as such in every figure."""
 
-PREREGISTERED_SETTINGS_SOURCE = "gosplan.metrics.phenomena.phenomenon_bunching defaults (WO-016)"
+PREREGISTERED_SETTINGS_SOURCE = "gosplan.metrics.phenomena.phenomenon_bunching defaults"
 """Where the pre-registered PLAN section 4.5 estimator settings live. This module deliberately does
 not restate the numbers: they have exactly one home, they are recorded in the manifest from there,
 and a study of estimator settings must not be able to drift from the setting it is a study of."""
@@ -141,7 +141,7 @@ output for the archival anchor, out of scope. This study reports bias, RMSE, cov
 known-truth simulator; it does not calibrate anything against archives."""
 
 OUT_DIR = Path("runs/estimator_bias")
-"""Artefact directory, relative to the repository root; a WO-034 convention."""
+"""Artefact directory, relative to the repository root; a a later task convention."""
 
 TABLE_PATH = OUT_DIR / "table.parquet"
 """One row per (arm, seed, estimator setting)."""
@@ -218,9 +218,9 @@ def run(
     Binds: gate G4 of PLAN section 13 - "estimator-bias curves" - and the design of PLAN section
     7.2.
 
-    Realises: PLAN sections 4.5, 5, 7.2, 7.3, 12.5 (WO-034), 13, 14. Owning WO: **WO-034**.
+    Realises: PLAN sections 4.5, 5, 7.2, 7.3, 12.5, 13, 14. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 7.2 (WO-034) - implemented in WO-034")
+    raise NotImplementedError("PLAN section 7.2")
 
 
 def main() -> int:
@@ -228,16 +228,16 @@ def main() -> int:
 
     Takes: nothing; the base configuration, the arm grids (`NOTCH_WIDTH_GRID`,
     `OVERFULFILMENT_CAP_GRID`), the seed count (`N_SEEDS`) and the estimator-settings grid fixed by
-    the lead are assembled here. Any command-line surface is built inside this function.
+    the maintainer are assembled here. Any command-line surface is built inside this function.
 
     Returns: a process exit code - 0 when every arm ran and `runs/estimator_bias/report.md` was
     written, 1 otherwise. The exit code says nothing about the estimator's performance: poor
     coverage or large bias at small `w` is the study's finding, reported as such, and never a reason
     to re-tune the pre-registered settings of PLAN section 4.5 after the fact.
 
-    Realises: PLAN sections 7.2, 12.5 (WO-034), 13. Owning WO: **WO-034**.
+    Realises: PLAN sections 7.2, 12.5, 13. Owning WO: a later task.
     """
-    raise NotImplementedError("PLAN section 7.2 (WO-034) - implemented in WO-034")
+    raise NotImplementedError("PLAN section 7.2")
 
 
 if __name__ == "__main__":
