@@ -1,4 +1,4 @@
-"""LLM ministry: the Phase-2 study of PLAN section 7.4. **Study stub - interface only.**
+"""LLM ministry: the Phase-2 study of PLAN section 7.4 (adapter implemented at WO-026).
 
 Realises: PLAN section 7.4 (the LLM ministry study) over the ministry layer of PLAN section 2.14,
 with the manifest requirements of CONTRACT rule 10. Owning work orders: **WO-026** (the adapter -
@@ -160,9 +160,8 @@ class LLMMinistry:
     called once per plan period with that ministry's `MinistryView`, returning the values it
     forwards upward. It is *not* an enterprise policy and does not implement `act` - it never
     chooses an `EnterpriseAction`, and the `Agent` protocol's list of implementations names it as
-    part of the agent layer in the broad sense only. Which protocol it satisfies is settled by the
-    Phase-2 spec revision (PLAN section 0, finding F14); until then this class is interface plus
-    documented behaviour and its methods raise.
+    part of the agent layer in the broad sense only. It satisfies the `MinistryPolicy.forward`
+    protocol of the Phase-2 spec revision (`spec/P2_REVISION.md` R10.5).
 
     The class is deliberately thin: build a prompt from the view, call the model, parse strictly,
     retry once, fall back to passthrough, log everything. Any judgement about what a "reasonable"
@@ -175,7 +174,13 @@ class LLMMinistry:
     cfg: LLMMinistryConfig
     """Pinned model identity, study cell and log destination."""
 
-    client: object
+    episode: int = 0
+    """Episode counter for the log; incremented by `reset`."""
+
+    n_fallbacks: int = 0
+    """How many forwards fell back to passthrough (reported: a high rate is a finding)."""
+
+    client: object = None
     """The model client, injected. Typed `object` on purpose: no vendor SDK may appear in this
     interface, so the study can add a model without a signature change, and the skeleton imports
     nothing beyond the standard library and numpy. The implementation calls it behind
@@ -204,7 +209,62 @@ class LLMMinistry:
 
         Owning WO: **WO-026**.
         """
-        raise NotImplementedError("PLAN section 7.4 - implemented in WO-026")
+        import numpy as np
+
+        claims = np.asarray(view.claims, dtype=float)
+        n_i = len(view.enterprise_ids)
+        prompt = render_ministry_view(view, self.cfg.framing)
+        error = ""
+        for attempt in range(self.cfg.max_retries + 1):
+            completion, usage = _call(self.client, prompt, self.cfg.temperature)
+            record = self._record(view, attempt, prompt, completion, usage)
+            try:
+                forwarded, justification = parse_forward_response(completion, n_i)
+            except ValueError as exc:
+                error = str(exc)
+                log_exchange(self.cfg.log_dir, {**record, "parse_error": error, "fallback": False})
+                continue
+            log_exchange(
+                self.cfg.log_dir,
+                {
+                    **record,
+                    "forwarded": [float(x) for x in forwarded],
+                    "justification": justification,
+                    "fallback": False,
+                },
+            )
+            return forwarded
+        fallback = claims * self.cfg.fallback_passthrough + np.asarray(
+            view.prev_forward, dtype=float
+        ) * (1.0 - self.cfg.fallback_passthrough)
+        self.n_fallbacks += 1
+        log_exchange(
+            self.cfg.log_dir,
+            {
+                **self._record(view, self.cfg.max_retries, prompt, "", {}),
+                "parse_error": error,
+                "fallback": True,
+                "forwarded": [float(x) for x in fallback],
+            },
+        )
+        return fallback
+
+    def _record(self, view, attempt: int, prompt: str, completion: str, usage: dict) -> dict:
+        return {
+            "kind": "forward",
+            "model_id": self.cfg.model_id,
+            "model_version": self.cfg.model_version,
+            "framing": self.cfg.framing,
+            "payoff_arm": self.cfg.payoff_arm,
+            "episode": self.episode,
+            "t_period": int(view.t_period),
+            "ministry_id": int(view.ministry_id),
+            "attempt": int(attempt),
+            "prompt": prompt,
+            "completion": completion,
+            "temperature": self.cfg.temperature,
+            "usage": usage,
+        }
 
     def reset(self) -> None:
         """Clear per-episode state.
@@ -215,7 +275,7 @@ class LLMMinistry:
 
         Owning WO: **WO-026**.
         """
-        raise NotImplementedError("PLAN section 7.4 - implemented in WO-026")
+        self.episode += 1
 
 
 def render_ministry_view(view: MinistryView, framing: Framing) -> str:
@@ -224,8 +284,9 @@ def render_ministry_view(view: MinistryView, framing: Framing) -> str:
     Takes: `view`; `framing`, selecting the vocabulary. Returns: a deterministic plain-text
     rendering carrying every field of the record and nothing else - the ministry's index, its
     enterprises, their claims `R_i`, their targets `T_i`, what this ministry forwarded last period
-    (`prev_forward`), its `passthrough` and the period index - plus the response schema the reply
-    must satisfy (see `parse_forward_response`).
+    (`prev_forward`) and the period index - plus the response schema the reply must satisfy (see
+    `parse_forward_response`). `passthrough` is not rendered: it parameterises the rule-based
+    ministry the model replaces, and showing it would suggest an answer.
 
     Requirements. *Deterministic*: the same view and framing render byte-identically, so two runs
     differ only through the model. *Complete and no more*: the rendering may not add a quantity the
@@ -242,7 +303,38 @@ def render_ministry_view(view: MinistryView, framing: Framing) -> str:
 
     Owning WO: **WO-026** (renderer), **WO-035** (the two prompt texts).
     """
-    raise NotImplementedError("PLAN section 7.4 - implemented in WO-026")
+    import json
+
+    import numpy as np
+
+    words = _FRAMING_WORDS[framing]
+    payload = {
+        words["unit_key"]: [
+            {
+                "index": int(i),
+                words["claim_key"]: round(float(c), 6),
+                words["target_key"]: round(float(t), 6),
+                "previous_forward": round(float(p), 6),
+            }
+            for i, c, t, p in zip(
+                view.enterprise_ids,
+                np.asarray(view.claims, dtype=float),
+                np.asarray(view.targets, dtype=float),
+                np.asarray(view.prev_forward, dtype=float),
+                strict=True,
+            )
+        ],
+        "period": int(view.t_period),
+    }
+    return "\n".join(
+        [
+            words["preamble"].format(ministry=int(view.ministry_id)),
+            "",
+            json.dumps(payload, sort_keys=True, indent=1),
+            "",
+            RESPONSE_SCHEMA.format(n=len(view.enterprise_ids)),
+        ]
+    )
 
 
 def parse_forward_response(text: str, n_enterprises: int) -> tuple[Array, str]:
@@ -264,7 +356,31 @@ def parse_forward_response(text: str, n_enterprises: int) -> tuple[Array, str]:
 
     Owning WO: **WO-026**.
     """
-    raise NotImplementedError("PLAN section 7.4 - implemented in WO-026")
+    import json
+    import math
+
+    import numpy as np
+
+    stripped = text.strip()
+    if not (stripped.startswith("{") and stripped.endswith("}")):
+        raise ValueError("response is not a single JSON object")
+    try:
+        doc = json.loads(stripped)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"invalid JSON: {exc}") from exc
+    if not isinstance(doc, dict) or set(doc) != {"forwarded", "justification"}:
+        raise ValueError("JSON object must have exactly the keys 'forwarded' and 'justification'")
+    values, justification = doc["forwarded"], doc["justification"]
+    if not isinstance(justification, str):
+        raise ValueError("'justification' must be a string")
+    if not isinstance(values, list) or len(values) != n_enterprises:
+        raise ValueError(f"'forwarded' must be a list of exactly {n_enterprises} numbers")
+    for v in values:
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            raise ValueError("'forwarded' entries must be JSON numbers")
+        if not math.isfinite(float(v)) or float(v) < 0:
+            raise ValueError("'forwarded' entries must be finite and non-negative")
+    return np.asarray(values, dtype=float), justification
 
 
 def log_exchange(log_dir: Path, record: dict[str, object]) -> None:
@@ -283,7 +399,13 @@ def log_exchange(log_dir: Path, record: dict[str, object]) -> None:
 
     Owning WO: **WO-026**.
     """
-    raise NotImplementedError("CONTRACT rule 10 - implemented in WO-026")
+    import json
+
+    log_dir = Path(log_dir)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    with open(log_dir / "llm_exchanges.jsonl", "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, sort_keys=True, default=str) + "\n")
+        handle.flush()
 
 
 def manipulation_check_prompt(framing: Framing) -> str:
@@ -303,7 +425,7 @@ def manipulation_check_prompt(framing: Framing) -> str:
 
     Owning WO: **WO-035** (text), **WO-026** (the seam that calls it).
     """
-    raise NotImplementedError("PLAN section 7.4 - implemented in WO-035")
+    return _MANIPULATION_CHECK[framing]
 
 
 def run_manipulation_check(client: object, cfg: LLMMinistryConfig, episode: int) -> str:
@@ -321,7 +443,84 @@ def run_manipulation_check(client: object, cfg: LLMMinistryConfig, episode: int)
 
     Owning WO: **WO-026** (this seam), **WO-035** (the classification rule).
     """
-    raise NotImplementedError("PLAN section 7.4 - implemented in WO-026")
+    prompt = manipulation_check_prompt(cfg.framing)
+    completion, usage = _call(client, prompt, cfg.temperature)
+    log_exchange(
+        cfg.log_dir,
+        {
+            "kind": "manipulation_check",
+            "model_id": cfg.model_id,
+            "model_version": cfg.model_version,
+            "framing": cfg.framing,
+            "payoff_arm": cfg.payoff_arm,
+            "episode": int(episode),
+            "prompt": prompt,
+            "completion": completion,
+            "temperature": cfg.temperature,
+            "usage": usage,
+        },
+    )
+    return completion
+
+
+RESPONSE_SCHEMA = (
+    "Reply with a single JSON object and nothing else, of the form "
+    '{{"forwarded": [<{n} non-negative numbers, one per entry above, in the same order>], '
+    '"justification": "<one or two sentences>"}}.'
+)
+"""The response schema appended to every rendered view (identical under both framings)."""
+
+_FRAMING_WORDS: dict[str, dict[str, str]] = {
+    "neutral": {
+        "preamble": (
+            "You are the regional office (office {ministry}) of a large firm. Each business unit "
+            "below has sent you its reported output for the period, alongside the output goal "
+            "headquarters set for it and the figure your office passed up last period. Decide what "
+            "output figure to pass up to headquarters for each unit."
+        ),
+        "unit_key": "business_units",
+        "claim_key": "reported_output",
+        "target_key": "output_goal",
+    },
+    "historical": {
+        "preamble": (
+            "You are a branch ministry (ministry {ministry}) of a planned economy. Each enterprise "
+            "below has sent you its reported plan fulfilment for the period, alongside the plan "
+            "target Gosplan set for it and the figure your ministry forwarded last period. Decide "
+            "what output figure to forward to Gosplan for each enterprise."
+        ),
+        "unit_key": "enterprises",
+        "claim_key": "reported_output",
+        "target_key": "plan_target",
+    },
+}
+"""The two prompt framings (PLAN section 7.4): identical payload, numbers and schema; vocabulary
+only. LEAD-written at WO-026; WO-035 may revise them, versioned with the study."""
+
+_MANIPULATION_CHECK: dict[str, str] = {
+    "neutral": (
+        "Think of the decision task you were just given: an office passing figures reported by "
+        "the units below it up to a higher level. What real-world situation, organisation or "
+        "historical setting does it most resemble? Answer in one or two sentences."
+    ),
+    "historical": (
+        "Think of the decision task you were just given: a ministry passing figures reported by "
+        "the enterprises below it up to a higher level. What real-world situation, organisation "
+        "or historical setting does it most resemble? Answer in one or two sentences."
+    ),
+}
+"""Manipulation-check prompts (PLAN section 7.4), asked in a fresh context. They name no candidate
+answer; the historical framing's own vocabulary is reused verbatim, nothing more."""
+
+
+def _call(client: object, prompt: str, temperature: float | None) -> tuple[str, dict]:
+    """The one seam to the injected client: `client.complete(prompt, temperature=...)` returning
+    either the completion text or `(text, usage_dict)`. No vendor SDK appears in this module."""
+    out = client.complete(prompt, temperature=temperature)
+    if isinstance(out, tuple):
+        text, usage = out
+        return str(text), dict(usage or {})
+    return str(out), {}
 
 
 __all__ = [
