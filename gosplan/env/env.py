@@ -196,7 +196,7 @@ class GosplanEnv:
     produces is appended as one `StepRecord` per enterprise. `None` means the run is not being
     recorded; nothing else changes (CONTRACT rule 6 - the ledger never feeds back)."""
 
-    def __init__(self, cfg: EnvConfig, *, records: bool = True) -> None:
+    def __init__(self, cfg: EnvConfig, *, records: bool = True, ministry_policy=None) -> None:
         """Construct the environment for one configuration.
 
         Takes: `cfg`, already validated. Returns: nothing. Stores the configuration, precomputes the
@@ -218,6 +218,7 @@ class GosplanEnv:
         # observation needs them (the DELIVER step). For training throughput only; any run that
         # attaches a ledger or reads `StepInfo.records` keeps the default.
         self._records = bool(records)
+        self._ministry_policy = ministry_policy  # P3 revision S5; None = rule-based (R10)
         self._plan_prices = np.array(initial_prices(cfg), dtype=float)
         self._scale = reward_scale(cfg)
         self._t0 = initial_targets(cfg)
@@ -318,7 +319,9 @@ class GosplanEnv:
         # trajectory) is never mutated afterwards.
         state = _copy_state(self.state)
         records = self._records or self.ledger is not None
-        state, reward, done, info = advance(state, action, self.cfg, records=records)
+        state, reward, done, info = advance(
+            state, action, self.cfg, records=records, ministry_policy=self._ministry_policy
+        )
         self.state = state
         if info.k_step == 0 and info.phase == "produce":
             self._deliv = np.array([rec.deliv for rec in info.records], dtype=float)

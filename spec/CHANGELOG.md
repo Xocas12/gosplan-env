@@ -457,6 +457,15 @@ attached, behaviour is unchanged. `GosplanEnv.step` also copies the state field-
 **Approver.** LEAD.
 
 
+## 2.0.1 - 2026-09-26 (LEAD; additive, no behaviour change)
+
+- `GosplanEnv.__init__` gains the keyword-only `ministry_policy=None` (and `gosplan.env.step.advance`
+  the same keyword), a `MinistryPolicy` passed to the R10 ministry stage. `None` is the rule-based
+  ministry, exactly as before. Reason: the WO-035 LLM ministry study (spec/P3_REVISION.md S5) plugs
+  the WO-026 adapter in. `SPEC_VERSION` is not bumped: the change is additive, and bumping it would
+  change every configuration hash and so orphan the G2 and G3 runs.
+- Affected work orders: WO-035.
+
 ## 2.0.0 - 2026-09-26
 
 **Reason.** Gate G2 closed with the owner's decision (a) (`runs/G2_record.md`); PLAN section 12

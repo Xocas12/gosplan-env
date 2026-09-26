@@ -597,7 +597,12 @@ def stage_terminate(state: State, cfg: EnvConfig) -> tuple[State, bool]:
 
 
 def advance(
-    state: State, action: EnterpriseAction, cfg: EnvConfig, *, records: bool = True
+    state: State,
+    action: EnterpriseAction,
+    cfg: EnvConfig,
+    *,
+    records: bool = True,
+    ministry_policy=None,
 ) -> tuple[State, Array, bool, StepInfo]:
     """Execute one agent-step: the stages of `stages_for_step`, in order, and nothing else.
 
@@ -684,7 +689,9 @@ def advance(
         elif stage is PeriodStage.REPORT:
             output = np.array(state.cum_output, dtype=float)
             state = stage_report(state, action, cfg)
-            state = stage_ministry(state, cfg)  # R10: between REPORT and the planner
+            # R10: between REPORT and the planner. `ministry_policy` (a `MinistryPolicy`, e.g.
+            # the WO-026 LLM ministry; P3 revision S5) defaults to the rule-based ministry.
+            state = stage_ministry(state, cfg, ministry_policy)
             # Bookkeeping for the T-U1 terms: the holding loss on the stock carried in, and the
             # cap overflow as the residual of the stock update (process_reports owns the rule).
             holding = cfg.supply.holding_loss * s_pre
