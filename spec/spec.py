@@ -109,6 +109,7 @@ Purpose = Literal[
     "selfobs",
     "complaint",
     "bailout",
+    "pricepert",
 ]
 """Enumerated RNG purposes (PLAN section 2.15, plus `selfobs` for the observation noise of WO-008).
 Keying by purpose is what makes draws order-independent, so the NumPy and JAX implementations agree

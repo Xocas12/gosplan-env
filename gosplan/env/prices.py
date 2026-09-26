@@ -209,4 +209,24 @@ def perturbed_price_vectors(prices: Array, seeds: tuple[int, ...]) -> tuple[Arra
     the vectors differ from the baseline and from each other. Owning WO: **WO-007** (helper),
     **WO-036** (the tables it feeds).
     """
-    raise NotImplementedError("PLAN sections 2.9.4, 7.5 - implemented in WO-007")
+    from gosplan.rng import draw
+
+    # Resolution (i), recorded in spec/CHANGELOG.md 2.0.0: purpose "pricepert", keyed by each seed.
+    base = np.asarray(prices, dtype=float)
+    return tuple(
+        base
+        * np.exp(
+            np.asarray(
+                draw(
+                    int(seed),
+                    "pricepert",
+                    shape=base.shape,
+                    dist="normal",
+                    mean=0.0,
+                    sigma=PRICE_PERTURBATION_SIGMA,
+                ),
+                dtype=float,
+            )
+        )
+        for seed in seeds
+    )
