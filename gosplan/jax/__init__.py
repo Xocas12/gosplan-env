@@ -1,6 +1,6 @@
-"""JAX port of the environment - **Phase 2, LEAD-owned, not yet written** (PLAN section 12.4).
+"""JAX port of the environment - **Phase 2, LEAD-owned** (PLAN section 12.4, WO-029).
 
-Realises: nothing yet. This package is the `gosplan/jax/` row of the PLAN section 8 layout
+Realises: the port and its parity check. This package is the `gosplan/jax/` row of the PLAN section 8 layout
 ("LEAD, P2: port + parity"). Owning work order: **WO-029** (JAX port), one unit, **LEAD**-owned -
 PLAN section 1.3, finding F14 names the step function, the JAX port and the PPO adapter as the three
 units the lead writes itself rather than delegating. No implementer session writes into this
@@ -51,8 +51,16 @@ it does under NumPy. CONTRACT rule 4 governs the reward terms: a vectorised roll
 forbidden any per-step shaping and any running reward normalisation. CONTRACT rule 6 governs
 `StepInfo`: whatever the port emits for the ledger stays off every agent-facing path.
 
-**Status: skeleton only.** This package intentionally contains no code. It is created now so the
-layout of PLAN section 8 is complete and so nothing else has to move when WO-029 is issued after the
-Phase-2 spec revision. Until then, `gosplan/env/` is the single implementation of the dynamics, and
-the parity test - not this docstring - is what will make the second one trustworthy.
+**Status: implemented (WO-029).** `gosplan.jax.env` holds the port and `gosplan.jax.parity` the
+check; `parity_max_deviation` is re-exported here lazily, so importing `gosplan.jax` never imports
+JAX. `gosplan/env/` remains the reference implementation.
 """
+
+
+def parity_max_deviation(
+    cfg, steps: int = 100, agent: str = "truthful", seed_env: int = 7
+) -> float:
+    """See `gosplan.jax.parity.parity_max_deviation`."""
+    from gosplan.jax.parity import parity_max_deviation as _impl
+
+    return _impl(cfg, steps, agent, seed_env)
