@@ -88,12 +88,17 @@ _PHASE_DIMS: dict[str, tuple[str, ...]] = {
 
 
 def _zero_action(cfg: EnvConfig) -> EnterpriseAction:
-    """An all-zero joint action with the shapes of PLAN section 2.3."""
+    """An all-zero joint action with the shapes of PLAN section 2.3.
+
+    Quality is the one exception: with `quality_matters` on, the fixed heuristics play the
+    non-degrading level `quality = 1` (spec/P2_REVISION.md R13.8), so the truthful reference line
+    carries no quality slack. `Random` overwrites it with its own draw. Phase 1 is unchanged (0).
+    """
     n = cfg.supply.n_enterprises
     j = cfg.supply.n_sectors
     return EnterpriseAction(
         effort=np.zeros(n),
-        quality=np.zeros(n),
+        quality=np.ones(n) if cfg.supply.quality_matters else np.zeros(n),
         invest=np.zeros(n),
         report_ratio=np.zeros(n),
         input_request=np.zeros((n, j)),
@@ -416,9 +421,18 @@ class DPGreedy:
         return None
 
 
+BERLINER_REPORT_RATIO = 1.0
+"""`Berliner` reports at target, never above (PLAN section 6.1; spec/P2_REVISION.md R13.9)."""
+
+WEITZMAN_MAX_CUT = 0.2
+"""Largest fractional effort cut of `Weitzman`, approached as `lambda -> inf`: effort is
+`e_TM * (1 - WEITZMAN_MAX_CUT * lambda / (1 + lambda))` (spec/P2_REVISION.md R13.9). A readable
+caricature for baselines; the single-enterprise DP is the quantitative ratchet-aware policy."""
+
+
 @dataclass
 class Berliner:
-    """Safety-factor rule: over-produce, report at target, bank the difference. **Phase-2 stub.**
+    """Safety-factor rule: over-produce, report at target, bank the difference.
 
     Rule, verbatim from the PLAN section 6.1 table: *safety-factor rule: aims 5-10% above target,
     reports at target, banks the rest*. Concretely, per enterprise `i`:
@@ -432,8 +446,8 @@ class Berliner:
     which is a **held-out** phenomenon: nothing computed from this agent may be plotted, tabulated
     or tested before the Phase-2 acceptance run (PLAN section 4.1, WO-012 forbidden list).
 
-    Status: interface and rule only. The class exists now so that no type moves later (PLAN section
-    0, finding F14); the body is written by **WO-030** after the Phase-2 spec revision.
+    Status: implemented at WO-030 per spec/P2_REVISION.md R13.9. Requests are need; it never
+    trades.
     """
 
     cfg: EnvConfig
@@ -451,19 +465,27 @@ class Berliner:
         Takes: `obs`, `phase`, `rng` as in the `Agent` protocol. Returns: an `EnterpriseAction` per
         the class docstring. Owning WO: **WO-030**.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-030")
+        obs = np.asarray(obs, dtype=float)
+        action = _zero_action(self.cfg)
+        if phase == "produce":
+            base = self.cfg.tech.initial_target_frac * np.exp(obs[:, 2])
+            action.effort = np.clip((1.0 + self.safety_factor) * base, 0.0, 1.0)
+        else:
+            action.report_ratio[:] = BERLINER_REPORT_RATIO
+            action.input_request[:] = REQUEST_MULTIPLE_NEED
+        return action
 
     def reset(self) -> None:
         """Clear per-episode state.
 
         Takes: nothing. Returns: `None`. Owning WO: **WO-030**.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-030")
+        return None
 
 
 @dataclass
 class Weitzman:
-    """Ratchet-aware effort reduction as a function of `lambda`. **Phase-2 stub.**
+    """Ratchet-aware effort reduction as a function of `lambda`.
 
     Rule, verbatim from the PLAN section 6.1 table: *ratchet-aware effort reduction as a function
     of `lambda`*. The agent anticipates that today's fulfilment raises tomorrow's target through
@@ -471,15 +493,14 @@ class Weitzman:
     -c_dn, c_up)))`) and therefore holds effort below the myopic level that `TruthfulMyopic` uses,
     by an amount increasing in `cfg.incentive.ratchet_lambda` and in `cfg.incentive.tenure`.
 
-    The exact functional form is **not fixed by PLAN section 6.1** and is deliberately left open
-    until the Phase-2 spec revision (PLAN section 0, finding F14). WO-030 must either transcribe
-    the form the revision states or file an AMBIGUITY REPORT (CONTRACT rule 3); inventing a
-    plausible reduction curve here is exactly the failure mode rule 3 exists to prevent. Note also
+    The functional form is fixed by the Phase-2 spec revision (R13.9):
+    `e = e_TM * (1 - WEITZMAN_MAX_CUT * lambda / (1 + lambda))`, report truthful of stock, requests
+    at need. `tenure` is not read. Note also
     that the single-enterprise DP of PLAN section 5 already computes the optimal ratchet-aware
     policy exactly, so this agent is a readable caricature for baselines, never the source of a
     quantitative claim about ratchet effects.
 
-    Status: interface and rule sketch only; body written by **WO-030**.
+    Status: implemented at WO-030 per spec/P2_REVISION.md R13.9.
     """
 
     cfg: EnvConfig
@@ -494,19 +515,31 @@ class Weitzman:
         `cfg.incentive.ratchet_lambda`, per the form frozen at the Phase-2 spec revision. Owning
         WO: **WO-030**.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-030")
+        obs = np.asarray(obs, dtype=float)
+        action = _zero_action(self.cfg)
+        if phase == "produce":
+            lam = self.cfg.incentive.ratchet_lambda
+            cut = WEITZMAN_MAX_CUT * lam / (1.0 + lam)
+            base = np.clip(self.cfg.tech.initial_target_frac * np.exp(obs[:, 2]), 0.0, 1.0)
+            action.effort = base * (1.0 - cut)
+        else:
+            action.report_ratio = np.clip(
+                _post_report_stock_ratio(obs, self.cfg), 0.0, self.cfg.tech.report_max_ratio
+            )
+            action.input_request[:] = REQUEST_MULTIPLE_NEED
+        return action
 
     def reset(self) -> None:
         """Clear per-episode state.
 
         Takes: nothing. Returns: `None`. Owning WO: **WO-030**.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-030")
+        return None
 
 
 @dataclass
 class Kornai:
-    """Request inflation, anticipating a soft budget constraint. **Phase-2 stub.**
+    """Request inflation, anticipating a soft budget constraint.
 
     Rule, verbatim from the PLAN section 6.1 table: *request inflation factor,
     bailout-anticipating*. Concretely, the agent asks for more input than the plan says it needs,
@@ -524,11 +557,11 @@ class Kornai:
     acceptance run, and its inflation factor is an assumption, never evidence that hoarding
     emerged.
 
-    The bailout side of the rule is under-specified until the Phase-2 spec revision fixes what a
-    bailout does (WO-023); until then WO-030 implements the request-inflation half only or files an
-    AMBIGUITY REPORT (CONTRACT rule 3).
+    Per spec/P2_REVISION.md R13.9: effort and report are `TruthfulMyopic`'s; the bailout
+    anticipation is that it keeps full effort under input shortfall and inflates whatever
+    `soft_budget` is, so it differs from `TruthfulMyopic` in its requests only.
 
-    Status: interface and rule sketch only; body written by **WO-030**.
+    Status: implemented at WO-030 per spec/P2_REVISION.md R13.9.
     """
 
     cfg: EnvConfig
@@ -548,17 +581,29 @@ class Kornai:
         whose `input_request` is `request_inflation` per good, with effort and report per the rule
         frozen at the Phase-2 spec revision. Owning WO: **WO-030**.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-030")
+        obs = np.asarray(obs, dtype=float)
+        action = _zero_action(self.cfg)
+        if phase == "produce":
+            action.effort = np.clip(self.cfg.tech.initial_target_frac * np.exp(obs[:, 2]), 0.0, 1.0)
+        else:
+            action.report_ratio = np.clip(
+                _post_report_stock_ratio(obs, self.cfg), 0.0, self.cfg.tech.report_max_ratio
+            )
+            action.input_request[:] = np.clip(
+                self.request_inflation, 0.0, self.cfg.tech.request_max_multiple
+            )
+        return action
 
     def reset(self) -> None:
         """Clear per-episode state.
 
         Takes: nothing. Returns: `None`. Owning WO: **WO-030**.
         """
-        raise NotImplementedError("PLAN section 6.1 - implemented in WO-030")
+        return None
 
 
 __all__ = [
+    "BERLINER_REPORT_RATIO",
     "PADDER_EFFORT",
     "PADDER_REPORT_RATIO",
     "REQUEST_MULTIPLE_NEED",
@@ -568,6 +613,7 @@ __all__ = [
     "Padder",
     "Random",
     "TruthfulMyopic",
+    "WEITZMAN_MAX_CUT",
     "Weitzman",
 ]
 

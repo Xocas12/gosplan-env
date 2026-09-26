@@ -314,8 +314,47 @@ def ledger_test(
     Binds: `tests/unit/test_phenomena_p1.py` - signature identity with
     `forensics_core.reconciliation.ledger_test`. No Phase-1 behavioural test binds it, because row 7
     is held out. Owning WO: **WO-016** (surface), **WO-030** (its first use).
+
+    Definition (spec/P2_REVISION.md R13.6). `io_matrix` may be the per-enterprise rows
+    `a_{s(i), :}` `(N, J)` and `prices` the per-enterprise `p_{s(i)}` `(N,)`, which is how row 7
+    calls it. `implied_i = min_{j: a_ij > 0} received_ij / a_ij` is the output the receipts support
+    under Leontief; rows with an all-zero `a` row are dropped; `residual_i = price_i (reported_i -
+    implied_i)`; the statistic is the t-statistic of the mean residual with a one-sided normal
+    p-value (claims exceeding what receipts support).
     """
-    raise NotImplementedError("PLAN section 7.3 - implemented in WO-016")
+    import math
+
+    reported = np.asarray(reported_supply, dtype=float).reshape(-1)
+    received = np.asarray(received_inputs, dtype=float)
+    n = reported.shape[0]
+    a = np.asarray(io_matrix, dtype=float)
+    if a.shape[0] != n:
+        raise ValueError(
+            f"ledger_test: io_matrix must be the per-row input coefficients ({n}, J), got {a.shape}"
+        )
+    price = np.broadcast_to(np.asarray(prices, dtype=float).reshape(-1), (n,))
+    implied = np.full(n, np.inf)
+    for i in range(n):
+        mask = a[i] > 0
+        if mask.any():
+            implied[i] = float(np.min(received[i, mask] / a[i, mask]))
+    keep = np.isfinite(implied)
+    residuals = np.full(n, np.nan)
+    residuals[keep] = price[keep] * (reported[keep] - implied[keep])
+    r = residuals[keep]
+    n_obs = int(r.size)
+    if n_obs < 2:
+        return ReconResult(float("nan"), float("nan"), residuals, n_obs)
+    mean, sd = float(r.mean()), float(r.std(ddof=1))
+    if sd == 0.0:
+        if mean == 0.0:
+            return ReconResult(0.0, 0.5, residuals, n_obs)
+        return ReconResult(
+            math.copysign(math.inf, mean), 0.0 if mean > 0 else 1.0, residuals, n_obs
+        )
+    stat = mean / (sd / math.sqrt(n_obs))
+    p = 0.5 * math.erfc(stat / math.sqrt(2.0))
+    return ReconResult(float(stat), float(p), residuals, n_obs)
 
 
 def cross_section(values: Array, groups: Array) -> DispersionResult:
@@ -336,5 +375,21 @@ def cross_section(values: Array, groups: Array) -> DispersionResult:
     Binds: `tests/unit/test_phenomena_p1.py` - signature identity with
     `forensics_core.dispersion.cross_section`. Its consumer (row 5, hoarding) is **held out** until
     the Phase-2 acceptance run. Owning WO: **WO-016** (surface), **WO-030** (its first use).
+
+    Definition (spec/P2_REVISION.md R13.7): the Kruskal-Wallis H test of equal distributions across
+    groups; `group_stats` are group means in order of first appearance; with fewer than two groups
+    or all values identical, `statistic = 0` and `p_value = 1`.
     """
-    raise NotImplementedError("PLAN section 7.3 - implemented in WO-016")
+    from scipy import stats
+
+    v = np.asarray(values, dtype=float).reshape(-1)
+    g = np.asarray(groups).reshape(-1)
+    if v.shape != g.shape:
+        raise ValueError("cross_section: values and groups must have the same length")
+    order = list(dict.fromkeys(g.tolist()))
+    samples = [v[g == label] for label in order]
+    means = np.array([float(x.mean()) for x in samples])
+    if len(order) < 2 or np.all(v == v[0]):
+        return DispersionResult(0.0, 1.0, means, len(order), int(v.size))
+    h, p = stats.kruskal(*samples)
+    return DispersionResult(float(h), float(p), means, len(order), int(v.size))

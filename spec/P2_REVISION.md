@@ -188,3 +188,87 @@ transparent values.
 - Held-out phenomena 2, 5, 6 and 7 get no directional test before WO-031 (§4.1).
 - The reference implementation stays the Phase-1 oracle. Phase-2 branches are checked by unit
   tests and by hand-worked two-enterprise cases in the test docstrings.
+
+## R13. Metrics and heuristic agents (WO-030) - the points WO-030 says the revision must state
+
+Signatures stay as in `spec/spec.py`. No `StepRecord` column is added. Every statistic uses the
+PLAN section 4.4 window (`t_period >= 2`).
+
+1. **Gini (row 2).** Per (episode, enterprise, period), with `e_k` the effort on the `M` PRODUCE
+   rows: `G = sum_{k,l} |e_k - e_l| / (2 M^2 mean(e))`.
+   - A period with zero total effort has no defined Gini. It is excluded and counted in
+     `n_zero_effort_periods`.
+   - `gini` is the mean `G` over the included periods. `gini_baseline` is the same for the baseline
+     ledger, and `excess = gini - gini_baseline`.
+2. **Quality (row 3).** One call per ledger.
+   - `mean_quality` = mean `qbar = quality_acc / M` over REPORT rows.
+   - `mean_quality_weighted` = mean measured quality `1 + mu (qbar - 1)`.
+   - WO-031 contrasts `mean_quality` between the `val` run and the `quality_weighted` run at
+     `mu = 1`.
+3. **Hoarding (row 5).**
+   - `request_inflation`: the mean of `request_ij / need_ij` over REPORT rows and goods with
+     `need_ij > 0`. `request` and `need` are in units.
+   - `corr_stock_shortfall`: the Pearson correlation, over (episode, period, i, j) with
+     `need_ij > 0`, of two quantities:
+     - `X_ij` on the REPORT row, and
+     - `1 - fillbar_j`, where `fillbar_j` is the shipped-weighted mean `fill` of good j's sellers
+       on the next period's DELIVER row. Unweighted if nothing shipped. Pairs with no next period
+       are dropped.
+     It is NaN if either side is constant.
+   - Each is also reported for the baseline ledger.
+   - `dispersion_stat` and `dispersion_p`: `cross_section` on the per-(i, j) mean inflation, with
+     the sector `s(i)` as groups.
+4. **Blat (row 6).**
+   - `trade_volume` is the quantity enterprise i sold in the period's trade stage, on the step-0
+     row (WO-024 ledger convention).
+   - `trade_volume_share` = sum of `trade_volume` / sum of `alloc` over window rows. It is 0 when
+     `alloc` sums to 0 and trade is 0.
+   - Pairs are not in the ledger. The key `n_matched_pairs` therefore counts selling
+     enterprise-periods, and is documented as such.
+   - `mean_surplus` is not recoverable from the ledger and is returned as NaN. The surplus enters
+     the reward and is visible through it only.
+5. **Hidden reserves (row 7).**
+   - `hidden_reserves` = mean over REPORT rows of `max(0, inv_output_post - report) / target`.
+   - The reconciliation part calls
+     `ledger_test(report, deliv_next, io_rows, price_rows)`, over REPORT rows that have a next
+     period. Here `io_rows` are the per-enterprise rows `a_{s(i), :}` `(n, J)`, and `price_rows`
+     is `p_{s(i)}` `(n,)`.
+   - This is how R13 reads the frozen argument names. `io_matrix` may be given as per-enterprise
+     rows, because a `(J, J)` matrix alone cannot map an enterprise to its good.
+6. **Fallback `ledger_test`.**
+   - `implied_i = min over j with a_ij > 0 of received_ij / a_ij`: the output that the received
+     inputs support under Leontief. It is `+inf`, and the row is dropped, when the row of `a` is
+     zero.
+   - `residual_i = price_i (reported_i - implied_i)`.
+   - `statistic` = the t-statistic of the mean residual. `p_value` = one-sided, from the normal
+     distribution: the claims exceed what receipts support.
+   - Degenerate cases:
+     - Zero variance with a zero mean gives `statistic = 0` and `p = 0.5`.
+     - Zero variance with a non-zero mean gives `statistic = ±inf` and `p = 0` or `1`.
+     - `n_obs < 2` gives NaN.
+7. **Fallback `cross_section`.**
+   - The Kruskal-Wallis H test of equal distributions across groups (`scipy.stats.kruskal`).
+   - `group_stats` are the group means, in order of first appearance.
+   - With fewer than 2 groups, or all values identical, `statistic = 0` and `p = 1`.
+8. **Quality action of the fixed heuristics.** With `quality_matters = True`, every heuristic in
+   `gosplan/agents/heuristic.py` except `Random` plays `quality = 1`, the non-degrading level. The
+   truthful reference line must contain no slack. With `quality_matters = False` the action stays
+   0 as in Phase 1, so the goldens are unchanged.
+9. **Heuristic constants** (baselines, never evidence; PLAN section 6.1). `e_TM` below is
+   `TruthfulMyopic`'s effort, `clip(initial_target_frac * exp(obs[:,2]), 0, 1)`.
+   - `Berliner(safety_factor)`, with `safety_factor` in [0.05, 0.10] and no default:
+     - effort `clip((1 + sf) * e_TM_unclipped, 0, 1)`
+     - `rho = 1` always
+     - requests = need, no trade
+   - `Weitzman`:
+     - effort `e_TM * (1 - WEITZMAN_MAX_CUT * lambda / (1 + lambda))`, with
+       `WEITZMAN_MAX_CUT = 0.2` and `lambda = ratchet_lambda`; `tenure` is not used
+     - report truthful of stock, as `TruthfulMyopic`
+     - requests = need, no trade
+   - `Kornai(request_inflation)`, with no default:
+     - effort and report as `TruthfulMyopic`
+     - `input_request = request_inflation`, in multiples of need
+     - no trade
+     - Its bailout anticipation is that it keeps full effort when inputs are short and keeps
+       inflating whatever `soft_budget` is. `TruthfulMyopic` also keeps effort, so the two differ
+       only in requests. This is stated, not hidden.

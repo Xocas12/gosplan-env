@@ -301,7 +301,15 @@ def phenomenon_storming(
 
     Owning WO: **WO-030**.
     """
-    raise NotImplementedError("PLAN section 4.1 - implemented in WO-030")
+    gini, n_zero = _mean_period_gini(ledger, cfg)
+    gini_base, n_zero_base = _mean_period_gini(baseline_ledger, cfg)
+    return {
+        "gini": gini,
+        "gini_baseline": gini_base,
+        "excess": gini - gini_base,
+        "n_zero_effort_periods": float(n_zero),
+        "n_zero_effort_periods_baseline": float(n_zero_base),
+    }
 
 
 def phenomenon_quality(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
@@ -326,7 +334,18 @@ def phenomenon_quality(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
 
     Owning WO: **WO-030**, with the mechanism from **WO-021**.
     """
-    raise NotImplementedError("PLAN section 4.1 - implemented in WO-030")
+    m = cfg.incentive.steps_per_period
+    mu = cfg.information.quality_measurability
+    rows = _measured_reports(ledger)
+    if cfg.supply.quality_matters:
+        qbar = np.array([rec.quality_acc / m for rec in rows], dtype=float)
+    else:
+        qbar = np.ones(len(rows))
+    return {
+        "mean_quality": float(qbar.mean()),
+        "mean_quality_weighted": float(np.mean(1.0 + mu * (qbar - 1.0))),
+        "n_obs": float(qbar.size),
+    }
 
 
 def phenomenon_hoarding(
@@ -364,7 +383,24 @@ def phenomenon_hoarding(
 
     Owning WO: **WO-030**.
     """
-    raise NotImplementedError("PLAN section 4.1 - implemented in WO-030")
+    from gosplan.metrics import resolve_estimators
+
+    run = _hoarding_stats(ledger, cfg)
+    base = _hoarding_stats(baseline_ledger, cfg)
+    backend = resolve_estimators()
+    if run["pair_values"].size:
+        disp = backend.dispersion_cross_section(run["pair_values"], run["pair_groups"])
+        stat, p = float(disp.statistic), float(disp.p_value)
+    else:
+        stat, p = float("nan"), float("nan")
+    return {
+        "request_inflation": run["inflation"],
+        "request_inflation_baseline": base["inflation"],
+        "corr_stock_shortfall": run["corr"],
+        "corr_stock_shortfall_baseline": base["corr"],
+        "dispersion_stat": stat,
+        "dispersion_p": p,
+    }
 
 
 def phenomenon_blat(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
@@ -394,7 +430,21 @@ def phenomenon_blat(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
 
     Owning WO: **WO-030**.
     """
-    raise NotImplementedError("PLAN section 4.1 - implemented in WO-030")
+    rows = [rec for rec in ledger.records if rec.t_period >= MEASUREMENT_FIRST_PERIOD]
+    volume = float(sum(rec.trade_volume for rec in rows))
+    alloc = float(sum(sum(rec.alloc) for rec in rows))
+    if alloc > 0:
+        share = volume / alloc
+    else:
+        share = 0.0 if volume == 0 else float("inf")
+    return {
+        "trade_volume_share": share,
+        "trade_volume": volume,
+        # Pairs are not in the ledger: this counts selling enterprise-periods (P2_REVISION R13.4).
+        "n_matched_pairs": float(sum(1 for rec in rows if rec.trade_volume > 0)),
+        # Not recoverable from the ledger; the surplus is visible only through the reward (R13.4).
+        "mean_surplus": float("nan"),
+    }
 
 
 def phenomenon_hidden_reserves(ledger: Ledger, cfg: EnvConfig) -> dict[str, float]:
@@ -435,4 +485,109 @@ def phenomenon_hidden_reserves(ledger: Ledger, cfg: EnvConfig) -> dict[str, floa
 
     Owning WO: **WO-030**.
     """
-    raise NotImplementedError("PLAN section 4.1 - implemented in WO-030")
+    from gosplan.env.prices import initial_prices
+    from gosplan.metrics import resolve_estimators
+
+    rows = _measured_reports(ledger)
+    hidden = np.array(
+        [max(0.0, rec.inv_output_post - rec.report) / rec.target for rec in rows], dtype=float
+    )
+    deliv_next = _next_deliver_rows(ledger)
+    a = np.asarray(cfg.supply.io_matrix, dtype=float)
+    prices = np.asarray(initial_prices(cfg), dtype=float)
+    keyed = [(rec, deliv_next.get((rec.episode, rec.t_period + 1, rec.enterprise))) for rec in rows]
+    keyed = [(rec, nxt) for rec, nxt in keyed if nxt is not None]
+    if keyed:
+        result = resolve_estimators().reconciliation_ledger_test(
+            np.array([rec.report for rec, _ in keyed], dtype=float),
+            np.array([nxt.deliv for _, nxt in keyed], dtype=float),
+            a[[rec.sector for rec, _ in keyed]],
+            prices[[rec.sector for rec, _ in keyed]],
+        )
+        stat, p = float(result.statistic), float(result.p_value)
+    else:
+        stat, p = float("nan"), float("nan")
+    return {
+        "hidden_reserves": float(hidden.mean()),
+        "reconciliation_stat": stat,
+        "p_value": p,
+        "n_obs": float(hidden.size),
+    }
+
+
+# ---------- WO-030 helpers (definitions: spec/P2_REVISION.md R13) ----------
+
+
+def _gini(values: np.ndarray) -> float:
+    """`sum_{k,l} |e_k - e_l| / (2 n^2 mean)`; the caller excludes all-zero vectors."""
+    values = np.asarray(values, dtype=float)
+    n = values.size
+    return float(np.abs(values[:, None] - values[None, :]).sum() / (2.0 * n * n * values.mean()))
+
+
+def _mean_period_gini(ledger: Ledger, cfg: EnvConfig) -> tuple[float, int]:
+    """Mean within-period effort Gini over the window, and the count of zero-effort periods."""
+    efforts: dict[tuple[int, int, int], list[float]] = {}
+    for rec in ledger.records:
+        if rec.phase == "produce" and rec.t_period >= MEASUREMENT_FIRST_PERIOD:
+            efforts.setdefault((rec.episode, rec.t_period, rec.enterprise), []).append(rec.effort)
+    ginis, n_zero = [], 0
+    for values in efforts.values():
+        arr = np.asarray(values, dtype=float)
+        if arr.sum() <= 0.0:
+            n_zero += 1
+        else:
+            ginis.append(_gini(arr))
+    return (float(np.mean(ginis)) if ginis else float("nan")), n_zero
+
+
+def _next_deliver_rows(ledger: Ledger) -> dict[tuple[int, int, int], StepRecord]:
+    """The step-0 PRODUCE row (where DELIVER ran) keyed by (episode, t_period, enterprise)."""
+    return {
+        (rec.episode, rec.t_period, rec.enterprise): rec
+        for rec in ledger.records
+        if rec.phase == "produce" and rec.k_step == 0
+    }
+
+
+def _hoarding_stats(ledger: Ledger, cfg: EnvConfig) -> dict[str, object]:
+    """Request inflation, the stock/shortfall correlation and the per-(i, j) inflation values."""
+    rows = _measured_reports(ledger)
+    deliver = _next_deliver_rows(ledger)
+    sector_of = np.asarray(cfg.supply.sector_of, dtype=int)
+    fillbar: dict[tuple[int, int, int], float] = {}
+    by_period: dict[tuple[int, int], list[StepRecord]] = {}
+    for rec in deliver.values():
+        by_period.setdefault((rec.episode, rec.t_period), []).append(rec)
+    for (episode, t), recs in by_period.items():
+        for j in range(cfg.supply.n_sectors):
+            sellers = [r for r in recs if sector_of[r.enterprise] == j]
+            if not sellers:
+                continue
+            w = np.array([r.shipped for r in sellers], dtype=float)
+            f = np.array([r.fill for r in sellers], dtype=float)
+            fillbar[(episode, t, j)] = (
+                float((w * f).sum() / w.sum()) if w.sum() > 0 else float(f.mean())
+            )
+    ratios, stock, shortfall = [], [], []
+    per_pair: dict[tuple[int, int], list[float]] = {}
+    for rec in rows:
+        for j, (q, need) in enumerate(zip(rec.request, rec.need, strict=True)):
+            if need <= 0:
+                continue
+            ratios.append(q / need)
+            per_pair.setdefault((rec.enterprise, j), []).append(q / need)
+            nxt = fillbar.get((rec.episode, rec.t_period + 1, j))
+            if nxt is not None:
+                stock.append(rec.inv_inputs[j])
+                shortfall.append(1.0 - nxt)
+    corr = float("nan")
+    if len(stock) >= 2 and np.std(stock) > 0 and np.std(shortfall) > 0:
+        corr = float(np.corrcoef(stock, shortfall)[0, 1])
+    keys = sorted(per_pair)
+    return {
+        "inflation": float(np.mean(ratios)) if ratios else float("nan"),
+        "corr": corr,
+        "pair_values": np.array([np.mean(per_pair[k]) for k in keys], dtype=float),
+        "pair_groups": np.array([int(sector_of[i]) for i, _ in keys], dtype=int),
+    }
