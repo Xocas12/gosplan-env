@@ -65,3 +65,12 @@ does produce heavy bunching at the notch and none under the smooth schedule. The
 - (c) Revisit the pre-registered criterion-2 estimator for degenerate and peaked distributions,
   as a spec revision with its own record.
 - (d) Stop at Phase 1.
+
+## OWNER DECISION (2026-09-26): option (a)
+
+The owner instructed the LEAD to continue building. Recorded as option (a): Phase 1 stands as a
+labelled result. The criterion-1 gap (PPO does not recover the DP's mixed under-reporting
+strategy) and the criterion-2 estimator behaviour are carried into Phase 2 as stated limitations,
+and every Phase-2 report cites them. Phase 2 proceeds: the P2 spec revision (LEAD), then WO-021 to
+WO-031, then G3. The attempt-2 learner (`phase1_gate.study_ppo_config()`) remains the working
+learner.
