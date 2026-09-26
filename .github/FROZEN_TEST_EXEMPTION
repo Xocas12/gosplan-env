@@ -12,3 +12,4 @@ tests/behavioural/test_audit_seeding.py
 tests/unit/test_ppo_adapter.py
 tests/unit/test_spec_imports.py
 tests/golden/test_golden_parity.py
+tests/unit/test_oracle.py
