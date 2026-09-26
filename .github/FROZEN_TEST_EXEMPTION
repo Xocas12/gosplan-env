@@ -10,3 +10,5 @@ tests/unit/test_phenomena_p1.py
 tests/unit/test_train_smoke.py
 tests/behavioural/test_audit_seeding.py
 tests/unit/test_ppo_adapter.py
+tests/unit/test_spec_imports.py
+tests/golden/test_golden_parity.py

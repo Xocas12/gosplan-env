@@ -38,7 +38,7 @@ import tomllib
 from dataclasses import dataclass, field
 from typing import Literal
 
-SPEC_VERSION = "1.1.0"
+SPEC_VERSION = "2.0.0"
 """Mirror of `spec.spec.SPEC_VERSION` - the provisional (v0) interface version.
 
 WO-013 bumps it to `"1.0.0"` at gate G1 and every later change needs a `spec/CHANGELOG.md` entry
@@ -387,6 +387,17 @@ class InformationConfig:
     """INFO. How much of buyers' complaints the planner sees, gating the `targeted` audit mode
     (PLAN section 2.7.4). Phase 1: 0.0; range [0, 1]."""
 
+    audit_target_gain: float = 4.0
+    """INFO. `kappa_t`, the gain of the `targeted` audit probability
+    `clip(a * (1 + kappa_t * downstream_shortfall_i), 0, 1)` (PLAN section 2.7.4; P2 revision R4).
+    Default 4.0; range [0, 10]. Inert unless `audit_mode = "targeted"` and
+    `shortfall_visibility > 0`."""
+
+    ministry_pad: float = 0.5
+    """INFO. `kappa_m`, how much of a shortfall `max(0, T_i - R_i)` a ministry pads into the claim
+    it forwards (PLAN section 2.14; P2 revision R10). Default 0.5; range [0, 1]. Inert at
+    `ministry_passthrough = 1`."""
+
     self_obs_noise: float = 0.0
     """INFO. Log-sd of the multiplicative noise `exp(N(0, s**2))` applied to the agent's own
     cumulative output and stock observation fields, drawn with purpose `selfobs` (PLAN section 2.4,
@@ -634,6 +645,39 @@ class EnvConfig:
             value = getattr(information, name)
             if value < 0:
                 raise ValueError(f"information.{name}: must be non-negative (got {value})")
+        if not 0 <= information.audit_target_gain <= 10:
+            raise ValueError(
+                "information.audit_target_gain: must lie in [0, 10] "
+                f"(got {information.audit_target_gain})"
+            )
+        if not 0 <= information.ministry_pad <= 1:
+            raise ValueError(
+                f"information.ministry_pad: must lie in [0, 1] (got {information.ministry_pad})"
+            )
+        if information.report_lag not in (0, 1, 2):
+            raise ValueError(
+                f"information.report_lag: must be 0, 1 or 2 (got {information.report_lag})"
+            )
+        if not 1 <= information.n_ministries <= supply.n_enterprises:
+            raise ValueError(
+                "information.n_ministries: must lie in [1, supply.n_enterprises] "
+                f"(got {information.n_ministries})"
+            )
+
+        # Out of Phase-2 scope (spec/P2_REVISION.md R1): rejected rather than silently ignored.
+        out_of_scope = {
+            "supply.irs_alpha": supply.irs_alpha != 0,
+            "supply.capital_dep": supply.capital_dep != 0,
+            "supply.tech_drift_sigma": supply.tech_drift_sigma != 0,
+            "supply.price_lag": supply.price_lag != float("inf"),
+            "incentive.bonus_heterogeneity": incentive.bonus_heterogeneity != 0,
+        }
+        for name, active in out_of_scope.items():
+            if active:
+                raise ValueError(
+                    f"{name}: not implemented in Phase 2 (spec/P2_REVISION.md R1); only its "
+                    "Phase-1 value is accepted"
+                )
 
         # TECH: horizon and bounds (PLAN sections 2.3, 2.12).
         if tech.min_periods > tech.max_periods:
@@ -773,5 +817,56 @@ def p1_default_config() -> EnvConfig:
     adapter of WO-017). The two must never drift. Owning WO: **WO-003**.
     """
     config = EnvConfig()
+    config.validate()
+    return config
+
+
+def p2_default_config() -> EnvConfig:
+    """Return the Phase-2 default configuration (spec/P2_REVISION.md R11).
+
+    Takes: nothing. Returns: `p1_default_config()` (the G1 values) with the PLAN section 4.2
+    locked values behind the held-out phenomena, and the Phase-2 baseline C0's information and
+    incentive settings chosen by the LEAD before any Phase-2 run:
+
+        locked (PLAN 4.2)  delivery_timing = "stochastic", arrival_probs = (0.25,)*4;
+                           alloc_eta_request = 0.7, input_complementarity = 8,
+                           input_holding_loss = 0.01; horizontal_visibility = 1.0,
+                           trade_tau = 0.05; g, penalty_arg and h as in Phase 1
+        C0 (LEAD, R11)     report_lag = 1, channel_noise = 0.05, ministry_passthrough = 0.75,
+                           n_ministries = 5, ministry_pad = 0.5, audit_mode = "targeted",
+                           shortfall_visibility = 0.5, audit_target_gain = 4.0,
+                           quality_matters = True, quality_cost = 0.05,
+                           quality_measurability = 0.5, soft_budget = 0.25
+
+    Owning: the Phase-2 spec revision (LEAD).
+    """
+    import dataclasses
+
+    base = p1_default_config()
+    supply = dataclasses.replace(
+        base.supply,
+        delivery_timing="stochastic",
+        arrival_probs=(0.25, 0.25, 0.25, 0.25),
+        input_complementarity=8.0,
+        input_holding_loss=0.01,
+        trade_tau=0.05,
+        quality_matters=True,
+        quality_cost=0.05,
+    )
+    incentive = dataclasses.replace(base.incentive, alloc_eta_request=0.7, soft_budget=0.25)
+    information = dataclasses.replace(
+        base.information,
+        horizontal_visibility=1.0,
+        report_lag=1,
+        channel_noise=0.05,
+        ministry_passthrough=0.75,
+        n_ministries=5,
+        ministry_pad=0.5,
+        audit_mode="targeted",
+        shortfall_visibility=0.5,
+        audit_target_gain=4.0,
+        quality_measurability=0.5,
+    )
+    config = dataclasses.replace(base, supply=supply, incentive=incentive, information=information)
     config.validate()
     return config
