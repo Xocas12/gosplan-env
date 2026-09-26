@@ -22,3 +22,4 @@ tests/unit/test_contrasts.py
 tests/unit/test_estimator_bias.py
 tests/unit/test_llm_study.py
 tests/unit/test_price_sensitivity.py
+tests/unit/test_final_report.py
