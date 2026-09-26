@@ -40,7 +40,7 @@ Array = np.ndarray
 """Alias for every numeric array in the interface (PLAN section 10). The JAX port substitutes its
 own array type behind the same name; no module may rely on numpy-only methods in a signature."""
 
-SPEC_VERSION = "1.1.0"
+SPEC_VERSION = "2.0.0"
 """Provisional spec version (PLAN section 10 header). Bumped to "1.0.0" by WO-013 at the v1 freeze;
 every later change needs a `spec/CHANGELOG.md` entry (CONTRACT rule 1). Written into every run
 manifest (CONTRACT rule 10)."""
@@ -107,6 +107,8 @@ Purpose = Literal[
     "terminate",
     "trade_visibility",
     "selfobs",
+    "complaint",
+    "bailout",
 ]
 """Enumerated RNG purposes (PLAN section 2.15, plus `selfobs` for the observation noise of WO-008).
 Keying by purpose is what makes draws order-independent, so the NumPy and JAX implementations agree
@@ -410,6 +412,17 @@ class InformationConfig:
     """INFO. How much of buyers' complaints the planner sees, gating the `targeted` audit mode
     (PLAN section 2.7.4). Phase 1: 0.0; range [0, 1]."""
 
+    audit_target_gain: float = 4.0
+    """INFO. `kappa_t`, the gain of the `targeted` audit probability
+    `clip(a * (1 + kappa_t * downstream_shortfall_i), 0, 1)` (PLAN section 2.7.4; P2 revision R4).
+    Default 4.0; range [0, 10]. Inert unless `audit_mode = "targeted"` and
+    `shortfall_visibility > 0`."""
+
+    ministry_pad: float = 0.5
+    """INFO. `kappa_m`, how much of a shortfall `max(0, T_i - R_i)` a ministry pads into the claim
+    it forwards (PLAN section 2.14; P2 revision R10). Default 0.5; range [0, 1]. Inert at
+    `ministry_passthrough = 1`."""
+
     self_obs_noise: float = 0.0
     """INFO. Log-sd of multiplicative noise `exp(N(0, s**2))` applied to the agent's own cumulative
     output and stock observation fields, drawn with purpose `selfobs` (PLAN section 2.4, WO-008).
@@ -628,6 +641,14 @@ class State:
     alive: bool  # episode has not yet terminated (section 2.12)
     seed_env: int  # root environment seed; every draw is keyed from it (section 2.15)
     seed_policy: int  # root policy seed, kept separate from seed_env (CONTRACT rule 9)
+
+    # Phase-2 fields (P2 revision, spec 2.0.0). They default to `None` so a `State` built by hand
+    # for a Phase-1 test stays valid; `gosplan.env.state.ensure_p2_fields` fills them with their
+    # opening values (those of `initial_state`) the first time the step machine sees the state.
+    claim_history: Array | None = None  # (N, 2) claims forwarded to the planner 1, 2 periods ago
+    pending_deliv: Array | None = None  # (N, J, M) deliveries waiting for a later step
+    trade_surplus_acc: Array | None = None  # (N,) trade surplus accrued this period
+    ministry_prev: Array | None = None  # (N,) each ministry's previous forward for i
 
 
 @dataclass

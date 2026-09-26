@@ -209,9 +209,12 @@ INFORMATION_CONFIG_FIELDS: frozenset[str] = frozenset(
         "quality_measurability",
         "shortfall_visibility",
         "self_obs_noise",
+        "audit_target_gain",
+        "ministry_pad",
     }
 )
-"""The INFO-arm fields named in the PLAN section 10 `InformationConfig` comment."""
+"""The INFO-arm fields named in the PLAN section 10 `InformationConfig` comment, plus the two the
+Phase-2 spec revision adds (`audit_target_gain`, `ministry_pad`; spec 2.0.0, LEAD edit)."""
 
 TECH_CONFIG_FIELDS: frozenset[str] = frozenset(
     {

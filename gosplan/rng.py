@@ -64,6 +64,8 @@ Purpose = Literal[
     "terminate",
     "trade_visibility",
     "selfobs",
+    "complaint",
+    "bailout",
 ]
 """The enumerated RNG purposes of PLAN section 2.15, plus `selfobs` for the observation noise of
 WO-008. Mirrors `spec.spec.Purpose`. Keying by purpose is what makes draws order-independent."""
@@ -83,6 +85,8 @@ PURPOSES: tuple[Purpose, ...] = (
     "terminate",
     "trade_visibility",
     "selfobs",
+    "complaint",
+    "bailout",
 )
 """The closed list of legal purposes, as data, in the order PLAN section 2.15 gives them:
 
@@ -98,6 +102,8 @@ PURPOSES: tuple[Purpose, ...] = (
                       (PLAN section 2.12)
     trade_visibility  which counterparties are visible for bilateral trade (PLAN section 2.13)
     selfobs           noise on the agent's own observation fields, gated by `self_obs_noise`
+    complaint         noise on the planner's view of downstream shortfall (P2 revision R3)
+    bailout           soft-budget bailout of a penalised under-deliverer (P2 revision R8)
                       (PLAN section 2.4; added for WO-008)
 
 Two draws with different purposes are independent by construction even at identical indices, which

@@ -252,6 +252,8 @@ def _base(n_enterprises: int, n_sectors: int, io_matrix, **over) -> Config:
             "horizontal_visibility": 0.0,
             "quality_measurability": 0.0,
             "shortfall_visibility": 0.0,
+            "audit_target_gain": 4.0,
+            "ministry_pad": 0.5,
             "self_obs_noise": 0.0,
         },
         "tech": {
