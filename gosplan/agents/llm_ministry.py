@@ -213,7 +213,8 @@ class LLMMinistry:
 
         claims = np.asarray(view.claims, dtype=float)
         n_i = len(view.enterprise_ids)
-        prompt = render_ministry_view(view, self.cfg.framing)
+        rules = describe_rules(cfg, self.cfg.framing) if cfg is not None else ""
+        prompt = render_ministry_view(view, self.cfg.framing, rules)
         error = ""
         for attempt in range(self.cfg.max_retries + 1):
             completion, usage = _call(self.client, prompt, self.cfg.temperature)
@@ -278,7 +279,7 @@ class LLMMinistry:
         self.episode += 1
 
 
-def render_ministry_view(view: MinistryView, framing: Framing) -> str:
+def render_ministry_view(view: MinistryView, framing: Framing, rules: str = "") -> str:
     """Render a `MinistryView` as the text the model sees (PLAN sections 7.4, 2.14).
 
     Takes: `view`; `framing`, selecting the vocabulary. Returns: a deterministic plain-text
@@ -329,6 +330,7 @@ def render_ministry_view(view: MinistryView, framing: Framing) -> str:
     return "\n".join(
         [
             words["preamble"].format(ministry=int(view.ministry_id)),
+            *([rules] if rules else []),
             "",
             json.dumps(payload, sort_keys=True, indent=1),
             "",
@@ -463,6 +465,32 @@ def run_manipulation_check(client: object, cfg: LLMMinistryConfig, episode: int)
     return completion
 
 
+def describe_rules(cfg: EnvConfig, framing: Framing) -> str:
+    """The rules paragraph of P3 revision S5.2: the payoff structure the ministry faces, with the
+    configuration's public numbers. Identical wording across payoff arms - only the numbers differ -
+    and it never names the arm or says what to do. `passthrough` is not stated."""
+    inc, info = cfg.incentive, cfg.information
+    boss = "Gosplan" if framing == "historical" else "headquarters"
+    unit = "enterprise" if framing == "historical" else "business unit"
+    cap = (
+        "no cap"
+        if inc.overfulfilment_cap == float("inf")
+        else f"capped at {inc.overfulfilment_cap}"
+    )
+    return (
+        f"Rules. Your payoff each period is the sum of your {unit}s' period payoffs, minus audit "
+        f"penalties on the figures you pass up. Each {unit} is paid a bonus of "
+        f"{inc.notch_height} for reaching its goal plus {inc.overfulfilment_slope} per unit of "
+        f"output above it relative to the goal ({cap}); a figure below the goal earns no "
+        f"bonus. {boss.capitalize()} audits each figure you pass up with probability "
+        f"{info.audit_rate}; if the audited figure exceeds the {unit}'s actual stock, you pay "
+        f"{inc.penalty_scale} times the excess relative to the goal. Next period's goal for each "
+        f"{unit} is raised by {inc.ratchet_lambda} times the relative amount by which the figure "
+        f"{boss} received exceeded the goal (and lowered likewise), on top of a growth rate of "
+        f"{inc.growth_directive}."
+    )
+
+
 RESPONSE_SCHEMA = (
     "Reply with a single JSON object and nothing else, of the form "
     '{{"forwarded": [<{n} non-negative numbers, one per entry above, in the same order>], '
@@ -534,6 +562,7 @@ __all__ = [
     "LLMMinistry",
     "LLMMinistryConfig",
     "PayoffArm",
+    "describe_rules",
     "log_exchange",
     "manipulation_check_prompt",
     "parse_forward_response",
