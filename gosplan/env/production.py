@@ -2,7 +2,7 @@
 
 Realises: PLAN section 2.6 (intended output, the CES input-coverage aggregator, the log-normal
 yield shock, the investment diversion, input consumption and the effort cost). Owning task:
-a later task (Production; MID-strong, depends on a later task).
+a later task (Production; contributor, depends on a later task).
 
 Scope, stated as a prohibition (the forbidden list). Nothing in this module may reference a
 report, a target, a bonus, a penalty, an audit or a reward - not in code, not in a docstring, not

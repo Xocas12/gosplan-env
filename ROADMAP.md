@@ -226,96 +226,93 @@ criterion 1 passing is a multi-agent effect and is a **result**, reported and no
 
 ---
 
-## 4. Work orders by milestone
+## 4. Tasks by milestone
 
-Owner tiers are maintainer, MID-strong and MID-fast; the maintainer maps the MID tiers to specific current
-models at issue time and records the mapping in the manifest (PLAN section 12.1). "Diff." is the
-1-5 difficulty field on the task.
+"Diff." is the 1-5 difficulty estimate. Status is against the current tree: 463 of the 657
+functions in the repository are implemented and 194 are stubs, and the split is described in
+the README.
 
-### G0 Scaffold and sanity (a later task - a later task)
+### G0 Scaffold and sanity
 
-| Title | Owner | Diff. | Depends on | Unblocks |
-|---|---|---|---|---|
-| Parameter sourcing memo | maintainer | 3 | nothing (root of the DAG) | a later task, via the `source` field of every `ParamSpec`; a later task via research item 8 |
-| Spec v0, CONTRACT, registry | maintainer | 4 | - | a later task - and every later task, which reads the frozen interface |
-| Reference dynamics and frozen tests | maintainer | 5 | - | supplies the must-pass suites for a later task - a later task; no task names it under *Depends on* |
-| Config | MID-fast | 2 | - | a later task |
-| RNG | MID-fast | 2 | - | a later task, the `selfobs` draw, a later task |
-| Production | MID-strong | 3 | - | a later task |
-| Planner | MID-strong | 3 | - | a later task |
-| Reporting and reward | MID-strong | 3 | - | `reward_scale`, which scales observation field 9, a later task |
-| Observation | MID-fast | 2 | in practice also a later task, for the `selfobs` noise draw, and a later task for `reward_scale`, which scales observation field 9 | - |
-| Step function and env wrapper | **maintainer** | 5 | - | a later task - and every Phase-2 mechanism task |
-| Heuristic agents | MID-fast | 2 | - | a later task, `TruthfulMyopic` drives the parity test, a later task |
-| Ledger and manifest | MID-fast | 2 | - | a later task - a later task |
-| Monte-Carlo sanity harness | MID-strong | 3 | - | gate **G0** |
+| Title | Diff. | Status |
+|---|---|---|
+| Parameter sourcing memo | 3 | **done** - `docs/params_sources.md` |
+| Spec v0, CONTRACT, registry | 4 | **done** - `spec/spec.py`, `CONTRACT.md`, `gosplan/params.py` |
+| Reference dynamics and frozen tests | 5 | **done** - `ref/ref_step.py`; `make golden` generates 30 trajectories |
+| Config | 2 | **done** - `gosplan/config.py`, with cross-field validation and config hashing |
+| RNG | 2 | open - `gosplan/rng.py` is the mandated single chokepoint and is still a stub |
+| Production | 3 | open |
+| Planner | 3 | open |
+| Reporting and reward | 3 | open |
+| Observation | 2 | open |
+| Step function and env wrapper | 5 | open - the join point, and the one place the whole env comes together |
+| Heuristic agents | 2 | open - `TruthfulMyopic` and `Random` exist in `ref/` only |
+| Ledger and manifest | 2 | open |
+| Monte-Carlo sanity harness | 3 | open - produces the G0 artefact |
 
-a later task is forbidden from computing or plotting any held-out quantity (PLAN section 4.1 rows 2, 5, 6
-and 7); its assertions are conservation and boundedness only, never direction.
+The sanity harness may not compute or plot any held-out quantity (PLAN section 4.1, rows 2, 5,
+6 and 7); its assertions are conservation and boundedness only, never direction.
 
-### G1 Regime map and freeze (a later task - a later task)
+### G1 Regime map and freeze
 
-| Title | Owner | Diff. | Depends on | Unblocks |
-|---|---|---|---|---|
-| Spec v1 freeze | **maintainer** | 3 | a later task and the written G0 sign-off | a later task - a later task. After this only the maintainer may change `spec/spec.py`, and only with a `spec/CHANGELOG.md` entry (CONTRACT rule 1) |
-| Single-enterprise DP | MID-strong | 4 | - | a later task; supplies `DPGreedy` and the `b_hat_DP` thresholds |
-| Regime map | MID-fast | 2 | - | gate **G1** - produces the candidate list the human chooses from |
+| Title | Diff. | Status |
+|---|---|---|
+| Spec v1 freeze | 3 | blocked on the written G0 sign-off. After it, only the maintainer may change `spec/spec.py`, and only with a `spec/CHANGELOG.md` entry (CONTRACT rule 1) |
+| Single-enterprise DP | 4 | open - the exactly-solved optimum the learned policy is measured against |
+| Regime map experiment | 3 | open - produces the G1 artefact |
 
-### G2 Phase 1 gate (a later task - a later task)
+G1 is where a human fixes the six provisional parameters from the interior of the bunching
+region, and records the thresholds **before** any training run. That ordering is what stops the
+result being produced by tuning.
 
-| Title | Owner | Diff. | Depends on | Unblocks |
-|---|---|---|---|---|
-| Phase-1 metrics (rows 1 and 4 only) | MID-strong | 3 | a later task; issued after G1 | - |
-| PPO adapter | **maintainer** | 5 | a later task; issued after G1 | - |
-| Training harness | MID-strong | 3 | - | a later task |
-| DP-vs-PPO recovery (G2 criterion 1) | MID-strong | 3 | a later task, and the signed G1 record | gate **G2**, criterion 1 |
-| Phase-1 gate experiment (G2 criteria 2-4) | MID-strong | 3 | a later task, and the signed G1 record | gate **G2**, criteria 2-4 |
+### G2 Phase 1 gate
 
-a later task is forbidden from implementing phenomena rows 2, 5, 6 and 7. Those arrive at a later task and are
-computed for the first time in the P2 acceptance run.
+| Title | Diff. | Status |
+|---|---|---|
+| Phase-1 metrics (rows 1 and 4 only) | 3 | blocked on G1 |
+| PPO adapter | 5 | blocked on G1 |
+| Training harness | 3 | blocked on G1 |
+| DP-vs-PPO recovery (G2 criterion 1) | 3 | blocked on the signed G1 record |
+| Phase-1 gate experiment (G2 criteria 2-4) | 3 | blocked on the signed G1 record |
 
-### G3 Phase 2 acceptance (a later task - a later task)
+Nothing in this block may implement phenomena rows 2, 5, 6 and 7. Those arrive at G3 and are
+computed for the first time in the Phase-2 acceptance run.
 
-Every task in this block is a **placeholder, not issuable yet**: each is gated on G2 *and* on the
-maintainer's P2 spec revision that follows it. PLAN section 12.4 fixes the owner tier only; the maintainer sets
-the difficulty at issue, so no task here carries a 1-5 number today and its issue carries no
-`difficulty:` label until then. Every issue in this block also carries `blocked`: gate G2 is
-unsigned and the P2 spec revision has not happened.
+### G3 Phase 2 acceptance
 
-| Title | Owner | Diff. | Depends on | Unblocks |
-|---|---|---|---|---|
-| Quality mechanism on | MID-strong | set at issue | G2 and the P2 spec revision; a later task | a later task, row 3, a later task |
-| Delivery timing (`stochastic`, `backloaded`) | MID-fast | set at issue | G2 and the revision; a later task | a later task, row 2, storming, a later task |
-| Input holding loss, targeted audits, soft budget | MID-strong | set at issue | G2 and the revision; a later task | a later task, row 5, a later task |
-| Trade matching | MID-strong implements; **maintainer** writes the matching rule and the surplus definition in the revision | set at issue | G2 and the revision; a later task | a later task, row 6, blat, a later task |
-| Rule-based ministry, `n_ministries` | MID-strong | set at issue | G2 and the revision; a later task | a later task, the `ministry_passthrough` leg of C_OGAS, a later task |
-| LLM ministry adapter | MID-strong; **maintainer** supplies the prompts | set at issue | G2 and the revision; a later task | - |
-| Oracle (expected-value MIP) | MID-strong implements; **maintainer** formulates the MIP | set at issue | G2 and the revision; a later task item 8 (solver availability) | "oracle gap recorded", a later task - every `welfare_ratio` denominator |
-| Exploitability harness | MID-strong | set at issue | G2 and the revision; a later task, and a later task if the audited arms run on JAX | "exploitability below threshold", a later task, the non-converged labels |
-| JAX port | **maintainer**, one unit, not delegated | set at issue | G2 and the revision; a later task - a later task | if the audited arms run on JAX, "JAX parity", a later task |
-| Held-out phenomena metrics (rows 2, 3, 5, 6, 7) and the P2 heuristic agents | MID-strong | set at issue | G2 and the revision; a later task - a later task | a later task, gate **G3** |
-| Phase-2 acceptance experiment | MID-strong writes the harness; **maintainer runs it** | set at issue | G2 and the revision; a later task - a later task | gate **G3** |
+Every task here is a placeholder rather than a ready task: each is gated on G2 *and* on the
+Phase-2 spec revision that follows it, so none carries a difficulty yet.
 
-a later task is where the four held-out phenomena are measured for the first time, in the P2 acceptance
-run only. Nothing earlier may plot, tabulate or test them.
+| Title | Status |
+|---|---|
+| Quality mechanism on | blocked on G2 and the spec revision |
+| Delivery timing (`stochastic`, `backloaded`) | blocked |
+| Input holding loss, targeted audits, soft budget | blocked |
+| Trade matching | blocked - the matching rule and the surplus definition are written in the revision, not here |
+| Rule-based ministry, `n_ministries` | blocked |
+| LLM ministry adapter | blocked |
+| Oracle (expected-value MIP) | blocked |
+| Exploitability harness | blocked |
+| JAX port | blocked - one unit of work, not split |
+| Held-out phenomena metrics (rows 2, 3, 5, 6, 7) and the Phase-2 heuristic agents | blocked |
+| Phase-2 acceptance experiment | blocked |
 
-### G4 Final report (a later task - a later task)
+This is where the four held-out phenomena are measured for the first time, in the acceptance
+run only. Nothing earlier may plot, tabulate or test them, and
+`scripts/contract_guard.py` fails CI if a Phase-1 module so much as calls one.
 
-Every task here is a **placeholder, not issuable yet**: all are gated on G3, and therefore on the P2
-spec revision and on a later task. PLAN section 12.5 fixes the owner tier only, so no task here carries a
-1-5 number today and its issue carries no `difficulty:` label until the maintainer sets one. Every issue
-in this block also carries `blocked`: gate G3 is unsigned.
+### G4 Final report
 
-| Title | Owner | Diff. | Depends on | Unblocks |
-|---|---|---|---|---|
-| Contrasts harness with `rliable` | MID-strong | set at issue | G3; a later task | a later task, gate **G4** |
-| Saltelli/Sobol design and total-order indices (optional) | MID-strong | set at issue | G3; JAX only, a later task | a later task, gate **G4** as an optional table |
-| Estimator-bias study | MID-strong | set at issue | G3; a later task | a later task, gate **G4**; the `forensic-stats` coupling |
-| LLM ministry study | MID-strong; **maintainer** writes both framing prompts and the manipulation-check prompt | set at issue | G3; a later task item 8 | a later task, gate **G4** |
-| Price-vector sensitivity on every headline table | MID-fast | set at issue | G3; a later task, if run, a later task | a later task, gate **G4** |
-| Report generation: figures, tables, manifest roll-up | MID-fast | set at issue | G3; a later task - a later task | gate **G4**. Last task in the plan |
+All gated on G3, and therefore on the Phase-2 spec revision.
 
----
+| Title | Status |
+|---|---|
+| Contrasts harness with `rliable` | blocked on G3 |
+| Saltelli/Sobol design and total-order indices (optional) | blocked; JAX only |
+| Estimator-bias study | blocked |
+| LLM ministry study | blocked |
+| Price-vector sensitivity on every headline table | blocked |
+| Report generation: figures, tables, manifest roll-up | blocked |
 
 ## 5. Parallelism and serialisation
 

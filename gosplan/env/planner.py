@@ -3,7 +3,7 @@
 Realises: PLAN section 2.4 (`PlannerView` and the planner information invariant), PLAN sections
 2.7.1 (target rule), 2.7.2 (allocation), 2.7.3 (physical delivery), 2.7.4 (audit selection) and
 2.7.5 (aggregation, lag, channel noise), plus PLAN section 2.9.2 (fulfilment measure, which the
-target rule keys on). Owning task: a later task (Planner; MID-strong).
+target rule keys on). Owning task: Planner.
 
 CONTRACT RULE 5 (PLANNER BLINDNESS) IS LOAD-BEARING IN THIS MODULE and is the reason the planner
 rules live in a file of their own. `make_planner_view` is the ONLY function in this module that may
