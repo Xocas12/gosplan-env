@@ -65,6 +65,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from gosplan.env.obs import build_observation, obs_spec
+from gosplan.env.planner import arrival_steps
 from gosplan.env.prices import initial_prices
 from gosplan.env.reward import reward_scale
 from gosplan.env.state import StepInfo, initial_state, initial_targets
@@ -223,6 +224,9 @@ class GosplanEnv:
         self._seeds = (int(cfg.tech.seed_env), int(cfg.tech.seed_policy))
         self._episode = -1
         self._deliv = np.zeros((cfg.supply.n_enterprises, cfg.supply.n_sectors))
+        # P2 revision R6: arrival step of each buyer-good delivery this period (None = uniform,
+        # everything arrives at step 0).
+        self._arrival = None
 
     def reset(self, seed_env: int, seed_policy: int) -> tuple[Array, StepInfo]:
         """Start a new episode.
@@ -248,6 +252,7 @@ class GosplanEnv:
         self._episode += 1
         self.state = self._fresh_state(t_period=0)
         self._deliv = np.zeros((self.cfg.supply.n_enterprises, self.cfg.supply.n_sectors))
+        self._arrival = None
         self._period_delivery = self._no_delivery()
         obs = self._observe(self.state)
         n, j = self.cfg.supply.n_enterprises, self.cfg.supply.n_sectors
@@ -307,6 +312,7 @@ class GosplanEnv:
             self._episode += 1
             self.state = self._fresh_state(t_period=self.state.t_period)
             self._deliv = np.zeros_like(self._deliv)
+            self._arrival = None
             self._period_delivery = self._no_delivery()
         # A fresh State per step: a State handed out earlier (e.g. to a harness keeping a
         # trajectory) is never mutated afterwards.
@@ -316,6 +322,8 @@ class GosplanEnv:
         self.state = state
         if info.k_step == 0 and info.phase == "produce":
             self._deliv = np.array([rec.deliv for rec in info.records], dtype=float)
+            if self.cfg.supply.delivery_timing != "uniform":
+                self._arrival = arrival_steps(state.seed_env, info.t_period, self.cfg)
             self._period_delivery = [
                 {"alloc": r.alloc, "deliv": r.deliv, "fill": r.fill, "shipped": r.shipped}
                 for r in info.records
@@ -442,7 +450,12 @@ class GosplanEnv:
         """Build the observation of `state` through `gosplan/env/obs.py` (the only obs builder)."""
         sector = np.asarray(self.cfg.supply.sector_of, dtype=int)
         need = np.asarray(state.planner_io, dtype=float)[sector] * np.asarray(state.target)[:, None]
-        return build_observation(state, self.cfg, self._deliv, need)
+        deliv = self._deliv
+        if self._arrival is not None:
+            # P2 revision R6: fields 11 and 12+2J:12+3J report deliveries received so far this
+            # period - those whose arrival step is at or before the step just executed.
+            deliv = np.where(self._arrival <= state.k_step, deliv, 0.0)
+        return build_observation(state, self.cfg, deliv, need)
 
     def _no_delivery(self) -> list[dict]:
         """Per-enterprise DELIVER fields before any DELIVER has run (all zero)."""

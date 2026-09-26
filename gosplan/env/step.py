@@ -88,6 +88,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from gosplan.env.ministry import forward_all, make_ministry_views
 from gosplan.env.planner import (
     allocate,
     deliver,
@@ -95,10 +96,15 @@ from gosplan.env.planner import (
     select_audits,
     update_targets,
 )
-from gosplan.env.production import produce_step
+from gosplan.env.production import credit_arrivals, produce_step
 from gosplan.env.reporting import audit_and_penalise, process_reports
 from gosplan.env.reward import enterprise_reward, val_measured, val_true, welfare_true
-from gosplan.env.state import StepInfo, advance_phase, reset_period_accumulators
+from gosplan.env.state import (
+    StepInfo,
+    advance_phase,
+    ensure_p2_fields,
+    reset_period_accumulators,
+)
 from gosplan.rng import draw
 
 if TYPE_CHECKING:  # type-only: see the cross-module bindings note in the module docstring
@@ -293,11 +299,29 @@ def stage_trade(
     (`TruthfulMyopic` executes no trade under the Phase-1 configuration). Owning WO: **WO-009**; the
     matching rule is **WO-024**.
     """
-    if cfg.information.horizontal_visibility == 0.0:
-        return state, np.zeros(cfg.supply.n_enterprises)
-    from gosplan.env.trade import match_trades
+    state, surplus, _sold = stage_trade_volume(state, action, cfg, t)
+    return state, surplus
 
-    return match_trades(state, action.trade_offer, cfg, t)
+
+def stage_trade_volume(
+    state: State, action: EnterpriseAction, cfg: EnvConfig, t: int
+) -> tuple[State, Array, Array]:
+    """`stage_trade` plus each enterprise's sold volume, for the ledger (P2 revision R9).
+
+    Delegates to `gosplan.env.trade.trade_stage` with the step-0 action's `effort` (AMBIGUITY-023
+    item 8) and adds the surplus to `State.trade_surplus_acc`, which the REPORT reward pays and then
+    resets (R9.5). Returns `(state, surplus, sold)`; `sold` (N,) is the quantity each enterprise sold
+    this period, the `trade_volume` ledger column (LEAD convention for WO-024). Phase 1
+    (`horizontal_visibility = 0`): state unchanged, zero surplus, zero volume.
+    """
+    n = cfg.supply.n_enterprises
+    if cfg.information.horizontal_visibility == 0.0:
+        return state, np.zeros(n), np.zeros(n)
+    from gosplan.env.trade import trade_stage
+
+    state, surplus, sold = trade_stage(state, action.trade_offer, cfg, t, effort=action.effort)
+    state.trade_surplus_acc = np.asarray(state.trade_surplus_acc, dtype=float) + surplus
+    return state, surplus, sold
 
 
 def stage_produce(
@@ -391,9 +415,58 @@ def stage_audit(
         cfg = dataclasses.replace(cfg, tech=dataclasses.replace(cfg.tech, seed_env=state.seed_env))
     audited = np.asarray(select_audits(view, cfg, t), dtype=bool)
     penalty = np.asarray(audit_and_penalise(state, audited, cfg, t), dtype=float)
+    penalty = np.where(soft_budget_bailouts(state, cfg, t), 0.0, penalty)
     state.last_audited = audited
     state.last_penalty = penalty
     return state, audited, penalty
+
+
+def soft_budget_bailouts(state: State, cfg: EnvConfig, t: int) -> Array:
+    """Which enterprises the soft budget forgives this period (P2 revision R8).
+
+    Takes: `state` at AUDIT (so `last_fill` is the fill of this period's DELIVER), `cfg`, and `t`.
+    Returns: a boolean `(N,)`, `bailed_out_i = 1[last_fill_i < 1] * Bernoulli(soft_budget)` drawn at
+    key `(seed_env, "bailout", t, i)`, the enterprise index vectorised through `shape` as for the
+    audit draw. A bailout sets that period's `penalty_i` to 0 and nothing else changes (Kornai's
+    soft budget: the loss is forgiven, not prevented). At the Phase-1 value `soft_budget = 0` no
+    draw is taken and the result is all False.
+    """
+    n = cfg.supply.n_enterprises
+    p = cfg.incentive.soft_budget
+    if p <= 0.0:
+        return np.zeros(n, dtype=bool)
+    lucky = draw(state.seed_env, "bailout", t, shape=(n,), dist="bernoulli", p=p)
+    return (np.asarray(state.last_fill, dtype=float) < 1.0) & np.asarray(lucky, dtype=bool)
+
+
+def stage_ministry(state: State, cfg: EnvConfig, policy=None) -> State:
+    """The ministry stage between REPORT and the planner (PLAN section 2.14; P2 revision R10).
+
+    Takes: `state` right after REPORT, `cfg`, and an optional `MinistryPolicy` (default: the
+    rule-based ministry). Returns: the state with `ministry_prev` set to this period's forward
+    `Rtilde` (N,). The planner's claims (R2, then aggregation and noise), the ratchet and the
+    delivery obligations read `Rtilde` through `make_planner_view` / `deliver`; the bonus and the
+    audit keep the enterprise's own `R` (`last_report`, untouched here). At `pi = 1` the forward is
+    `R` exactly (R10.4).
+    """
+    views = make_ministry_views(state, cfg)
+    state.ministry_prev = forward_all(views, cfg, policy)
+    return state
+
+
+def shift_claim_history(state: State, cfg: EnvConfig) -> State:
+    """Push this period's forwarded claim into `claim_history` (P2 revision R2).
+
+    Called at TARGET, after the target update: column 1 takes column 0, and column 0 takes this
+    period's forwarded claim (`last_report` at `pi = 1`, else the ministry's forward).
+    """
+    history = np.asarray(state.claim_history, dtype=float)
+    if cfg.information.ministry_passthrough == 1.0:
+        current = np.asarray(state.last_report, dtype=float)
+    else:
+        current = np.asarray(state.ministry_prev, dtype=float)
+    state.claim_history = np.stack([current, history[:, 0]], axis=1)
+    return state
 
 
 def stage_reward(
@@ -561,6 +634,7 @@ def advance(
     (conservation), `tests/unit/test_env_api.py`. Owning WO: **WO-009**.
     """
     n, j = cfg.supply.n_enterprises, cfg.supply.n_sectors
+    state = ensure_p2_fields(state, cfg)  # hand-built states (P2 revision, spec 2.0.0)
     stages = stages_for_step(state, cfg)
     t, k, phase = state.t_period, state.k_step, state.phase
     s_pre = np.array(state.inv_output, dtype=float)
@@ -574,7 +648,8 @@ def advance(
     consumed = np.zeros((n, j))
     audited = np.zeros(n, dtype=bool)
     penalty = np.zeros(n)
-    surplus = np.zeros(n)
+    sold = np.zeros(n)
+    bailed = np.zeros(n, dtype=bool)
     holding = np.zeros(n)
     overflow = np.zeros(n)
     reward = np.zeros(n)
@@ -585,31 +660,45 @@ def advance(
 
     for stage in stages:
         if stage is PeriodStage.DELIVER:
-            state = reset_period_accumulators(state)
             stock_before = np.array(state.inv_output, dtype=float)
-            state, alloc, deliv, fill, _consumer = stage_deliver(state, cfg)
+            # DELIVER reads the previous period's `quality_acc` (the quality of the goods being
+            # shipped, P2 revision R5; AMBIGUITY-023 item 4), so the period accumulators are reset
+            # right after it rather than before. No Phase-1 quantity depends on the order.
+            state, alloc, deliv, fill, consumer = stage_deliver(state, cfg)
+            state = reset_period_accumulators(state)
+            state.consumer_delivery = consumer
             shipped = stock_before - np.asarray(state.inv_output, dtype=float)
             s_pre = np.array(state.inv_output, dtype=float)
             x_pre = np.array(state.inv_inputs, dtype=float)
         elif stage is PeriodStage.TRADE:
-            state, surplus = stage_trade(state, action, cfg, t)
+            state, _surplus, sold = stage_trade_volume(state, action, cfg, t)
             x_pre = np.array(state.inv_inputs, dtype=float)
         elif stage is PeriodStage.PRODUCE:
+            if cfg.supply.delivery_timing != "uniform" and k > 0:
+                # R6: deliveries scheduled for step k reach X at its start, before PRODUCE.
+                state = credit_arrivals(state, cfg)
+                x_pre = np.array(state.inv_inputs, dtype=float)
             state, output, cost = stage_produce(state, action, cfg)
             consumed = x_pre - np.asarray(state.inv_inputs, dtype=float)
             reward = stage_reward(state, cfg, "produce", cost, None, None)
         elif stage is PeriodStage.REPORT:
             output = np.array(state.cum_output, dtype=float)
             state = stage_report(state, action, cfg)
+            state = stage_ministry(state, cfg)  # R10: between REPORT and the planner
             # Bookkeeping for the T-U1 terms: the holding loss on the stock carried in, and the
             # cap overflow as the residual of the stock update (process_reports owns the rule).
             holding = cfg.supply.holding_loss * s_pre
             overflow = s_pre + output - holding - np.asarray(state.inv_output, dtype=float)
             view = make_planner_view(state, cfg)
         elif stage is PeriodStage.AUDIT:
+            bailed = soft_budget_bailouts(state, cfg, t)
             state, audited, penalty = stage_audit(state, view, cfg, t)
         elif stage is PeriodStage.REWARD:
+            # R9.5: the period's accumulated trade surplus is paid here, then the accumulator is
+            # reset. Phase 1: identically zero.
+            surplus = np.array(state.trade_surplus_acc, dtype=float)
             reward = stage_reward(state, cfg, "report", None, penalty, surplus)
+            state.trade_surplus_acc = np.zeros(n)
             metrics = (
                 val_measured(state, cfg),
                 val_true(state, cfg),
@@ -618,6 +707,7 @@ def advance(
         elif stage is PeriodStage.TARGET:
             judged_target = np.array(state.target, dtype=float)
             state = stage_target(state, view, cfg)
+            state = shift_claim_history(state, cfg)  # R2: after the target update
         elif stage is PeriodStage.TERMINATE:
             state, done = stage_terminate(state, cfg)
 
@@ -647,6 +737,7 @@ def advance(
             overflow,
             metrics,
             judged_target,
+            sold,
         )
         if build
         else ()
@@ -660,7 +751,8 @@ def advance(
         val_true=metrics[1],
         welfare=metrics[2],
         consumer=np.array(state.consumer_delivery, dtype=float),
-        flags=(),
+        # R8: bailouts are logged here; `StepRecord` has no column for them (AMBIGUITY-023).
+        flags=tuple(f"bailed_out:{i}" for i in np.flatnonzero(bailed)),
         terminated=done,
     )
     state = advance_phase(state, cfg)
@@ -738,6 +830,7 @@ def _step_records(
     overflow,
     metrics,
     judged_target,
+    sold,
 ):
     """One `StepRecord` per enterprise for the step just executed (ledger only, CONTRACT rule 6).
 
@@ -802,7 +895,7 @@ def _step_records(
                 input_consumed=tuple(float(v) for v in consumed[i]),
                 holding_loss=float(holding[i]),
                 cap_overflow=float(overflow[i]),
-                trade_volume=0.0,
+                trade_volume=float(sold[i]),
                 consumer=consumer,
                 val_measured=float(metrics[0]),
                 val_true=float(metrics[1]),

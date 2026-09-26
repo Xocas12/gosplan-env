@@ -77,6 +77,7 @@ declaration, which `tests/unit/test_spec_imports.py` enforces. They are imported
 
 from __future__ import annotations
 
+import dataclasses
 from typing import TYPE_CHECKING, Optional
 
 import numpy as np
@@ -97,19 +98,14 @@ _RHO_REF = 1.1
 
 
 def _qbar(state: State, cfg: EnvConfig) -> Array:
-    """Period-average quality `qbar_i` (PLAN section 2.9.3).
+    """Period-average quality `qbar_i` (PLAN section 2.9.3; P2 revision R5).
 
-    With `cfg.supply.quality_matters = False` (Phase 1) `q == 1` everywhere, so `qbar_i = 1`. The
-    map from `State.quality_acc` to `qbar_i` when the quality mechanism is on is not fixed by the
-    written material (WO-007 ambiguity report), so that branch is not implemented.
+    `quality_acc / M` when `cfg.supply.quality_matters` is on, and exactly 1 otherwise (Phase 1),
+    through the single definition `gosplan.env.production.period_quality`.
     """
-    n = np.asarray(state.last_report).shape[0]
-    if not cfg.supply.quality_matters:
-        return np.ones(n)
-    raise NotImplementedError(
-        "qbar_i from State.quality_acc with quality_matters = True is not fixed by PLAN section "
-        "2.9.3 - see the WO-007 ambiguity report"
-    )
+    from gosplan.env.production import period_quality
+
+    return period_quality(state.quality_acc, cfg)
 
 
 def bonus(rho: Array, cfg: EnvConfig) -> Array:
@@ -245,7 +241,10 @@ def enterprise_reward(
 
     with `trade_surplus == 0` throughout Phase 1, `penalty_i = 1[audited_i] * Pen_i` already gated
     by `audit_and_penalise`, and `rho_i = m_i / T_i` where `m_i` is the fulfilment measure of PLAN
-    section 2.9.2 computed by `gosplan.env.planner.fulfilment_measure` from the planner's view.
+    section 2.9.2 computed by `gosplan.env.planner.fulfilment_measure` from the planner's view
+    with its claims replaced by the enterprise's own `R_i` (P2 revision R10.3: the bonus uses the
+    enterprise's own claim, never the lagged, forwarded or noised one). `trade_surplus` is the
+    period's accumulated `State.trade_surplus_acc` (P2 revision R9.5), in ratio units.
 
     THESE ARE THE ONLY TERMS. CONTRACT rule 4 forbids per-step shaping, auxiliary rewards, curiosity
     terms, potential-based terms and running reward normalisation. Concretely, none of the following
@@ -277,7 +276,13 @@ def enterprise_reward(
             raise ValueError(
                 "enterprise_reward: `penalty` and `trade_surplus` are required at the REPORT step"
             )
-        view = make_planner_view(state, cfg)
+        # The bonus keys on the enterprise's OWN claim (P2 revision R10.3; as the reference
+        # implementation): lag, ministry forwarding and channel noise change what the planner is
+        # told, not what the enterprise is paid on. In Phase 1 the view's claims equal
+        # `last_report` exactly, so this is the identity there.
+        view = dataclasses.replace(
+            make_planner_view(state, cfg), claims=np.asarray(state.last_report, dtype=float)
+        )
         rho = np.asarray(fulfilment_measure(view, cfg), dtype=float) / np.asarray(
             state.target, dtype=float
         )
