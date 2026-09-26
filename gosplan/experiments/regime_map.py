@@ -1,7 +1,7 @@
 """DP regime map - PLAN sections 5, 12.3 (task specification), 13 (gate G1) and 14.
 
 Realises: the regime-map bullet of PLAN section 5 and its task specification of PLAN section 12.3. Owning
-task: a later task (MID-fast, difficulty 2; depends on a later task, the single-enterprise DP). Gate:
+task: a later task (contributor, difficulty 2; depends on a later task, the single-enterprise DP). Gate:
 **G1** - the human reads this map, picks the Phase-1 values of the daggered PLAN section 3 rows from
 the *interior* of the bunching region, and records them, the three `a * pen` levels for gate G2 and
 the `b_hat_DP` thresholds in `runs/G1_decision.md` **before any training run**.

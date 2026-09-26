@@ -1,7 +1,7 @@
 """Estimator-bias study - PLAN sections 4.5, 5, 7.2, 7.3, 12.5, 13 (gate G4) and 14.
 
 Realises: PLAN section 7.2, the load-bearing payback of the `forensics_core` coupling, with the
-interface scoped in PLAN section 7.3. Owning task: a later task (MID-strong, Phase 3). Gate:
+interface scoped in PLAN section 7.3. Owning task: contributor, Phase 3. Gate:
 **G4** - the final report needs the estimator-bias curves (PLAN section 13).
 
 What it answers. The bunching estimator of PLAN section 4.5 is used to *measure* manipulation. This

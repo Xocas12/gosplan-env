@@ -1,7 +1,7 @@
 """Saltelli/Sobol sensitivity design (OPTIONAL) - PLAN sections 4.3, 12.5, 13 and 14.
 
 Realises: the optional Saltelli paragraph of PLAN section 4.3. Owning task: a later task
-(MID-strong, Phase 3, marked *optional* in PLAN section 12.5). Gate: **G4**, as supporting material
+(contributor, Phase 3, marked *optional* in PLAN section 12.5). Gate: **G4**, as supporting material
 only - PLAN section 13 lists contrasts, estimator-bias curves, the LLM study and price sensitivity
 as the G4 conditions; the Sobol design is not among them. **This experiment never blocks a gate and
 never substitutes for a contrast**: total-order indices rank parameters, they do not identify the

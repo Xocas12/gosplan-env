@@ -1,8 +1,8 @@
 """Environment configuration: the `EnvConfig` family, its validation, its hash and its loaders.
 
 Realises: PLAN section 3 (parameter registry and ranges), with the field semantics of PLAN sections
-2.1-2.15 and the manifest requirement of CONTRACT rule 10. Owning task: a later task (Config;
-P1; MID-fast; depends on a later task). Must pass `tests/unit/test_config.py`; completion command
+2.1-2.15 and the manifest requirement of CONTRACT rule 10. Owning task: Config;
+P1; contributor; depends on a later task. Must pass ``; run
 `pytest tests/unit/test_config.py -q`.
 
 **Mirror obligation.** `spec/spec.py` is the frozen interface (CONTRACT rule 1) but is not an

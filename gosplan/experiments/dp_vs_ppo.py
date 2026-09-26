@@ -1,7 +1,7 @@
 """DP-vs-PPO recovery experiment - PLAN sections 4.5 (criterion 1), 5, 12.3 and 14.
 
 Realises: gate G2 criterion 1 of PLAN section 4.5 and its task specification of PLAN section 12.3. Owning
-task: a later task (MID-strong, difficulty 3; depends on a later task the DP and a later task the training
+task: a later task (contributor, difficulty 3; depends on a later task the DP and a later task the training
 harness). Gate: **G2 criterion 1** - the single-enterprise recovery check. PLAN section 4.5 is
 explicit about its status: *failure of criterion 1 is a training-stack failure and blocks
 everything*. It is not a result about planning, it is the check that the optimiser can find an

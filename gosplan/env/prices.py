@@ -1,7 +1,7 @@
 """Plan prices: the cost-plus fixed point, and the price-vector sensitivity perturbation.
 
 Realises: PLAN section 2.10 (plan prices and final demand), plus the standing robustness check of
-PLAN sections 2.9.4 and 7.5. Owning task: a later task (reporting and reward; MID-strong),
+PLAN sections 2.9.4 and 7.5. Owning task: reporting and reward,
 with the sensitivity harness itself in `gosplan/experiments/price_sensitivity.py`.
 
 Prices are a *measurement* instrument in this design, not a market. Nothing an agent does moves

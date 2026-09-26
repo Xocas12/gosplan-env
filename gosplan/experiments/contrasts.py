@@ -1,7 +1,7 @@
 """Contrast harness (Claim B) - PLAN sections 4.3, 7.1, 12.5, 13 (gate G4) and 14.
 
 Realises: the contrast design of PLAN section 4.3, referenced by PLAN section 7.1. Owning work
-order: a later task (MID-strong, Phase 3). Gate: **G4** - the final report needs the contrasts with
+order: a later task (contributor, Phase 3). Gate: **G4** - the final report needs the contrasts with
 their CIs, alongside the estimator-bias curves, the LLM study and the price sensitivity on every
 headline table (PLAN section 13).
 

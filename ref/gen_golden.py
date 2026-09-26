@@ -2,8 +2,8 @@
 
 Realises: PLAN section 11 (test architecture - the golden category and the reference
 implementation), with the rollouts themselves running PLAN sections 2.5-2.11 through
-`ref/ref_step.py`. Owning task: a later task (Reference dynamics and frozen tests; maintainer; PLAN
-section 12.3).
+`ref/ref_step.py`. Owning task: Reference dynamics and frozen tests; maintainer; PLAN
+section 12.3.
 
 What it produces. PLAN section 11 fixes the golden matrix exactly: **5 configurations x 3 seeds x
 30 agent-steps, with `Random` and `TruthfulMyopic`**. One JSON document per

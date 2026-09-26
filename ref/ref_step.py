@@ -5,7 +5,7 @@ Realises: PLAN sections 2.5 (period schedule), 2.6 (production), 2.7 (planner ru
 demand) and 2.11 (inventory). Three sections outside that range are unavoidably in scope because
 the schedule and the golden files touch them: 2.12 (termination - schedule stage 7), 2.4 (the
 observation the golden files record) and 2.15 (the keyed RNG this module must reproduce exactly).
-Owning task: a later task (Reference dynamics and frozen tests; maintainer; PLAN section 12.3).
+Owning task: Reference dynamics and frozen tests; maintainer; PLAN section 12.3.
 
 Why this file exists. PLAN section 11 puts four test categories in the repository, and the golden
 category is defined as "implementation == reference to 1e-9 on seeded trajectories". This module is

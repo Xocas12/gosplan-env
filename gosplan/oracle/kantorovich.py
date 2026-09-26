@@ -3,8 +3,8 @@
 Realises: PLAN section 6.2 (non-anticipative expected-value MIP and the clairvoyant per-seed
 bound), PLAN section 2.9.4 (`W_oracle` is the denominator of `welfare_ratio` and `val_oracle` the
 denominator inside `specification_gap`), and CONTRACT rule 10 (the solver's version and optimality
-gap are manifest fields). Owning task: a later task (maintainer formulates the MIP, MID-strong
-implements it against the chosen solver; parity test against brute force at `N = 2`).
+gap are manifest fields). Owning task: maintainer formulates the MIP, contributor
+implements it against the chosen solver; parity test against brute force at `N = 2`.
 
 Phase status: **Phase-2 sketch.** The signature below is frozen now so that no type moves later
 (PLAN section 0, finding F14); the formulation is frozen at the Phase-2 spec revision. In Phase 1

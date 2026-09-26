@@ -1,7 +1,7 @@
 """Monte-Carlo sanity harness - PLAN sections 12.3 (task specification), 13 (gate G0) and 14.
 
-Realises: its task specification of PLAN section 12.3. Owning task: a later task (MID-strong,
-difficulty 3; depends on a later task heuristics and a later task ledger). Gate: **G0** - the maintainer signs off on
+Realises: its task specification of PLAN section 12.3. Owning task: contributor,
+difficulty 3; depends on a later task heuristics and a later task ledger. Gate: **G0** - the maintainer signs off on
 a green frozen suite, a clean report from this harness, and a review of every `gosplan/env/` diff
 against CONTRACT rule 7.
 

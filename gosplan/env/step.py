@@ -2,7 +2,7 @@
 
 Realises: PLAN section 2.5 (typed period schedule), PLAN section 2.12 (geometric horizon and
 termination), and the `env/step.py` row of the PLAN section 8 layout ("maintainer: period schedule
-section 2.5, assembles modules"). Owning task: a later task (Step function and env wrapper).
+section 2.5, assembles modules"). Owning task: Step function and env wrapper.
 
 **This unit is maintainer-owned.** PLAN sections 12.3 and 1.3 (finding F14) mark the step function, the
 JAX port and the PPO adapter as the three units the maintainer writes itself rather than delegating: the

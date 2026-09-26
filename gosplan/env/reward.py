@@ -3,7 +3,7 @@
 Realises: PLAN section 2.8 (the bonus schedule `B(rho)` and its smoothing `Lambda_w`), PLAN section
 2.9.1 (the enterprise reward and the analytic reward scale), PLAN section 2.9.3 (`val_measured`,
 `val_true` and true consumer welfare - logged, never observed) and PLAN section 2.9.4 (the three
-dimensionless headline metrics). Owning task: a later task (Reporting and reward; MID-strong).
+dimensionless headline metrics). Owning task: Reporting and reward.
 
 --------------------------------------------------------------------------------------------------
 CONTRACT RULE 4, REPRODUCED IN FULL (`CONTRACT.md`; the two formula lines are transcribed into the

@@ -1,7 +1,7 @@
 """Price-vector sensitivity - PLAN sections 2.9.4, 2.10, 7.5, 12.5, 13 (gate G4) and 14.
 
 Realises: the standing robustness check of PLAN section 2.9.4, scoped as PLAN section 7.5. Owning
-task: a later task (MID-fast, Phase 3). Gate: **G4** - PLAN section 13 requires "price
+task: a later task (contributor, Phase 3). Gate: **G4** - PLAN section 13 requires "price
 sensitivity on every headline table".
 
     THE STANDING RULE (PLAN sections 2.9.4, 7.5). Recompute all three headline metrics under

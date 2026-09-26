@@ -1,5 +1,5 @@
 # PLAN.md is the build instruction for this repository ("gosplan-env — Build Plan v1.0").
-# It is supplied out of band, is not the output of any work order, and is deliberately
+# It is supplied out of band, is not produced by anything in this repository, and is deliberately
 # untracked. Never un-ignore it and never commit it.
 PLAN.md
 

@@ -3,8 +3,8 @@
 Realises: PLAN section 2.5 (period schedule, driven through `gosplan/env/step.py`), PLAN section 2.3
 (action space and the active-dimension rule), PLAN section 2.4 (the observation the wrapper returns,
 built by `gosplan/env/obs.py`), PLAN section 2.10 (the plan prices precomputed at construction) and
-PLAN section 2.12 (the geometric termination flag). Owning task: a later task (Step function and
-env wrapper) - a **maintainer**-owned unit (PLAN sections 12.3, 1.3 finding F14).
+PLAN section 2.12 (the geometric termination flag). Owning task: Step function and
+env wrapper - a **maintainer**-owned unit (PLAN sections 12.3, 1.3 finding F14).
 
 This is the `env.py` row of the PLAN section 8 layout: "reset/step wrapper, specs, info/ledger
 hookup". It holds no economics. The schedule is `gosplan/env/step.py`; the arithmetic is

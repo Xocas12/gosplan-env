@@ -1,8 +1,7 @@
 """Observation construction: the enumerated agent-facing vector and its information invariants.
 
 Realises: PLAN section 2.4 (observation table, information invariants) together with the phase
-structure of PLAN section 2.5 that the mask keys on. Owning task: a later task (Observation;
-MID-fast).
+structure of PLAN section 2.5 that the mask keys on. Owning task: Observation.
 
 THE TABLE BELOW IS THE INTERFACE. `OBS_TABLE`, `SCALAR_FIELDS` and `PER_GOOD_BLOCKS` are the PLAN
 section 2.4 index table transcribed as data, not as documentation: `obs_spec` composes its answer

@@ -1,8 +1,8 @@
 """Phase-1 gate experiment - PLAN sections 4.4, 4.5 (criteria 2-4), 7.5, 12.3 and 14.
 
 Realises: gate G2 criteria 2, 3 and 4 of PLAN section 4.5 and its task specification of PLAN section 12.3.
-Owning task: a later task (MID-strong, difficulty 3; depends on a later task metrics and a later task
-training harness). Gate: **G2 criteria 2-4** - bunching present at the notched schedule and absent
+Owning task: contributor, difficulty 3; depends on a later task metrics and a later task
+training harness. Gate: **G2 criteria 2-4** - bunching present at the notched schedule and absent
 at the smooth counterfactual, the padding elasticity in `a * pen`, and the hygiene flags. Criterion
 1 is the neighbouring experiment `gosplan.experiments.dp_vs_ppo`.
 

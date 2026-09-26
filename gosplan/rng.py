@@ -2,7 +2,7 @@
 
 Realises: PLAN section 2.15 (RNG, key-based rather than stream-based), with the common-random-number
 requirement of PLAN section 4.3 and the NumPy/JAX parity requirement of PLAN section 12.4.
-Owning task: a later task (RNG; P1; MID-fast; depends on a later task). Must pass
+Owning task: RNG; P1; contributor; depends on a later task. Must pass
 `tests/unit/test_rng.py` (test **T-U6**), which covers the four distributions
 `lognormal(mean_log, sigma)`, `normal`, `bernoulli` and `categorical`.
 
