@@ -277,6 +277,9 @@ def solve_oracle(
         "horizon": h_n,
         "clairvoyant": bool(clairvoyant),
         "formulation": FORMULATION,
+        # Mean measured-window output per enterprise, so `val` can be re-priced under the PLAN
+        # section 7.5 perturbed price vectors (P2 revision R14) without re-solving.
+        "output_mean": [float(v) for v in y_sol[measured].mean(axis=0)],
     }
 
 
