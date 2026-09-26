@@ -73,6 +73,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
+
 from gosplan.config import EnvConfig
 
 NOTCH_WIDTH_GRID: tuple[float, ...] = (0.0, 0.02, 0.05, 0.10, 0.25)
@@ -220,7 +222,102 @@ def run(
 
     Realises: PLAN sections 4.5, 5, 7.2, 7.3, 12.5 (WO-034), 13, 14. Owning WO: **WO-034**.
     """
-    raise NotImplementedError("PLAN section 7.2 (WO-034) - implemented in WO-034")
+    from gosplan.agents.dp import DPGrid, solve_single_enterprise
+    from gosplan.experiments import _g2
+    from gosplan.experiments.phase1_gate import GATE_SIZING, study_ppo_config
+
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    arms = arm_grid()
+    arm_cfgs = {key: _g2.with_overrides(cfg, overrides(*key)) for key in arms}
+
+    # (a) DP truth: the exact stationary rho distribution per arm.
+    dp_rho = {
+        key: np.asarray(
+            solve_single_enterprise(_g2.recovery_config(c), DPGrid()).stationary_rho, dtype=float
+        )
+        for key, c in arm_cfgs.items()
+    }
+
+    # (b) Simulation: reuse the Phase-1 gate's notched and smooth arms, train the rest.
+    sizing = GATE_SIZING
+    ppo = study_ppo_config()
+    jobs = [(key, s) for key in arms for s in range(seeds_for(key, n_seeds))]
+    job_cfgs = [_g2.seeded(arm_cfgs[key], s, seed_env) for key, s in jobs]
+    roots = [run_root_for(key, out_dir) for key, _s in jobs]
+    _g2.run_many([(c, sizing, r, ppo) for c, r in zip(job_cfgs, roots, strict=True)])
+    rho_by_seed = _pool(
+        measure_rho_seed, [(c, r, sizing, ppo) for c, r in zip(job_cfgs, roots, strict=True)]
+    )
+    sim: dict[tuple, list[list[np.ndarray]]] = {key: [] for key in arms}
+    for (key, _s), episodes in zip(jobs, rho_by_seed, strict=True):
+        sim[key].append([np.asarray(e, dtype=float) for e in episodes])
+
+    rows, dp_truth, sim_truth = [], {}, {}
+    for key in arms:
+        smooth = (SMOOTH_W, key[1])
+        pooled = np.concatenate([np.concatenate(ep) for ep in sim[key]])
+        pooled_smooth = np.concatenate([np.concatenate(ep) for ep in sim[smooth]])
+        for setting in estimator_grid:
+            bw = float(setting["bin_width"])
+            t_dp = true_excess_mass(dp_rho[key], dp_rho[smooth], bw)
+            t_sim = true_excess_mass(pooled, pooled_smooth, bw)
+            dp_truth[f"{key[0]}|{key[1]}|{_setting_id(setting)}"] = t_dp
+            sim_truth[f"{key[0]}|{key[1]}|{_setting_id(setting)}"] = t_sim
+            dp_est = _estimate(dp_rho[key], setting)
+            rows.append(
+                {
+                    "w": key[0],
+                    "rho_cap": key[1],
+                    "source": "dp_exact",
+                    "seed": -1,
+                    "setting": _setting_id(setting),
+                    "truth": t_dp,
+                    **dp_est,
+                }
+            )
+            for s, episodes in enumerate(sim[key]):
+                est = _estimate(episodes, setting)
+                rows.append(
+                    {
+                        "w": key[0],
+                        "rho_cap": key[1],
+                        "source": "simulation",
+                        "seed": s,
+                        "setting": _setting_id(setting),
+                        "truth": t_sim,
+                        **est,
+                    }
+                )
+
+    stats = summarise(rows)
+    power = reconciliation_power(cfg)
+    backend = _backend()
+    result = {
+        "arms": tuple({"w": k[0], "rho_cap": k[1]} for k in arms),
+        "dp_truth": dp_truth,
+        "sim_truth": sim_truth,
+        "estimates": tuple(rows),
+        "bias": stats["bias"],
+        "rmse": stats["rmse"],
+        "ci_coverage": stats["ci_coverage"],
+        "power_curve": power,
+        "estimator": backend[0],
+        "estimator_version": backend[1],
+        "seeds": {f"{k[0]}|{k[1]}": seeds_for(k, n_seeds) for k in arms},
+    }
+    import pandas as pd
+
+    pd.DataFrame(rows).to_parquet(out_dir / TABLE_PATH.name, index=False)
+    _plots(rows, power, out_dir)
+    (out_dir / REPORT_PATH.name).write_text(render_report(result, estimator_grid), encoding="utf-8")
+    result["artefacts"] = {
+        "report": str(out_dir / REPORT_PATH.name),
+        "table": str(out_dir / TABLE_PATH.name),
+        "bias_fig": str(out_dir / BIAS_FIG_PATH.name),
+        "power_fig": str(out_dir / POWER_FIG_PATH.name),
+    }
+    return result
 
 
 def main() -> int:
@@ -237,7 +334,347 @@ def main() -> int:
 
     Realises: PLAN sections 7.2, 12.5 (WO-034), 13. Owning WO: **WO-034**.
     """
-    raise NotImplementedError("PLAN section 7.2 (WO-034) - implemented in WO-034")
+    from gosplan.config import p1_default_config
+
+    res = run(p1_default_config(), ESTIMATOR_GRID)
+    print(f"estimator-bias: {len(res['estimates'])} estimates; report {res['artefacts']['report']}")
+    return 0
+
+
+# ---------- implementation (spec/P3_REVISION.md S4) ----------
+
+SMOOTH_W = 0.25
+"""The notch width of each arm's own smooth counterpart (PLAN section 7.2)."""
+
+REUSED_ARMS: dict[tuple[float, float], str] = {
+    (0.0, 1.2): "notched",
+    (0.25, float("inf")): "smooth",
+}
+"""Arms identical to the Phase-1 gate's (`phase1_gate.ARMS`): their 30 runs are read back."""
+
+P1_RUN_ROOT = Path("runs/phase1_gate/runs")
+NEW_ARM_SEEDS = 5
+"""Seeds per arm not run at the Phase-1 gate (P3 revision S4: reduced from 30 for compute)."""
+
+ESTIMATOR_GRID: tuple[dict[str, object], ...] = tuple(
+    {"excluded_window": win, "degree": deg, "bin_width": bw}
+    for win in ((0.95, 1.02), (0.97, 1.02), (0.93, 1.03))
+    for deg in (5, 7, 9)
+    for bw in (0.005, 0.01)
+)
+"""The 18 settings of P3 revision S4; the pre-registered one is `PREREGISTERED`."""
+
+PREREGISTERED = {"excluded_window": (0.95, 1.02), "degree": 9, "bin_width": 0.005}
+
+POWER_SHARES: tuple[float, ...] = (0.0, 0.05, 0.1, 0.2, 0.3, 0.5)
+POWER_REPLICATES = 20
+POWER_INFLATION = 1.2
+POWER_ALPHA = 0.05
+
+
+def arm_grid() -> tuple[tuple[float, float], ...]:
+    return tuple((w, cap) for w in NOTCH_WIDTH_GRID for cap in OVERFULFILMENT_CAP_GRID)
+
+
+def overrides(w: float, cap: float) -> dict[str, dict[str, object]]:
+    return {"incentive": {"notch_width": w, "overfulfilment_cap": cap}}
+
+
+def seeds_for(key: tuple[float, float], n_seeds: int) -> int:
+    return n_seeds if key in REUSED_ARMS else min(NEW_ARM_SEEDS, n_seeds)
+
+
+def run_root_for(key: tuple[float, float], out_dir: Path) -> Path:
+    return P1_RUN_ROOT if key in REUSED_ARMS else Path(out_dir) / "runs"
+
+
+def _setting_id(setting: dict[str, object]) -> str:
+    lo, hi = setting["excluded_window"]
+    return f"excl[{lo},{hi}]|deg{setting['degree']}|bw{setting['bin_width']}"
+
+
+def true_excess_mass(x: np.ndarray, x_smooth: np.ndarray, bin_width: float) -> float:
+    """Excess mass in [1.00, 1.02] of `x` over its smooth counterpart `x_smooth`, in the estimator's
+    units: (P(E) - P_smooth(E)) / mean smooth probability per bin in E (P3 revision S4). NaN when the
+    smooth counterpart has no mass there."""
+    from gosplan.metrics.phenomena import (
+        BUNCHING_EXCESS_HI,
+        BUNCHING_EXCESS_LO,
+        BUNCHING_WINDOW_HI,
+        BUNCHING_WINDOW_LO,
+    )
+
+    n_bins = round((BUNCHING_WINDOW_HI - BUNCHING_WINDOW_LO) / bin_width)
+    edges = np.linspace(BUNCHING_WINDOW_LO, BUNCHING_WINDOW_HI, n_bins + 1)
+    centres = 0.5 * (edges[:-1] + edges[1:])
+    excess = (centres >= BUNCHING_EXCESS_LO) & (centres <= BUNCHING_EXCESS_HI)
+    p = np.histogram(x, bins=edges)[0] / max(len(x), 1)
+    q = np.histogram(x_smooth, bins=edges)[0] / max(len(x_smooth), 1)
+    per_bin = q[excess].mean()
+    if not per_bin > 0:
+        return float("nan")
+    return float((p[excess].sum() - q[excess].sum()) / per_bin)
+
+
+def _estimate(x, setting: dict[str, object]) -> dict[str, float]:
+    from gosplan.metrics import resolve_estimators
+    from gosplan.metrics.phenomena import BUNCHING_WINDOW_HI, BUNCHING_WINDOW_LO
+
+    lo, hi = setting["excluded_window"]
+    res = resolve_estimators().bunching_estimate(
+        x,
+        BUNCHING_WINDOW_LO,
+        BUNCHING_WINDOW_HI,
+        float(setting["bin_width"]),
+        int(setting["degree"]),
+        float(lo),
+        float(hi),
+    )
+    return {
+        "b_hat": float(res.excess_mass),
+        "ci_lo": float(res.ci_lo),
+        "ci_hi": float(res.ci_hi),
+        "hole_mass": float(res.hole_mass),
+    }
+
+
+def summarise(rows: list[dict[str, object]]) -> dict[str, dict[str, float]]:
+    """Bias, RMSE and CI coverage per (source, w, rho_cap, setting). Pure."""
+    groups: dict[str, list[dict]] = {}
+    for r in rows:
+        groups.setdefault(f"{r['source']}|{r['w']}|{r['rho_cap']}|{r['setting']}", []).append(r)
+    bias, rmse, cov = {}, {}, {}
+    for key, rs in groups.items():
+        err = np.array([r["b_hat"] - r["truth"] for r in rs], dtype=float)
+        err = err[np.isfinite(err)]
+        bias[key] = float(err.mean()) if err.size else float("nan")
+        rmse[key] = float(np.sqrt((err**2).mean())) if err.size else float("nan")
+        covered = [
+            r["ci_lo"] <= r["truth"] <= r["ci_hi"]
+            for r in rs
+            if np.isfinite(r["truth"]) and np.isfinite(r["ci_lo"]) and np.isfinite(r["ci_hi"])
+        ]
+        cov[key] = float(np.mean(covered)) if covered else float("nan")
+    return {"bias": bias, "rmse": rmse, "ci_coverage": cov}
+
+
+def measure_rho_seed(job: tuple) -> list[list[float]]:
+    """Per-episode measured report ratios of one trained run (100 evaluation episodes), cached as
+    `run_dir / "rho_by_episode.json"`."""
+    import json
+
+    from gosplan.agents.ppo.adapter import IPPO
+    from gosplan.agents.ppo.train import checkpoint_path, evaluate
+    from gosplan.experiments._g2 import MEASURE_SEED_OFFSET
+    from gosplan.metrics.phenomena import MEASUREMENT_FIRST_PERIOD
+
+    cfg, run_root, sizing, ppo_cfg = job
+    run_dir = Path(run_root) / cfg.hash()
+    out_path = run_dir / "rho_by_episode.json"
+    if out_path.exists():
+        return json.loads(out_path.read_text(encoding="utf-8"))
+    n_updates = sizing.total_agent_steps // (sizing.n_envs * sizing.rollout_steps)
+    agent = IPPO(cfg, ppo_cfg)
+    agent.load_checkpoint(checkpoint_path(run_dir, n_updates - 1))
+    _m, ledger = evaluate(
+        agent, cfg, sizing.measure_episodes, int(cfg.tech.seed_env) + MEASURE_SEED_OFFSET
+    )
+    by_ep: dict[int, list[float]] = {}
+    for rec in ledger.records:
+        if rec.phase == "report" and rec.t_period >= MEASUREMENT_FIRST_PERIOD:
+            by_ep.setdefault(rec.episode, []).append(float(rec.report_ratio))
+    out = [by_ep[e] for e in sorted(by_ep)]
+    out_path.write_text(json.dumps(out), encoding="utf-8")
+    return out
+
+
+def reconciliation_power(cfg: EnvConfig) -> dict[str, object]:
+    """Rejection rate of `ledger_test` at `POWER_ALPHA` against the share of enterprise-periods whose
+    claim is inflated by `POWER_INFLATION` (P3 revision S4).
+
+    The call is per (period, good), the reading PLAN section 7.3 gives the test ("claimed supply of
+    each good against the supply implied by buyers' receipts of it"): `reported_supply` is the
+    sellers' claimed intermediate supply `(1 - phi_j) * sum R_i`, `received_inputs` is a one-hot row
+    carrying the buyers' total receipts of good `j` at the next DELIVER, `io_matrix` the matching
+    unit row and `prices` `p_j`. Ledgers: `TruthfulMyopic` on `cfg`, `POWER_REPLICATES` episodes;
+    the post-hoc inflation draw uses a local generator keyed by replicate (analysis outside
+    `gosplan/env/`, CONTRACT rule 9 does not apply)."""
+    from gosplan.agents.heuristic import TruthfulMyopic
+    from gosplan.env.env import GosplanEnv
+    from gosplan.env.prices import initial_prices
+    from gosplan.metrics import resolve_estimators
+    from gosplan.metrics.ledger import Ledger
+
+    test = resolve_estimators().reconciliation_ledger_test
+    j_n = cfg.supply.n_sectors
+    phi = np.asarray(cfg.supply.final_demand_share, dtype=float)
+    prices = np.asarray(initial_prices(cfg), dtype=float)
+    episodes = []
+    for rep in range(POWER_REPLICATES):
+        env = GosplanEnv(cfg)
+        ledger = Ledger()
+        env.attach_ledger(ledger)
+        agent = TruthfulMyopic(cfg)
+        rng = np.random.default_rng(rep)
+        obs, _ = env.reset(int(cfg.tech.seed_env) + 5000 + rep, 0)
+        done = False
+        while not done:
+            obs, _r, done, _i = env.step(agent.act(obs, env.phase(), rng))
+        reports = [r for r in ledger.records if r.phase == "report"]
+        receipts: dict[int, np.ndarray] = {}
+        for r in ledger.records:
+            if r.phase == "produce" and r.k_step == 0:
+                receipts[r.t_period] = receipts.get(r.t_period, np.zeros(j_n)) + np.asarray(r.deliv)
+        episodes.append((reports, receipts))
+    curve = {}
+    for share in POWER_SHARES:
+        rejections = []
+        for rep, (reports, receipts) in enumerate(episodes):
+            gen = np.random.default_rng([rep, round(share * 1000)])
+            inflate = gen.random(len(reports)) < share
+            claimed: dict[tuple[int, int], float] = {}
+            for rec, up in zip(reports, inflate, strict=True):
+                if rec.t_period + 1 not in receipts:
+                    continue
+                key = (rec.t_period, rec.sector)
+                claimed[key] = claimed.get(key, 0.0) + rec.report * (POWER_INFLATION if up else 1.0)
+            keys = sorted(claimed)
+            if len(keys) < 2:
+                continue
+            supply = np.array([(1.0 - phi[g]) * claimed[(t, g)] for t, g in keys])
+            received = np.zeros((len(keys), j_n))
+            unit = np.zeros((len(keys), j_n))
+            for row, (t, g) in enumerate(keys):
+                received[row, g] = receipts[t + 1][g]
+                unit[row, g] = 1.0
+            res = test(supply, received, unit, prices[[g for _, g in keys]])
+            if np.isfinite(res.p_value):
+                rejections.append(res.p_value < POWER_ALPHA)
+        curve[str(share)] = float(np.mean(rejections)) if rejections else float("nan")
+    return {
+        "alpha": POWER_ALPHA,
+        "inflation": POWER_INFLATION,
+        "replicates": POWER_REPLICATES,
+        "form": "per (period, good)",
+        "rejection_rate": curve,
+    }
+
+
+def _backend() -> tuple[str, str]:
+    from gosplan.metrics import resolve_estimators
+
+    b = resolve_estimators()
+    return str(b.name), str(b.version)
+
+
+def _pool(fn, jobs: list) -> list:
+    from gosplan.experiments.contrasts import _pool as pool
+
+    return pool(fn, jobs)
+
+
+def _plots(rows, power, out_dir: Path) -> None:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    pre = _setting_id(PREREGISTERED)
+    fig, ax = plt.subplots(figsize=(6, 4))
+    for cap, style in ((1.2, "-o"), (float("inf"), "--s")):
+        for source in ("dp_exact", "simulation"):
+            pts = {}
+            for r in rows:
+                if r["setting"] == pre and r["rho_cap"] == cap and r["source"] == source:
+                    pts.setdefault(r["w"], []).append(r["b_hat"] - r["truth"])
+            ws = sorted(pts)
+            ax.plot(ws, [np.nanmean(pts[w]) for w in ws], style, label=f"{source}, cap {cap}")
+    ax.axhline(0.0, color="grey", lw=0.8)
+    ax.set_xlabel("notch width w")
+    ax.set_ylabel("bias of b_hat (pre-registered setting)")
+    ax.legend(fontsize=7)
+    fig.tight_layout()
+    fig.savefig(Path(out_dir) / BIAS_FIG_PATH.name, dpi=120)
+    plt.close(fig)
+    fig, ax = plt.subplots(figsize=(5, 3.5))
+    shares = [float(k) for k in power["rejection_rate"]]
+    ax.plot(shares, list(power["rejection_rate"].values()), "-o")
+    ax.axhline(power["alpha"], color="grey", lw=0.8)
+    ax.set_xlabel("share of enterprise-periods with inflated claims")
+    ax.set_ylabel("rejection rate")
+    fig.tight_layout()
+    fig.savefig(Path(out_dir) / POWER_FIG_PATH.name, dpi=120)
+    plt.close(fig)
+
+
+def render_report(res: dict, grid) -> str:
+    pre = _setting_id(PREREGISTERED)
+    lines = [
+        "# Estimator-bias study (WO-034, PLAN section 7.2)",
+        "",
+        "Design: spec/P3_REVISION.md S4. Truth: (a) the DP's exact stationary distribution, (b) the "
+        "arm's pooled simulation, each measured against its own w = 0.25 counterpart at the same "
+        "cap. Reused Phase-1 gate arms: 30 seeds; other arms: 5 seeds (reduced for compute). "
+        f"Estimator: {res['estimator']} {res['estimator_version']}. No digit tests; no calibration "
+        "claim about archival detectors.",
+        "",
+        f"## Pre-registered setting ({pre})",
+        "",
+        "| w | cap | DP truth | DP-sample bias | sim truth | sim bias | sim RMSE | CI coverage |",
+        "|---|---|---|---|---|---|---|---|",
+    ]
+    for arm in res["arms"]:
+        w, cap = arm["w"], arm["rho_cap"]
+        k_dp = f"dp_exact|{w}|{cap}|{pre}"
+        k_sim = f"simulation|{w}|{cap}|{pre}"
+        lines.append(
+            f"| {w} | {cap} | {_truth(res, 'dp', w, cap, pre)} | "
+            f"{res['bias'].get(k_dp, float('nan')):.3f} | "
+            f"{_truth(res, 'sim', w, cap, pre)} | {res['bias'].get(k_sim, float('nan')):.3f} | "
+            f"{res['rmse'].get(k_sim, float('nan')):.3f} | "
+            f"{res['ci_coverage'].get(k_sim, float('nan')):.2f} |"
+        )
+    lines += [
+        "",
+        "## Across settings (simulation; mean |bias| over arms, mean coverage)",
+        "",
+        "| setting | mean abs bias | mean RMSE | mean CI coverage |",
+        "|---|---|---|---|",
+    ]
+    for setting in grid:
+        sid = _setting_id(setting)
+        keys = [k for k in res["bias"] if k.startswith("simulation|") and k.endswith(sid)]
+        b = [abs(res["bias"][k]) for k in keys if np.isfinite(res["bias"][k])]
+        r = [res["rmse"][k] for k in keys if np.isfinite(res["rmse"][k])]
+        c = [res["ci_coverage"][k] for k in keys if np.isfinite(res["ci_coverage"][k])]
+        mark = " (pre-registered)" if sid == pre else ""
+        lines.append(
+            f"| {sid}{mark} | {np.mean(b) if b else float('nan'):.3f} | "
+            f"{np.mean(r) if r else float('nan'):.3f} | "
+            f"{np.mean(c) if c else float('nan'):.2f} |"
+        )
+    p = res["power_curve"]
+    lines += [
+        "",
+        "## Reconciliation power curve",
+        "",
+        f"`ledger_test` at alpha = {p['alpha']}, claims inflated by x{p['inflation']} on the "
+        f"given share of enterprise-periods, {p['replicates']} TruthfulMyopic episodes:",
+        "",
+    ]
+    for share, rate in p["rejection_rate"].items():
+        lines.append(
+            f"- share {share}: rejection rate {rate:.2f}"
+            + (" (size)" if float(share) == 0.0 else "")
+        )
+    lines += ["", "Figures: `bias_curves.png`, `power_curve.png`.", ""]
+    return "\n".join(lines)
+
+
+def _truth(res, which: str, w, cap, sid: str) -> str:
+    d = res["dp_truth"] if which == "dp" else res["sim_truth"]
+    v = d.get(f"{w}|{cap}|{sid}")
+    return "n/a" if v is None else f"{v:.3f}"
 
 
 if __name__ == "__main__":
