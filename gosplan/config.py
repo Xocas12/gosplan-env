@@ -31,6 +31,10 @@ an arm requires a CHANGELOG entry (CONTRACT rule 11).
 
 from __future__ import annotations
 
+import dataclasses
+import hashlib
+import json
+import tomllib
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -515,7 +519,130 @@ class EnvConfig:
 
         Realises: PLAN section 3 (registry ranges) and the WO-003 card. Owning WO: **WO-003**.
         """
-        raise NotImplementedError("PLAN section 3 - implemented in WO-003")
+        supply = self.supply
+        incentive = self.incentive
+        information = self.information
+        tech = self.tech
+
+        # SUPPLY: structure and sizes (PLAN sections 2.1, 2.6, 2.10, 2.11).
+        if len(supply.sector_of) != supply.n_enterprises:
+            raise ValueError(
+                "supply.sector_of: length must equal supply.n_enterprises "
+                f"({len(supply.sector_of)} != {supply.n_enterprises})"
+            )
+        for index, sector in enumerate(supply.sector_of):
+            if not 0 <= sector < supply.n_sectors:
+                raise ValueError(
+                    f"supply.sector_of[{index}]: sector must lie in [0, n_sectors) "
+                    f"(got {sector}, n_sectors={supply.n_sectors})"
+                )
+        if len(supply.io_matrix) != supply.n_sectors or any(
+            len(row) != supply.n_sectors for row in supply.io_matrix
+        ):
+            raise ValueError(
+                f"supply.io_matrix: must be n_sectors x n_sectors (n_sectors={supply.n_sectors})"
+            )
+        for index, row in enumerate(supply.io_matrix):
+            if sum(row) >= 1:
+                raise ValueError(
+                    f"supply.io_matrix[{index}]: every row must sum to < 1, so no sector is "
+                    f"self-sustaining (got {sum(row)})"
+                )
+        for name in ("final_demand_share", "productivity", "yield_sigma", "ces_alpha"):
+            vector = getattr(supply, name)
+            if len(vector) != supply.n_sectors:
+                raise ValueError(
+                    f"supply.{name}: length must equal supply.n_sectors "
+                    f"({len(vector)} != {supply.n_sectors})"
+                )
+        if supply.input_complementarity < 1:
+            raise ValueError(
+                "supply.input_complementarity: theta must be >= 1, with inf selecting the "
+                f"Leontief branch (got {supply.input_complementarity})"
+            )
+        if supply.invest_lag < 1:
+            raise ValueError(f"supply.invest_lag: must be >= 1 (got {supply.invest_lag})")
+        if supply.ces_sigma <= 0:
+            raise ValueError(f"supply.ces_sigma: must be > 0 (got {supply.ces_sigma})")
+        if supply.delivery_timing != "uniform":
+            if len(supply.arrival_probs) != incentive.steps_per_period:
+                raise ValueError(
+                    "supply.arrival_probs: length must equal incentive.steps_per_period when "
+                    f"delivery_timing != 'uniform' "
+                    f"({len(supply.arrival_probs)} != {incentive.steps_per_period})"
+                )
+            if abs(sum(supply.arrival_probs) - 1) > 1e-9:
+                raise ValueError(
+                    f"supply.arrival_probs: must sum to 1 (got {sum(supply.arrival_probs)})"
+                )
+        for index, share in enumerate(supply.final_demand_share):
+            if not 0 <= share <= 1:
+                raise ValueError(
+                    f"supply.final_demand_share[{index}]: must lie in [0, 1] (got {share})"
+                )
+        for name in (
+            "holding_loss",
+            "input_holding_loss",
+            "trade_tau",
+            "price_markup",
+            "tech_drift_sigma",
+        ):
+            value = getattr(supply, name)
+            if value < 0:
+                raise ValueError(f"supply.{name}: must be non-negative (got {value})")
+        for index, sigma in enumerate(supply.yield_sigma):
+            if sigma < 0:
+                raise ValueError(f"supply.yield_sigma[{index}]: must be non-negative (got {sigma})")
+
+        # INC: bonus schedule, ratchet and probabilities (PLAN sections 2.7.1, 2.8).
+        if incentive.overfulfilment_cap < 1:
+            raise ValueError(
+                "incentive.overfulfilment_cap: must be >= 1, with inf meaning no cap "
+                f"(got {incentive.overfulfilment_cap})"
+            )
+        if incentive.notch_width < 0:
+            raise ValueError(
+                f"incentive.notch_width: must be non-negative (got {incentive.notch_width})"
+            )
+        for name in ("ratchet_cap_up", "ratchet_cap_dn"):
+            value = getattr(incentive, name)
+            if value < 0:
+                raise ValueError(f"incentive.{name}: must be non-negative (got {value})")
+        for name in ("penalty_scale", "effort_cost", "notch_height", "overfulfilment_slope"):
+            value = getattr(incentive, name)
+            if value < 0:
+                raise ValueError(f"incentive.{name}: must be non-negative (got {value})")
+        if not 0 <= incentive.tenure <= 1:
+            raise ValueError(f"incentive.tenure: must lie in [0, 1] (got {incentive.tenure})")
+        if not 0 <= incentive.soft_budget <= 1:
+            raise ValueError(
+                f"incentive.soft_budget: must lie in [0, 1] (got {incentive.soft_budget})"
+            )
+
+        # INFO: probabilities and noise scales (PLAN sections 2.7.4, 2.7.5, 2.8).
+        for name in (
+            "audit_rate",
+            "ministry_passthrough",
+            "horizontal_visibility",
+            "quality_measurability",
+            "shortfall_visibility",
+        ):
+            value = getattr(information, name)
+            if not 0 <= value <= 1:
+                raise ValueError(f"information.{name}: must lie in [0, 1] (got {value})")
+        for name in ("audit_noise", "channel_noise", "self_obs_noise"):
+            value = getattr(information, name)
+            if value < 0:
+                raise ValueError(f"information.{name}: must be non-negative (got {value})")
+
+        # TECH: horizon and bounds (PLAN sections 2.3, 2.12).
+        if tech.min_periods > tech.max_periods:
+            raise ValueError(
+                "tech.min_periods: must be <= tech.max_periods "
+                f"({tech.min_periods} > {tech.max_periods})"
+            )
+        if tech.report_max_ratio <= 1:
+            raise ValueError(f"tech.report_max_ratio: must be > 1 (got {tech.report_max_ratio})")
 
     def hash(self) -> str:
         """Return the stable content hash of this configuration.
@@ -537,7 +664,19 @@ class EnvConfig:
         Binds: `tests/unit/test_config.py` - the hash is stable under field order, and two
         configurations differing in any single parameter hash differently. Owning WO: **WO-003**.
         """
-        raise NotImplementedError("PLAN section 3 - implemented in WO-003")
+
+        def canonical(value: object) -> object:
+            if isinstance(value, float) and value == float("inf"):
+                return "inf"
+            if isinstance(value, tuple):
+                return [canonical(item) for item in value]
+            if isinstance(value, dict):
+                return {key: canonical(item) for key, item in value.items()}
+            return value
+
+        payload = canonical(dataclasses.asdict(self))
+        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+        return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
 def load_config(path: str) -> EnvConfig:
@@ -554,7 +693,63 @@ def load_config(path: str) -> EnvConfig:
 
     Realises: PLAN section 3. Owning WO: **WO-003**.
     """
-    raise NotImplementedError("PLAN section 3 - implemented in WO-003")
+    if path.lower().endswith(".toml"):
+        with open(path, "rb") as handle:
+            document = tomllib.load(handle)
+    elif path.lower().endswith(".json"):
+        with open(path, encoding="utf-8") as handle:
+            document = json.load(handle)
+    else:
+        raise ValueError(f"load_config: unsupported configuration format for {path!r}")
+    if not isinstance(document, dict):
+        raise ValueError("load_config: the configuration document must be a mapping")
+
+    sections: dict[str, type] = {
+        "supply": SupplyConfig,
+        "incentive": IncentiveConfig,
+        "information": InformationConfig,
+        "tech": TechConfig,
+    }
+    unknown = sorted(set(document) - set(sections) - {"spec_version"})
+    if unknown:
+        raise ValueError(f"load_config: unknown configuration key {unknown[0]!r}")
+
+    def decode(value: object, default: object) -> object:
+        """Inverse of `EnvConfig.hash`'s encoding: `"inf"` -> `float("inf")`, arrays -> tuples."""
+        if isinstance(value, str) and value == "inf":
+            return float("inf")
+        if isinstance(default, tuple):
+            if not isinstance(value, (list, tuple)):
+                raise ValueError(f"load_config: expected an array, got {type(value).__name__}")
+            element_default = default[0] if default else None
+            return tuple(decode(item, element_default) for item in value)
+        if isinstance(value, (list, tuple)):
+            raise ValueError("load_config: expected a scalar, got an array")
+        return value
+
+    kwargs: dict[str, object] = {}
+    for section_name, section_cls in sections.items():
+        if section_name not in document:
+            continue
+        raw = document[section_name]
+        if not isinstance(raw, dict):
+            raise ValueError(f"load_config: section {section_name!r} must be a mapping")
+        defaults = {spec.name: spec.default for spec in dataclasses.fields(section_cls)}
+        section_kwargs: dict[str, object] = {}
+        for key, value in raw.items():
+            if key not in defaults:
+                raise ValueError(
+                    f"load_config: unknown configuration key {key!r} in section {section_name!r}"
+                )
+            section_kwargs[key] = decode(value, defaults[key])
+        kwargs[section_name] = section_cls(**section_kwargs)
+
+    spec_version = document.get("spec_version", SPEC_VERSION)
+    if not isinstance(spec_version, str):
+        raise ValueError("load_config: spec_version must be a string")
+    config = EnvConfig(spec_version=spec_version, **kwargs)
+    config.validate()
+    return config
 
 
 def p1_default_config() -> EnvConfig:
@@ -575,4 +770,6 @@ def p1_default_config() -> EnvConfig:
     entry that names an `EnvConfig` field (all but the five `ppo_` rows, which belong to the
     adapter of WO-017). The two must never drift. Owning WO: **WO-003**.
     """
-    raise NotImplementedError("PLAN section 3 - implemented in WO-003")
+    config = EnvConfig()
+    config.validate()
+    return config
