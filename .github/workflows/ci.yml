@@ -88,7 +88,7 @@ jobs:
 
       - name: Upload junit.xml
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: junit-${{ github.run_id }}-${{ github.run_attempt }}
           path: junit.xml
@@ -129,7 +129,7 @@ jobs:
 
       - name: Upload collection report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: collected-${{ github.run_id }}-${{ github.run_attempt }}
           path: collected.txt
@@ -200,7 +200,7 @@ jobs:
         run: uv build
 
       - name: Upload dist
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dist-${{ github.run_id }}-${{ github.run_attempt }}
           path: dist/
