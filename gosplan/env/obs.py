@@ -231,8 +231,12 @@ def build_observation(state: State, cfg: EnvConfig, deliv: Array, need: Array) -
     SELF-OBSERVATION NOISE (PLAN section 2.4). When `cfg.information.self_obs_noise = sigma > 0`,
     FIELDS 4 AND 5 ONLY - `cum_output_over_target` and `stock_over_target` - are multiplied by
     `exp(N(0, sigma**2))`, drawn through `gosplan.rng.draw` with purpose `selfobs` and key
-    `(seed_env, "selfobs", t, k, i)` (CONTRACT rule 9). No other field is noised, and the two share
-    the layout of the draw so the branch is a single multiply. Phase 1 sets `sigma = 0.0`, which
+    `(seed_env, "selfobs", t, k)` taking `shape=(N,)` - the enterprise index `i` is the TRAILING
+    INDEX AND IS VECTORISED THROUGH `shape`, never folded into the key (CONTRACT rule 9). That is
+    the convention `gosplan/rng.py` states for every draw, and the idiom the `yield` draw already
+    uses; ambiguity report #53 resolved the conflict in favour of the convention, so one key yields
+    the whole `(N,)` vector. No other field is noised, and the two share the layout of the draw so
+    the branch is a single multiply. Phase 1 sets `sigma = 0.0`, which
     makes those fields exact - the agent observes `S_i` and `y_i` exactly at the REPORT step, so the
     report of PLAN section 2.8 is a choice made under full knowledge of the truth.
 

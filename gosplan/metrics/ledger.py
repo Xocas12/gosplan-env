@@ -195,17 +195,21 @@ class Ledger:
     def append(self, rec: StepRecord) -> None:
         """Append one record and maintain the run's flag set.
 
-        Takes: `rec`, one row. Returns: `None`; `self.records` grows by one.
+                Takes: `rec`, one row. Returns: `None`; `self.records` grows by one.
 
-        Flag maintenance (CONTRACT rule 8): when the running fraction of REPORT-step rows whose
-        `at_bound` is True exceeds `AT_BOUND_FLAG_THRESHOLD` (1%), `BOUND_BINDING_FLAG` is added to
-        `self.flags`. The fraction is over report rows only - PRODUCE rows carry no report and must
-        not dilute the denominator. Once raised the flag stays raised: it records that the bound bit
-        during the run, and a bound is never silently moved to clear it.
+        Flag maintenance: NONE. `append` maintains no flag; it only grows `self.records`.
+                `BOUND_BINDING` has exactly one definition, the `bound_binding` predicate below, evaluated
+                on the FINISHED ledger when the manifest is written (CONTRACT rules 8 and 10).
 
-        Binds: `tests/unit/test_ledger.py` and test T-B8 (`tests/behavioural/`) - forcing
-        `rho = rho_max` in more than 1% of reports sets `BOUND_BINDING`, and at or below 1% it does
-        not. Owning WO: **WO-011**.
+                Ambiguity report #54 resolved this. A monotone latch on a RUNNING fraction is not equivalent
+                to a predicate on the FINAL fraction and can only over-trigger: append one at-bound report
+                row, then 99 clean ones, and the running fraction is 100% at row 1 while the final fraction
+                is 1%, which does not exceed the threshold. Two definitions of one flag meant a gate G2
+                hygiene outcome could turn on the order rows happened to arrive in.
+
+                Binds: `tests/unit/test_ledger.py` and test T-B8 (`tests/behavioural/`) - forcing
+                `rho = rho_max` in more than 1% of reports sets `BOUND_BINDING`, and at or below 1% it does
+                not. Owning WO: **WO-011**.
         """
         raise NotImplementedError("PLAN section 4 - implemented in WO-011")
 

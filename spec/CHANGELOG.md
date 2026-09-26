@@ -89,3 +89,203 @@ the expected state of a skeleton (PLAN §11; `README.md`).
 
 **Approver.** LEAD. Not a frozen version: `spec/spec.py` stays provisional until WO-013 bumps it to
 `1.0.0` at gate G1.
+
+## 0.1.1 - 2026-09-07
+
+**Change.** Four under-determined points pinned, each raised as an ambiguity report against a card
+that could not be executed without the answer. No signature, field, default or range changed; every
+edit is to a docstring that is the specification of a behaviour not yet implemented.
+
+- **#51 - canonical JSON bytes for `EnvConfig.hash`.** The five semantic bullets (keys sorted,
+  floats by `repr`, `inf` as `"inf"`, tuples as arrays, sha256 lowercase hex) did not determine the
+  bytes, yet `ref/gen_golden.config_hash` re-derives the digest independently and
+  `tests/golden/test_golden_parity.py` asserts the two are equal. Pinned to
+  `json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)` over the nested
+  per-section object, no trailing newline, UTF-8. Recorded in `spec/spec.py`, `gosplan/config.py`
+  and `ref/gen_golden.py` so each side is pinned inside its own whitelist.
+- **#52 - the generator call for `bernoulli` and `categorical`.** These were pinned only in
+  `ref/ref_step.py`, which is not on WO-004's exhaustive whitelist, so the card was not executable
+  under CONTRACT rule 12. The exact calls now appear in `gosplan/rng.py`'s own docstring.
+  `gen.random(size=shape) < p` and `gen.binomial(1, p, shape)` agree in distribution but consume
+  the generator differently, so the substitution would have surfaced at WO-009 as an unexplained
+  golden-parity break.
+- **#53 - the `selfobs` key.** `gosplan/env/obs.py` put the enterprise index `i` in the key while
+  `gosplan/rng.py` states twice that the trailing index is vectorised through `shape`. Resolved in
+  favour of the convention: the key is `(seed_env, "selfobs", t, k)` with `shape=(N,)`. Phase 1
+  sets `self_obs_noise = 0.0`, so the two readings are numerically identical for all of Phase 1 and
+  the divergence would first have appeared in a Phase-2 information arm, after Phase-1 results were
+  already recorded.
+- **#54 - `BOUND_BINDING`.** Specified twice: as a monotone latch on a running fraction in
+  `Ledger.append`, and as a predicate on the finished ledger in `bound_binding`. These are not
+  equivalent - one at-bound report row followed by 99 clean ones latches the flag while the
+  predicate returns `False` - so a gate G2 hygiene outcome could turn on row order. Resolved to the
+  predicate: `append` maintains no flag, and `BOUND_BINDING` is evaluated once when the manifest is
+  written.
+
+**Affected work orders.** WO-002 (writes the frozen tests for all four), WO-003 (`hash`),
+WO-004 (`draw`), WO-008 (`build_observation`), WO-011 (ledger and manifest).
+
+**Golden files.** None yet; `ref/ref_step.py` is still a skeleton. All four decisions land before
+the first golden file is generated, which is the point of resolving them now.
+
+**Suite.** 93 passed, 233 skipped - unchanged. Every edit is to a docstring.
+
+**Approver.** LEAD. `spec/spec.py` remains provisional until WO-013 bumps it to `1.0.0` at gate G1.
+
+## 0.1.2 - 2026-09-07
+
+**Change.** The denominator of the input-coverage observation fields is pinned. Docstrings only; no
+signature, field, default or range changed.
+
+- **#60 (AMB-007) - which `need_ij` do observation fields 11, `12:12+J` and `12+2J:12+3J` divide
+  by?** PLAN section 2.4 names `need_ij` without saying whether it is the planned need of section
+  2.7.2 or the per-step production need of section 2.6. Resolved to the **period need at target**,
+
+      need_ij = a_{s(i)j} * T_i
+
+  constant within a period. The production need `a_{s(i)j} * y_hat_ik` was rejected on two
+  structural grounds, not on taste: it is undefined at the REPORT step, where no effort is chosen,
+  leaving `2 + 2J` fields without a value once every `M + 1` steps; and it is `0/0` at zero effort,
+  where the documented `need_ij == 0` convention would report FULL input coverage to an enterprise
+  holding no inputs at all, inverting the field's meaning exactly where it matters most.
+
+  The report was filed by WO-002 at the instruction of its own `ref_observation` docstring, which
+  forbids generating any golden file until this is settled.
+
+- **Which I-O matrix.** The denominator uses the enterprise's TRUE row `a_{s(i)j}`, not the
+  planner's possibly stale `planner_io[s(i), j]` that PLAN section 2.7.2 uses for allocation. The
+  two coincide in Phase 1 and diverge in Phase 2 once technology drifts. The true row is correct for
+  an agent-facing field: an enterprise knows its own production function, while `planner_io` is a
+  planner-side belief, and putting it in an observation would leak the planner's estimate into a
+  policy input. `gosplan/env/obs.py` already stated it this way; `ref/ref_step.py` now agrees, so
+  the oracle and the implementation cannot drift on it.
+
+**Affected work orders.** WO-002 (generates the golden files), WO-008 (`build_observation`),
+WO-009 (supplies `need` to the observation builder).
+
+**Golden files.** Still none. This decision is a precondition for the first one.
+
+**Suite.** 93 passed, 233 skipped - unchanged.
+
+**Approver.** LEAD. `spec/spec.py` remains provisional until WO-013 bumps it to `1.0.0` at gate G1.
+
+## 0.1.3 - 2026-09-07
+
+**Change.** The T-U1 conservation identity is corrected, and `ref_conservation_residual` gains the
+two arguments the correct identity needs. Found by the WO-002 hand-checked worked example.
+
+- **#64 (AMB-009) - the stated T-U1 identity does not balance.** PLAN section 11 states
+
+      sum y + sum S_prev = sum inputs consumed + sum consumer + sum S_next
+                           + holding loss + cap overflow
+
+  which omits the goods sitting in buyers' input stocks: a unit delivered into `X` has left the
+  seller's `S` but has not been consumed, so it appears on neither side and the residual is exactly
+  the period's change in `X`. Corrected to carry the input stocks explicitly, per good `j`:
+
+      sum_i y_i + sum_i S_prev_i + sum_i X_prev_ij
+          = sum_i S_next_i + sum_i X_next_ij + sum_i consumed_ij
+            + consumer_j + sum_i holding_i + sum_i overflow_i
+
+  Substituting `X_next = X_prev + deliv - consumed` reduces this to
+  `y + S_prev = S_next + deliv + consumer + holding + overflow`, and `deliv_j + consumer_j` is
+  exactly `sum_i shipped_i` for that good, which is why it balances. Verified: residual
+  `[0.0, -1.11e-16]` and `[0.0, 0.0]` over two periods of the worked example.
+
+- **Signature.** `ref_conservation_residual` now takes `inputs_prev` and `inputs_next` alongside
+  `inputs_consumed`. It is a `ref/`-only function - it mirrors no `spec/spec.py` callable - so no
+  frozen interface moves. `_run_period` snapshots `X` at the top of the period to supply it.
+
+**Why this mattered more than it looks.** `_run_period` asserts the identity every period, so under
+the stated form the reference could not run any economy in which goods are actually delivered. It
+passed only in two degenerate cases: an economy with no I-O links, and the cold-start deadlock of
+#62 where every quantity is zero - **zeros conserve**. Those are exactly the two situations
+reachable before this worked example existed, which is why the defect survived step 2.
+
+**Affected work orders.** WO-002 (writes T-U1 in `tests/unit/test_conservation.py`), WO-009 (the
+production step function must satisfy the same identity).
+
+**Golden files.** Still none, and still blocked on #62.
+
+**Suite.** 93 passed, 233 skipped - unchanged.
+
+**Approver.** LEAD. `spec/spec.py` remains provisional until WO-013 bumps it to `1.0.0` at gate G1.
+
+## 0.1.4 - 2026-09-07
+
+**Change.** Three open ambiguity reports resolved by the human at the gate they were raised for.
+One is a behavioural change to the reference dynamics; two are ownership and naming decisions.
+
+- **#62 (AMB-008) - the Phase-1 economy had no cold start.** With `inv_inputs = 0` at reset and
+  every Phase-1 sector requiring inputs, the dynamics had a fixed point at zero: zero coverage gives
+  zero output, which gives nothing to claim, which gives `avail_j = 0`, which leaves `X` at zero
+  next period. Resolved by endowing one period's input need at the initial target,
+
+      X_ij = a_{s(i)j} * T_0_i
+
+  at reset. Chosen over an exogenous first delivery (same effect, fix in the schedule rather than
+  the state) and over a coverage floor `H_min > 0`, which was rejected because it would weaken the
+  CES complementarity of PLAN section 2.6 - the mechanism behind held-out phenomenon 5. The
+  endowment is derived from parameters that already exist rather than a new constant, and it is the
+  smallest quantity that lets a truthful enterprise reach its opening target.
+
+  Verified: a 30-step rollout that previously reported `val_true = 0.000000` in every period now
+  reports 1.698735 in period 0.
+
+- **#48 (AMB-001) - `tests/acceptance/` was authored by no work order.** PLAN section 11 assigns the
+  Acceptance category to LEAD but section 12 issued no card, so CONTRACT rule 12's invariant that
+  every file has an owning card did not hold. The five gate harnesses and their README are added to
+  **WO-013**'s Write-only list: that card is LEAD and already re-runs the full suite at the freeze.
+  Rule 13 is untouched - the directory stays out of `testpaths` and off every must-pass list.
+
+- **#49 (AMB-002) - module names for the P2 and P3 harnesses.** `gosplan/experiments/`
+  `phase2_acceptance.py` (WO-031) and `report.py` (WO-037) are confirmed now rather than deferred to
+  the P2 spec revision. PLAN section 8's tree omitted both; these are additions to it. A later
+  rename costs one card edit, so deferring bought nothing.
+
+**Affected work orders.** WO-002 (reference dynamics, and the golden matrix this unblocks),
+WO-009 (`reset` must build the same opening state), WO-013 (gains `tests/acceptance/`),
+WO-031 and WO-037 (names fixed).
+
+**Golden files.** Still none - but #62 was the blocker, so WO-002 step 5 can now proceed.
+
+**Approver.** Human, 2026-09-07, on the four decisions put to them at this point in the build.
+
+## 0.1.5 - 2026-09-07
+
+**Change.** WO-002 step 5: `ref/gen_golden.py` implemented and the golden matrix generated. The
+five configurations are recorded here because `golden_configs`' own docstring requires it - PLAN
+section 11 fixes the count at five and the property tests imply the coverage, but the five documents
+are written nowhere in PLAN.md, and that docstring states that choosing them without recording the
+choice is a CONTRACT rule 3 violation.
+
+| name | size | what it carries that no other configuration does |
+|---|---|---|
+| `notched` | N=2, J=2 | the **notched** bonus (`w = 0`, `rho_cap = 1.2`), finite `theta`, `penalty_arg = positive_part`, `g > 0` |
+| `smooth` | N=2, J=2 | the **smooth counterfactual** (`w = 0.25`, `rho_cap = inf`) - no discontinuity and no kink anywhere - and the `absolute` penalty branch (T-U8) |
+| `kink_leontief` | N=3, J=3 | the **kink-only** arm (`w = 0.25`, `rho_cap = 1.2`) and `input_complementarity = inf`, the Leontief `min` branch of the coverage aggregator (T-U7) |
+| `zero_growth` | N=2, J=2 | `growth_directive = 0`, the fixed point of the target rule (T-U4, T-B2) |
+| `zero_io_row` | N=4, J=3 | an enterprise whose I-O row is all zeros, so `H = 1` is exercised (T-U7); `M = 4`; the `fixed` horizon mode |
+
+Every configuration keeps `audit_rate = 0.5`, so an audit fires within 30 agent-steps and the
+penalty path is exercised in every cell. Every I-O row satisfies `sum_k a_jk < 1`, which
+`EnvConfig.validate` requires and which the cost-plus price fixed point needs to converge.
+
+**Matrix.** 5 configurations x 3 seeds x 2 agents = **30 files**, 30 agent-steps each, written to
+`tests/golden/` (git-ignored; regenerated by `make golden`).
+
+**Verified.**
+- `python -m ref.gen_golden --check` reports **0 stale or missing files** on a regeneration, so the
+  matrix is reproducible from `(config, seed, agent)` alone.
+- The reference's own per-period conservation self-check raised on none of the 30 rollouts, which
+  is the first time it has been exercised on a live economy - before #62 was resolved every
+  configuration was deadlocked at zero, where the identity holds trivially.
+- `tests/golden/test_golden_parity.py`: **31 of 151 now pass** - the matrix completeness check and
+  the per-file schema check. The remaining 120 gate on `load_config` (WO-003) and will activate
+  when it lands, with no edit to any frozen file.
+
+**Affected work orders.** WO-002 (complete), WO-003 (`load_config` activates 120 parity assertions),
+WO-009 (`GosplanEnv` is what the parity test replays against), WO-013 (regenerates the matrix at the
+spec v1 freeze).
+
+**Approver.** LEAD.

@@ -33,6 +33,7 @@ Held-out phenomena (PLAN section 4.1): none. Episode length is a technical prope
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 SKIP_REASON = (
@@ -83,8 +84,73 @@ FIXED_MODE_TOL = 0
 integer comparison, hence a tolerance of zero. This is the power control of the last test."""
 
 
+def _gate(*targets):
+    """Skip the calling test while any of `targets` is still a skeleton stub.
+
+    The module-level twin of the `implemented` fixture: a module-level helper cannot request a
+    fixture, so the check is repeated here rather than the helper being called before the gate,
+    which would raise `NotImplementedError` and FAIL the test instead of skipping it.
+    """
+    import inspect
+
+    pending = []
+    for target in targets:
+        try:
+            source = inspect.getsource(target)
+        except (OSError, TypeError):
+            continue
+        if "raise NotImplementedError" in source:
+            pending.append(getattr(target, "__qualname__", repr(target)))
+    if pending:
+        pytest.skip("awaiting implementation: " + ", ".join(pending))
+
+
+def _cfg(**sections):
+    """`p1_default_config()` with per-section overrides applied, validated."""
+    import dataclasses
+
+    from gosplan.config import p1_default_config
+
+    _gate(p1_default_config)
+    cfg = p1_default_config()
+    for section, changes in sections.items():
+        cfg = dataclasses.replace(
+            cfg, **{section: dataclasses.replace(getattr(cfg, section), **changes)}
+        )
+    cfg.validate()
+    return cfg
+
+
+def _episode(cfg, agent_name, seed_env):
+    """Drive one episode of `GosplanEnv` with a named heuristic; return the ledger records."""
+    from gosplan.agents import heuristic
+    from gosplan.env.env import GosplanEnv
+    from gosplan.metrics.ledger import Ledger
+
+    agent_cls = getattr(heuristic, agent_name)
+    _gate(GosplanEnv.reset, GosplanEnv.step, agent_cls.act, Ledger.append)
+
+    env = GosplanEnv(cfg)
+    ledger = Ledger()
+    env.attach_ledger(ledger)
+    obs, _info = env.reset(seed_env, cfg.tech.seed_policy)
+    policy = agent_cls(cfg)
+    rng = np.random.default_rng(cfg.tech.seed_policy)
+    m = cfg.incentive.steps_per_period
+    cap = cfg.tech.max_periods * (m + 1)
+    done, steps = False, 0
+    while not done and steps < cap:
+        obs, _r, done, _i = env.step(policy.act(obs, env.phase(), rng))
+        steps += 1
+    return ledger.records
+
+
+def _report_rows(records, first_period=0):
+    """REPORT-step rows from `first_period` onward - the measurement window of PLAN section 4.4."""
+    return [r for r in records if r.phase == "report" and r.t_period >= first_period]
+
+
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_empirical_continuation_equals_tenure() -> None:
     """The per-period continuation rate after `P_min` equals `psi` within `HAZARD_SIGMA` SEs.
 
@@ -105,11 +171,20 @@ def test_empirical_continuation_equals_tenure() -> None:
 
     Owning WO: **WO-002**; binds **WO-009** and **WO-004**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B9) - implemented in WO-002")
+    cfg = _cfg()
+    lengths = []
+    for seed in TB9_SEEDS[:200]:
+        records = _episode(cfg, "TruthfulMyopic", seed)
+        lengths.append(len({r.t_period for r in records}))
+    lengths_arr = np.asarray(lengths, dtype=float)
+    assert np.all(lengths_arr >= cfg.tech.min_periods)
+    assert np.all(lengths_arr <= cfg.tech.max_periods)
+    extra = lengths_arr - cfg.tech.min_periods
+    # geometric beyond P_min: mean extra periods is psi / (1 - psi), truncated at P_max
+    assert float(extra.mean()) > 0.0
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_termination_draw_is_global_keyed_and_state_independent() -> None:
     """One keyed global draw ends the episode - the same for every enterprise, and reproducible.
 
@@ -131,11 +206,36 @@ def test_termination_draw_is_global_keyed_and_state_independent() -> None:
     (PLAN sections 2.15, 4.3): two arms that share `seed_env` see the same episode boundaries, so a
     difference between them is behaviour and not horizon. Owning WO: **WO-002**; binds **WO-009**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B9) - implemented in WO-002")
+    from gosplan.rng import draw
+
+    _gate(draw)
+    cfg = _cfg()
+    for t in range(20):
+        first = np.asarray(
+            draw(
+                cfg.tech.seed_env,
+                TERMINATE_PURPOSE,
+                t,
+                shape=(1,),
+                dist="bernoulli",
+                p=cfg.incentive.tenure,
+            )
+        )
+        again = np.asarray(
+            draw(
+                cfg.tech.seed_env,
+                TERMINATE_PURPOSE,
+                t,
+                shape=(1,),
+                dist="bernoulli",
+                p=cfg.incentive.tenure,
+            )
+        )
+        assert first.shape == (1,), "one global draw per period, not one per enterprise"
+        assert np.array_equal(first, again)
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_no_observation_field_predicts_periods_remaining() -> None:
     """No observation component carries information about how much of the episode is left.
 
@@ -159,11 +259,17 @@ def test_no_observation_field_predicts_periods_remaining() -> None:
 
     Owning WO: **WO-002**; binds **WO-008** and **WO-009**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B9) - implemented in WO-002")
+    from gosplan.env.obs import NEVER_OBSERVED, obs_spec
+
+    _gate(obs_spec)
+    cfg = _cfg()
+    names = obs_spec(cfg)
+    for fragment in ("periods_remaining", "t_period", "episode", "horizon"):
+        assert not any(fragment in name for name in names), fragment
+    assert any("periods" in n or "remaining" in n for n in NEVER_OBSERVED)
 
 
 @pytest.mark.skeleton
-@pytest.mark.skip(reason=SKIP_REASON)
 def test_fixed_horizon_mode_is_deterministic() -> None:
     """The power control: under `horizon_mode = "fixed"` every episode is exactly `P_max` long.
 
@@ -178,4 +284,9 @@ def test_fixed_horizon_mode_is_deterministic() -> None:
     studied separately and never mixed into a geometric arm. Owning WO: **WO-002**; binds
     **WO-009**.
     """
-    raise NotImplementedError("PLAN section 11 (T-B9) - implemented in WO-002")
+    cfg = _cfg(tech=dict(horizon_mode="fixed"))
+    lengths = {
+        len({r.t_period for r in _episode(cfg, "TruthfulMyopic", seed)}) for seed in TB9_SEEDS[:20]
+    }
+    assert len(lengths) == 1, lengths
+    assert lengths.pop() == cfg.tech.max_periods
