@@ -15,3 +15,5 @@ tests/golden/test_golden_parity.py
 tests/unit/test_oracle.py
 tests/unit/test_llm_ministry.py
 tests/unit/test_phenomena_p2.py
+tests/unit/test_p2_mechanisms.py
+tests/unit/test_phase2_acceptance.py
