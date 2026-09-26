@@ -2,7 +2,7 @@
 
 Realises: PLAN section 2.8 (reporting, audit, penalty), PLAN section 2.11 (inventory: holding loss
 and the stock cap) and PLAN section 11 (test architecture; property test **T-U8**). Owning work
-order: a later task (frozen tests; LEAD). Binds the corresponding task must-pass line of PLAN section 12.3,
+order: a later task (frozen tests; maintainer). Binds the corresponding task must-pass line of PLAN section 12.3,
 verbatim - "`tests/unit/test_reporting.py` (T-U8; audit against stock; holding loss applied before
 adding `y`; report clipped to `rho_max`)". Module under test: `gosplan/env/reporting.py`.
 

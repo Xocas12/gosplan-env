@@ -20,7 +20,7 @@ A claim above stock lowers `poolfill` for the whole good, so every buyer of that
 than it was promised; a claim below stock leaves the difference sitting in `S`. Both are
 *consequences* of those four lines. CONTRACT rule 7 forbids implementing either directly, and this
 test is the behavioural evidence that the consequence is present without such a rule - the
-structural evidence is the lead's diff review named in `test_no_hardcoded_pathology.py`.
+structural evidence is the maintainer's diff review named in `test_no_hardcoded_pathology.py`.
 
 Propagation, not just shortfall. The Phase-1 `io_matrix` (PLAN section 3) is a 5-cycle with chords:
 every sector needs two inputs at 0.2 each, so a shortage in any one sector reaches every other
@@ -206,7 +206,7 @@ def test_padder_shortage_reaches_every_downstream_buyer(implemented) -> None:
 
     Do not assert a magnitude and do not compare the shortfall against another agent's: the size of
     the shortage is not a pre-registered quantity, and the hoarding direction is held out (PLAN
-    section 4.1 row 5). Owning WO: a later task; binds a later task and a later task.
+    section 4.1 row 5). Owning WO: a later task; binds later tasks.
     """
     cfg = _cfg()
     seen_short = False
@@ -239,7 +239,7 @@ def test_truthful_myopic_gives_full_fill(implemented) -> None:
     the two rollouts share every environment draw and differ only in the report, so a shortage in
     one and none in the other isolates the claim as its cause. It is *not* a baseline to difference
     a phenomenon against (PLAN section 4.1 row 5 is held out); no excess is formed here. Owning WO:
-    a later task; binds a later task and a later task.
+    a later task; binds later tasks.
     """
     cfg = _cfg()
     for seed in TB3_SEEDS:

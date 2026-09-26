@@ -24,7 +24,7 @@ Why the whitelist has two entries. `make_planner_view` is the single `State -> p
 `deliver(state, alloc, cfg)` also lives in `gosplan/env/planner.py` and also takes a `State`, but
 it makes no planner decision: it is the physical execution of an allocation already decided from
 the view, and it reads no claim except through `alloc` (see `deliver`'s interface note in
-`spec/spec.py`). The spec records that T-B4 whitelists it, and that the lead either records the
+`spec/spec.py`). The spec records that T-B4 whitelists it, and that the maintainer either records the
 whitelist or relocates `deliver` to `gosplan/env/step.py` in `spec/CHANGELOG.md` at the v1 freeze. The whitelist is asserted to contain exactly those two names, so a third can only appear
 by editing this frozen test - which CONTRACT rule 2 forbids an contributor from doing.
 
@@ -260,7 +260,7 @@ def test_planner_view_fields_are_exactly_the_declared_set() -> None:
     This is the structural half of the dynamic check: the sentinel sweep shows that today's values
     do not leak, while this shows that no *place* to leak them was added. A new planner-side field
     is a spec change under CONTRACT rule 1 with a `spec/CHANGELOG.md` entry, and it must arrive
-    with an update to this frozen test by the lead (CONTRACT rule 2). Owning WO: a later task.
+    with an update to this frozen test by the maintainer (CONTRACT rule 2). Owning WO: a later task.
     """
     import dataclasses
 
@@ -288,7 +288,7 @@ def test_no_planner_function_accepts_state() -> None:
 
     as set equality, not containment: it fails both when a new function takes a `State` and when a
     whitelisted one stops doing so or is renamed, either of which means the boundary moved without
-    the lead noticing. Assert separately that `STATE_ARGUMENT_WHITELIST` is exactly
+    the maintainer noticing. Assert separately that `STATE_ARGUMENT_WHITELIST` is exactly
     `("make_planner_view", "deliver")`, so widening the whitelist requires editing this frozen test
     (CONTRACT rule 2), and report every offending function name in the failure message.
 

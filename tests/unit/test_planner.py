@@ -2,7 +2,7 @@
 
 Realises: PLAN sections 2.7.1-2.7.5 (planner rules, which read only a `PlannerView`), 2.9.2
 (fulfilment measure) and PLAN section 11 (test architecture; property test **T-U4**). Owning work
-order: a later task (frozen tests; LEAD). Binds the corresponding task must-pass line of PLAN section 12.3,
+order: a later task (frozen tests; maintainer). Binds the corresponding task must-pass line of PLAN section 12.3,
 verbatim - "`tests/unit/test_planner.py` (T-U4; allocation sums to `avail_j`; `eta_q = 0` ignores
 requests; `poolfill` in [0,1]; delivery conservation)". Module under test: `gosplan/env/planner.py`.
 

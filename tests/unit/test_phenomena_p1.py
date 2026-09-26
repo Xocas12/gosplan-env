@@ -3,7 +3,7 @@
 Realises: PLAN sections 4.1 (rows 1 and 4 only - the two Phase-1 pipeline checks), 4.4 (measurement
 window), 4.5 (pre-registered estimator settings and the G2 criteria), 7.3 (the coupling to
 `forensics_core` and its vendored fallback) and PLAN section 11 (test architecture, unit/property
-category). Owning task: a later task (frozen tests; LEAD). Binds the corresponding task must-pass line of
+category). Owning task: a later task (frozen tests; maintainer). Binds the corresponding task must-pass line of
 PLAN section 12.3, verbatim - "`tests/unit/test_phenomena_p1.py` (estimator on synthetic densities
 with known excess mass recovers it within 5%; hole mass; SE by bootstrap; fallback and
 `forensics_core` signatures identical)". Modules under test: `gosplan/metrics/phenomena.py`,

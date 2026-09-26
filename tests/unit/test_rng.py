@@ -1,7 +1,7 @@
 """Key-based randomness: determinism, order-independence and distributions (PLAN section 2.15).
 
 Realises: PLAN section 2.15 (RNG - key-based, not stream-based) and PLAN section 11 (test
-architecture; property test **T-U6**). Owning task: a later task (frozen tests; LEAD). Binds the
+architecture; property test **T-U6**). Owning task: a later task (frozen tests; maintainer). Binds the
 a later task must-pass line of PLAN section 12.3, verbatim - "`tests/unit/test_rng.py` (T-U6;
 distributions: `lognormal(mean_log, sigma)`, `normal`, `bernoulli`, `categorical`)". Module under
 test: `gosplan/rng.py`.

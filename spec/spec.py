@@ -3,15 +3,15 @@
 Realises: PLAN sections 2.1-2.15 (environment specification), 3 (parameter registry), 4
 (pre-registration and phenomena), 5 (single-enterprise DP), 6 (agents/oracle), 9 (CONTRACT), 10
 (this skeleton) and 11 (test architecture). Owning task: a later task (Spec v0, CONTRACT,
-registry; LEAD).
+registry; maintainer).
 
 This file is the anchor every other module imports from. It carries type aliases, configuration
 dataclasses with the Phase-1 defaults of PLAN section 3, the state/action/view record types, and the
 signature plus complete docstring of every function in the system. **Every body raises
 NotImplementedError**; the task named in each docstring supplies the implementation.
 
-FROZEN BY CONTRACT RULE 1. `spec/spec.py` is provisional (v0, SPEC_VERSION "0.1.0") until gate G1
-and frozen (v1, "1.0.0") thereafter at a later task. After v1 only the lead may change this file, and
+FROZEN BY CONTRACT RULE 1. `spec/spec.py` is provisional (v0, SPEC_VERSION "0.1.6") until gate G1
+and frozen (v1, "1.0.0") thereafter at a later task. After v1 only the maintainer may change this file, and
 only with a `spec/CHANGELOG.md` entry recording version, reason and affected tasks. No other
 session edits it.
 
@@ -39,7 +39,7 @@ Array = np.ndarray
 """Alias for every numeric array in the interface (PLAN section 10). The JAX port substitutes its
 own array type behind the same name; no module may rely on numpy-only methods in a signature."""
 
-SPEC_VERSION = "0.1.0"
+SPEC_VERSION = "0.1.6"
 """Provisional spec version (PLAN section 10 header). Bumped to "1.0.0" by a later task at the v1 freeze;
 every later change needs a `spec/CHANGELOG.md` entry (CONTRACT rule 1). Written into every run
 manifest (CONTRACT rule 10)."""
@@ -1342,7 +1342,7 @@ class GosplanEnv:
 
     Binds: `tests/golden/*` (T-B7, agreement with `ref/ref_step.py` to 1e-9 on seeded trajectories),
     `tests/unit/test_conservation.py` (T-U1), `tests/unit/test_env_api.py`, and
-    `tests/behavioural/test_termination.py` (T-B9). Owning WO: a later task (LEAD).
+    `tests/behavioural/test_termination.py` (T-B9). Owning WO: a later task (maintainer).
     """
 
     cfg: EnvConfig
@@ -1398,7 +1398,7 @@ class GosplanEnv:
 
         Binds: T-B7 (golden parity with `ref/`), T-U1 (conservation), T-B9 (empirical continuation
         equals `tenure`; no observation field correlates with periods remaining). Owning WO:
-        a later task (LEAD).
+        a later task (maintainer).
         """
         raise NotImplementedError("PLAN section 2.5")
 
@@ -1930,7 +1930,7 @@ def solve_oracle(cfg: EnvConfig, horizon: int, clairvoyant: bool, seed_env: Opti
     Sketch (PLAN section 6.2, frozen at the Phase-2 revision): a non-anticipative expected-value MIP
     over the full true state at mean yields, with the configured nonconvexities (setup costs become
     binaries, increasing returns a piecewise-linear approximation), solved once per configuration
-    with an open-source solver (HiGHS or CBC through OR-Tools or Pyomo; the lead verifies
+    with an open-source solver (HiGHS or CBC through OR-Tools or Pyomo; the maintainer verifies
     availability). `W_oracle` in the headline metrics of PLAN section 2.9.4 is the expected-value
     MIP's welfare; the clairvoyant number is reported as an upper bound only, never as the
     denominator. The solver's optimality gap is recorded in the run manifest (CONTRACT rule 10).

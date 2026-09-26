@@ -3,7 +3,7 @@
 Realises: PLAN section 2.13 (trade), with the offer dimension of PLAN section 2.3, the visibility
 parameter of PLAN section 2.4 (`information.horizontal_visibility`), the transaction cost of PLAN
 section 3 (`supply.trade_tau`) and the surplus term named in CONTRACT rule 4. Owning task:
-a later task (trade matching): the lead writes the matching rule and the surplus definition into the
+a later task (trade matching): the maintainer writes the matching rule and the surplus definition into the
 Phase-2 spec revision, and a contributor then implements this module against it.
 
 **Scope tag: P2 sketch.** PLAN section 0 defines the tag precisely, and finding F14 (freeze timing)

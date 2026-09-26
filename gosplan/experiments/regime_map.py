@@ -45,7 +45,7 @@ OPEN - AMBIGUITIES FOR THE a later task SESSION (CONTRACT rule 3; do not silentl
        is dual-classified (PLAN section 4.3). Two conventions are consistent with the text: hold
        `audit_rate` at the registry value and set `penalty_scale = a_pen / audit_rate`, or sample
        both marginals inside their PLAN section 3 ranges and record the realised product. The task
-       does not decide. File an OPEN QUESTION; whichever the lead fixes is recorded in the run
+       does not decide. File an OPEN QUESTION; whichever the maintainer fixes is recorded in the run
        manifest and printed in the table header.
     2. "Interior" of the bunching region. PLAN section 5 asks the human to pick from the interior
        but does not define a neighbourhood. Candidate definitions: every point within a fixed
@@ -168,7 +168,7 @@ def run(
                               interior bunching-region points, each with its parameters and
                               `b_hat_dp`
         "artefacts"           dict[str, str], the four paths written
-        "ap_factorisation"    str, the convention used for ambiguity 1, as fixed by the lead
+        "ap_factorisation"    str, the convention used for ambiguity 1, as fixed by the maintainer
 
     Procedure (PLAN section 5, regime-map bullet; task specification):
 
@@ -186,7 +186,7 @@ def run(
          over the regime label) and `bhat.png` (continuous scale over `b_hat_dp`). Grid-edge hits
          are a regime signal, not an artefact: they are plotted and reported, never smoothed away.
       5. Write `candidates.md` with at least `MIN_BUNCHING_CANDIDATES` points labelled `bunching`
-         that are interior under the definition the lead fixed (ambiguity 2), each with all eight
+         that are interior under the definition the maintainer fixed (ambiguity 2), each with all eight
          parameters, `b_hat_DP`, the regime labels of its neighbours, and its `config_hash`.
 
     Nothing in this function trains anything (no RL, the forbidden list) and nothing

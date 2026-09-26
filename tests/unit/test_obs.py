@@ -2,7 +2,7 @@
 
 Realises: PLAN section 2.4 (the enumerated observation and the information invariants) and PLAN
 section 11 (test architecture, unit/property category; the unit half of **T-B5**). Owning work
-order: a later task (frozen tests; LEAD). Binds the corresponding task must-pass line of PLAN section 12.3,
+order: a later task (frozen tests; maintainer). Binds the corresponding task must-pass line of PLAN section 12.3,
 verbatim -
 "`tests/unit/test_obs.py` (layout equals `obs_spec`; dimension `12 + 3J` at P1; masks by phase)".
 Module under test: `gosplan/env/obs.py`.

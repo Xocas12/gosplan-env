@@ -389,7 +389,7 @@ def check_spec_freeze(root: Path, changed: set[str] | None) -> list[Violation]:
     """CONTRACT rule 1 (FROZEN SPEC): a spec change needs a new `spec/CHANGELOG.md` entry.
 
     Rule 1, verbatim: "spec/spec.py is provisional (v0) until gate G1 and frozen (v1) thereafter.
-    After v1, only the lead may change it, and only with a spec/CHANGELOG.md entry (version,
+    After v1, only the maintainer may change it, and only with a spec/CHANGELOG.md entry (version,
     reason, affected tasks). No other session edits spec/spec.py."
 
     Mechanised as: if `spec/spec.py` is in the diff against the base ref, then
@@ -397,7 +397,7 @@ def check_spec_freeze(root: Path, changed: set[str] | None) -> list[Violation]:
     already present on `main`. Editing the changelog without bumping the version - appending prose
     to an existing entry - is the failure mode the second half catches.
 
-    "Only the lead may change it" is not decidable from source; that half of rule 1 is enforced by
+    "Only the maintainer may change it" is not decidable from source; that half of rule 1 is enforced by
     review and branch protection, and `scripts/README.md` says so.
     """
     if changed is None or SPEC_PATH not in changed:
@@ -480,7 +480,7 @@ edited by whoever edits `scripts/contract_guard.py` - in the same pull request, 
 its test drift apart.
 
 The carve-out is STRUCTURAL rather than an entry in `.github/FROZEN_TEST_EXEMPTION`, because that
-file is for temporary, reviewable suppressions the lead removes once a change has landed; a
+file is for temporary, reviewable suppressions the maintainer removes once a change has landed; a
 standing entry there would be a permanently disabled rule, and the very pull request that adds this
 guard would otherwise fail the guard. Every other path under the three directories stays frozen,
 and this set stays this short: adding a path to it is a decision to unfreeze that file for good."""
@@ -516,14 +516,14 @@ def check_frozen_tests(root: Path, changed: set[str] | None) -> list[Violation]:
     do not special-case the implementation to pass it."
 
     A SCRIPT CANNOT SEE WHO OPENED THE PULL REQUEST, so it cannot apply the rule's real condition
-    ("read-only for contributors" - the lead may edit them). It is mechanised instead as a
+    ("read-only for contributors" - the maintainer may edit them). It is mechanised instead as a
     violation of severity `review-required` on every frozen-test file in the diff except the paths
     in `FROZEN_TEST_NON_FROZEN_PATHS`, which are not part of the frozen surface at all. The
     severity is suppressible two further ways, both of which leave a trace a reviewer can see:
 
       * `.github/FROZEN_TEST_EXEMPTION` names the paths, one per line, `#` comments allowed, a
         trailing `/` making an entry a directory prefix. The file is committed on the branch, so
-        the exemption is itself reviewable in the diff; the lead adds it when the lead is the one
+        the exemption is itself reviewable in the diff; the maintainer adds it when the maintainer is the one
         editing the frozen suite, and removes it in the same pull request or the next one.
       * `CONTRACT_ALLOW_FROZEN_TESTS=1` in the environment, for a lead running the guard locally.
         A workflow that sets this unconditionally has disabled rule 2; do not.
@@ -558,12 +558,12 @@ def check_frozen_tests(root: Path, changed: set[str] | None) -> list[Violation]:
                     "CONTRACT rule 2 (FROZEN TESTS): this file is in tests/unit, "
                     "tests/behavioural or tests/golden, which are read-only for contributors - "
                     "'do not edit it, do not skip it, do not special-case the implementation to "
-                    "pass it'. A script cannot see whether the lead opened this pull request, so "
+                    "pass it'. A script cannot see whether the maintainer opened this pull request, so "
                     "the change is flagged for review rather than judged."
                 ),
                 fix=(
                     "if a test looks wrong, file an OPEN QUESTION "
-                    "(the open-question form) instead of editing it; if the lead is "
+                    "(the open-question form) instead of editing it; if the maintainer is "
                     f"making this change, list the path in {FROZEN_TEST_EXEMPTION_PATH} on this "
                     f"branch, or run with {FROZEN_TEST_ENV_VAR}=1 locally."
                 ),
@@ -922,7 +922,7 @@ RULE_7_NOTE = (
     "CONTRACT rule 7 (NO HARD-CODED PATHOLOGY) IS NOT DECIDABLE STATICALLY. The check in this "
     "guard is narrow and high-precision by design: it catches a transition rule that NAMES the "
     "pathology it is supposed to let emerge, and nothing else. PASSING IT IS NECESSARY, NOT "
-    "SUFFICIENT - rule 7's own wording is 'passing it is necessary, not sufficient - the lead "
+    "SUFFICIENT - rule 7's own wording is 'passing it is necessary, not sufficient - the maintainer "
     "reviews every env/ diff against this rule'. Behavioural test T-B1 "
     "(tests/behavioural/test_no_hardcoded_pathology.py) is the other half, and it is not "
     "sufficient either."
@@ -969,7 +969,7 @@ def check_hardcoded_pathology(root: Path, changed: set[str] | None) -> list[Viol
 
     Rule 7, verbatim: "No transition rule or reward term may implement bunching, padding, storming,
     hoarding, shaving or trade directly. tests/behavioural/test_no_hardcoded_pathology.py checks
-    this behaviourally with heuristic agents; passing it is necessary, not sufficient - the lead
+    this behaviourally with heuristic agents; passing it is necessary, not sufficient - the maintainer
     reviews every env/ diff against this rule."
 
     THIS ONE CANNOT BE DECIDED STATICALLY, AND THIS CHECK DOES NOT PRETEND TO. It flags exactly one
@@ -1008,7 +1008,7 @@ def check_hardcoded_pathology(root: Path, changed: set[str] | None) -> list[Viol
                     fix=(
                         "delete the branch or the variable and let the outcome fall out of the "
                         "PLAN section 2.7 formulas; if the mechanism genuinely needs it, that is "
-                        "an OPEN QUESTION to the lead, who reviews every gosplan/env/ diff "
+                        "an OPEN QUESTION to the maintainer, who reviews every gosplan/env/ diff "
                         "against rule 7 by hand."
                     ),
                 )
@@ -1311,7 +1311,7 @@ def check_held_out_phenomena(root: Path, changed: set[str] | None) -> list[Viola
     This is the check most likely to be tripped by good intentions: it is genuinely tempting to
     plot hoarding while debugging the allocation weights. Looking is the violation. Not decidable
     here: computing the same statistic inline under another name, which the corresponding task tasks
-    forbid in words and which the lead checks in review.
+    forbid in words and which the maintainer checks in review.
     """
     out: list[Violation] = []
     fix = (

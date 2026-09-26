@@ -40,7 +40,7 @@ appear anywhere in `gosplan/env/`.
 
 Binding to the frozen interface. `obs_spec` carries the name, argument name and return type of
 `spec.spec.obs_spec` exactly. `build_observation` and `phase_mask` are not in `spec/spec.py` v0;
-they are declared here for the first time and the lead records them in `spec/CHANGELOG.md` at the v1
+they are declared here for the first time and the maintainer records them in `spec/CHANGELOG.md` at the v1
 freeze. `spec/spec.py` is not an importable package, so the runtime dataclasses live in the
 `gosplan` package - `EnvConfig` and the arm configs in `gosplan/config.py`, `State` in
 `gosplan/env/state.py` - and each MUST stay field-for-field identical to its `spec/spec.py`

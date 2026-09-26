@@ -3,7 +3,7 @@
 Realises: PLAN section 13 (gate G1), read against PLAN sections 5 (the single-enterprise DP and its
 regime classifier), 12.3 (a later task, the experiment this gate drives, and a later task, the v1 freeze), 3
 (the daggered rows this gate fixes), 4.5 (the G2 criteria whose levels are recorded here) and
-CONTRACT rules 1, 11 and 13. Run by: the **LEAD** for the map; the decision is the **human's**.
+CONTRACT rules 1, 11 and 13. Run by: the **maintainer** for the map; the decision is the **human's**.
 Implemented by no task: the experiment it drives is `gosplan.experiments.regime_map`
 (a later task), on the DP of a later task.
 
@@ -67,7 +67,7 @@ def main() -> int:
     non-zero when the design could not be solved. **The exit code never encodes the decision**: the
     decision is the human's and lives in `runs/G1_decision.md`.
 
-    Intended sequence, for the lead who implements this harness at the time of the run:
+    Intended sequence, for the maintainer who implements this harness at the time of the run:
       1. call `gosplan.experiments.regime_map.run(p1_default_config())` and collect the four
          artefacts and the candidate rows;
       2. check that at least `MIN_BUNCHING_CANDIDATES` candidates are interior - away from the
@@ -82,7 +82,7 @@ def main() -> int:
          pre-registration is verifiable after the fact and not merely asserted.
 
     Owning WO: none - this is a lead-run gate harness (CONTRACT rule 13); the experiment it drives
-    is implemented in a later task on the DP of a later task.
+    is not yet implemented on the DP of a later task.
     """
     raise NotImplementedError("PLAN section 13 (gate G1) - lead-run; experiment in a later task")
 

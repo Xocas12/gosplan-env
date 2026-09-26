@@ -2,7 +2,7 @@
 
 Realises: PLAN section 8 (repository layout), which gives this package one module per numbered
 block of the environment specification. Owning task: a later task (step function and env
-wrapper; LEAD).
+wrapper; maintainer).
 
 Modules, and the PLAN section each one realises:
 

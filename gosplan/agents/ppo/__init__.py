@@ -1,7 +1,7 @@
 """PPO layer: the thin adapter over a pinned reference PPO, and its training harness.
 
 Realises: PLAN section 6.1 (the `IPPO` row of the agent table) and the Phase-1 training path of
-PLAN sections 4.5 (gate G2) and 14 (compute). Owning tasks: a later task (adapter, LEAD) and
+PLAN sections 4.5 (gate G2) and 14 (compute). Owning tasks: a later task (adapter, maintainer) and
 a later task (training harness).
 
 Two modules, deliberately separate:
@@ -9,7 +9,7 @@ Two modules, deliberately separate:
   `adapter.py`  `PPOConfig` and `IPPO` - the `Agent`-protocol face of a *pinned reference PPO*
                 implementation. gosplan does not write a PPO; PLAN section 6.1 requires a thin
                 adapter around a reference (a CleanRL-style continuous PPO on the NumPy path, a
-                PureJaxRL/JaxMARL-style loop on the JAX path), whose name and version the lead
+                PureJaxRL/JaxMARL-style loop on the JAX path), whose name and version the maintainer
                 verifies at issue time and which the run manifest records (CONTRACT rule 10).
   `train.py`    the harness: a vectorised environment batch, checkpoints, periodic evaluation
                 through the ledger, manifest writing, common random numbers by `seed_env`,

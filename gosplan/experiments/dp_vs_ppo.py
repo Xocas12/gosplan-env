@@ -181,7 +181,7 @@ def main() -> int:
     Returns: a process exit code - 0 when all three levels ran and `runs/dp_vs_ppo/report.md` was
     written, 1 when the run could not complete or `runs/G1_decision.md` is missing. The exit code
     does *not* encode the criterion: whether criterion 1 passed is the `criterion_1_passed` line of
-    the report, and gate G2 is a written sign-off by the human and the lead on that report together
+    the report, and gate G2 is a written sign-off by the human and the maintainer on that report together
     with `runs/phase1_gate/report.md` (PLAN section 13).
 
     Realises: PLAN sections 4.5, 12.3, 13. Owning WO: a later task.

@@ -17,7 +17,7 @@ reaches the returned `PlannerView`.
 The one documented exception is `deliver`, which takes a `State` because it is *physical execution*
 of an allocation already decided from the view: it makes no planner decision, and reads no claim
 except through the `alloc` array handed to it. `spec/spec.py` records that T-B4 whitelists `deliver`
-alongside `make_planner_view`, and that the lead may instead relocate `deliver` to
+alongside `make_planner_view`, and that the maintainer may instead relocate `deliver` to
 `gosplan/env/step.py` at the v1 freeze; either way the whitelist must be recorded in
 `spec/CHANGELOG.md`. Do not add a third `State`-taking function here.
 

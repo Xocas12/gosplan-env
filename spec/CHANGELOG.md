@@ -14,9 +14,9 @@ is an OPEN QUESTION (CONTRACT rule 3), not a local fix.
 
 | Version range | State | Who may change it | Requirement |
 |---|---|---|---|
-| `0.y.z` | **provisional (v0)** - the interface skeleton of PLAN §10, before gate G1 | LEAD only | an entry here; no downstream re-run obligation while the suite is still red |
-| `1.0.0` | **frozen (v1)** - set by a later task at gate G1 (`SPEC_VERSION = "1.0.0"`) | LEAD only | full entry below, and the freeze recorded as a G1 artefact (PLAN §13) |
-| `> 1.0.0` | post-freeze amendment | LEAD only | full entry below, signed off before any dependent task is reissued |
+| `0.y.z` | **provisional (v0)** - the interface skeleton of PLAN §10, before gate G1 | maintainer only | an entry here; no downstream re-run obligation while the suite is still red |
+| `1.0.0` | **frozen (v1)** - set by a later task at gate G1 (`SPEC_VERSION = "1.0.0"`) | maintainer only | full entry below, and the freeze recorded as a G1 artefact (PLAN §13) |
+| `> 1.0.0` | post-freeze amendment | maintainer only | full entry below, signed off before any dependent task is reissued |
 
 Semantics after the freeze: **patch** = docstring, comment or type-alias clarification with no
 signature change; **minor** = additive (a new symbol, a new optional field with a default) that
@@ -48,7 +48,7 @@ tests are touched, including tasks already completed that must be reissued.
 
 **Suite.** Result of the full frozen suite after the change (unit, behavioural, golden).
 
-**Approver.** LEAD, plus Human where the change crosses a gate or alters a pre-registered quantity
+**Approver.** maintainer, plus Human where the change crosses a gate or alters a pre-registered quantity
 (PLAN §4).
 ```
 
@@ -87,7 +87,7 @@ by a later task once the reference dynamics exist.
 **Suite.** Not run to green. The frozen suites collect and fail at `NotImplementedError`, which is
 the expected state of a skeleton (PLAN §11; `README.md`).
 
-**Approver.** LEAD. Not a frozen version: `spec/spec.py` stays provisional until a later task bumps it to
+**Approver.** maintainer. Not a frozen version: `spec/spec.py` stays provisional until a later task bumps it to
 `1.0.0` at gate G1.
 
 ## 0.1.1 - 2026-09-07
@@ -130,7 +130,7 @@ the first golden file is generated, which is the point of resolving them now.
 
 **Suite.** 93 passed, 233 skipped - unchanged. Every edit is to a docstring.
 
-**Approver.** LEAD. `spec/spec.py` remains provisional until a later task bumps it to `1.0.0` at gate G1.
+**Approver.** maintainer. `spec/spec.py` remains provisional until a later task bumps it to `1.0.0` at gate G1.
 
 ## 0.1.2 - 2026-09-07
 
@@ -167,7 +167,7 @@ supplies `need` to the observation builder.
 
 **Suite.** 93 passed, 233 skipped - unchanged.
 
-**Approver.** LEAD. `spec/spec.py` remains provisional until a later task bumps it to `1.0.0` at gate G1.
+**Approver.** maintainer. `spec/spec.py` remains provisional until a later task bumps it to `1.0.0` at gate G1.
 
 ## 0.1.3 - 2026-09-07
 
@@ -209,7 +209,7 @@ production step function must satisfy the same identity.
 
 **Suite.** 93 passed, 233 skipped - unchanged.
 
-**Approver.** LEAD. `spec/spec.py` remains provisional until a later task bumps it to `1.0.0` at gate G1.
+**Approver.** maintainer. `spec/spec.py` remains provisional until a later task bumps it to `1.0.0` at gate G1.
 
 ## 0.1.4 - 2026-09-07
 
@@ -233,9 +233,9 @@ One is a behavioural change to the reference dynamics; two are ownership and nam
   reports 1.698735 in period 0.
 
 - **#48 (AMB-001) - `tests/acceptance/` was authored by no task.** PLAN section 11 assigns the
-  Acceptance category to LEAD but section 12 issued no task, so CONTRACT rule 12's invariant that
+  Acceptance category to maintainer but section 12 issued no task, so CONTRACT rule 12's invariant that
   every file has an owning task did not hold. The five gate harnesses and their README are added to
-  a later task's Write-only list: that task is LEAD and already re-runs the full suite at the freeze.
+  a later task's Write-only list: that task is maintainer and already re-runs the full suite at the freeze.
   Rule 13 is untouched - the directory stays out of `testpaths` and off every must-pass list.
 
 - **#49 (AMB-002) - module names for the P2 and P3 harnesses.** `gosplan/experiments/`
@@ -250,6 +250,32 @@ a later task and names fixed.
 **Golden files.** Still none - but #62 was the blocker, so a later task step 5 can now proceed.
 
 **Approver.** Human, 2026-09-07, on the four decisions put to them at this point in the build.
+
+## 0.1.6 - 2026-09-26
+
+**Reason.** Documentation only. The repository's build-process vocabulary (work-order numbers,
+owner tiers, whitelist sections) was removed from every file, and `spec/spec.py` carries that
+vocabulary in its module docstring and in the `NotImplementedError` message of each stub. PLAN
+section 10 is unaffected.
+
+**Change.** No symbol added, removed or re-signed. Every stub message keeps its `PLAN section N`
+reference and loses the trailing build ticket, so
+`raise NotImplementedError("PLAN section 2.8 - implemented in WO-007")` becomes
+`raise NotImplementedError("PLAN section 2.8")`. Docstring prose changed in the same way.
+
+Verified mechanically rather than by eye: parsing both revisions and comparing the ASTs with
+every string constant normalised gives an identical dump for all 78 changed Python files, so
+nothing but literal text moved.
+
+**Affected tasks.** None. No whitelist, signature or must-pass test changes.
+
+**Golden files.** Not regenerated; `ref/` dynamics are unchanged and `make golden` was re-run
+to confirm it still produces all 30 trajectories.
+
+**Suite.** Full frozen suite re-run: 118 passed, 208 skipped, the same counts as before the
+change. `contract_guard.py` clean. `ruff check` and `ruff format --check` clean.
+
+**Approver.** maintainer.
 
 ## 0.1.5 - 2026-09-07
 
@@ -288,4 +314,4 @@ penalty path is exercised in every cell. Every I-O row satisfies `sum_k a_jk < 1
 `GosplanEnv` is what the parity test replays against, regenerates the matrix at the
 spec v1 freeze.
 
-**Approver.** LEAD.
+**Approver.** maintainer.

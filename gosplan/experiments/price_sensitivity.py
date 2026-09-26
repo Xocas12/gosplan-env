@@ -61,7 +61,7 @@ OPEN QUESTION (CONTRACT rule 3; do not silently choose)
     check ("swept in the price-sensitivity check, not in the treatment arms"), but neither PLAN
     section 2.9.4 nor PLAN section 3 gives them a sweep grid, and PLAN section 7.5 specifies only
     the price-vector perturbation. The price-vector half of this module is fully determined; the CES
-    half is not. File an OPEN QUESTION and let the lead fix the grid; whatever is used is printed
+    half is not. File an OPEN QUESTION and let the maintainer fix the grid; whatever is used is printed
     in the table beside the indices it moves.
 
 Runtime bindings. `EnvConfig` is `gosplan.config.EnvConfig` (field-for-field identical to

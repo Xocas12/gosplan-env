@@ -1,7 +1,7 @@
 """Production: the coverage aggregator, the yield shock, costs and input consumption (PLAN 2.6).
 
 Realises: PLAN section 2.6 (production at a PRODUCE step) and PLAN section 11 (test architecture;
-property test **T-U7**). Owning task: a later task (frozen tests; LEAD). Binds the corresponding task
+property test **T-U7**). Owning task: a later task (frozen tests; maintainer). Binds the corresponding task
 must-pass line of PLAN section 12.3, verbatim - "`tests/unit/test_production.py` (T-U7; yield
 mean = 1 to 1e-3 over 1e5 draws; `v` diversion; cost formula; inputs consumed = `a * y_tilde` capped
 at stock; `H = 1` when `a` row is zero)". Module under test: `gosplan/env/production.py`.

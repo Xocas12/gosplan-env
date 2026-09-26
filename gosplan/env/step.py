@@ -1,11 +1,11 @@
 """Period schedule of PLAN section 2.5 as an explicit state machine; horizon of section 2.12.
 
 Realises: PLAN section 2.5 (typed period schedule), PLAN section 2.12 (geometric horizon and
-termination), and the `env/step.py` row of the PLAN section 8 layout ("LEAD: period schedule
+termination), and the `env/step.py` row of the PLAN section 8 layout ("maintainer: period schedule
 section 2.5, assembles modules"). Owning task: a later task (Step function and env wrapper).
 
-**This unit is LEAD-owned.** PLAN sections 12.3 and 1.3 (finding F14) mark the step function, the
-JAX port and the PPO adapter as the three units the lead writes itself rather than delegating: the
+**This unit is maintainer-owned.** PLAN sections 12.3 and 1.3 (finding F14) mark the step function, the
+JAX port and the PPO adapter as the three units the maintainer writes itself rather than delegating: the
 step function is where the information invariants of CONTRACT rules 5, 6 and 9 are either preserved
 or quietly broken, and it is reviewed line by line against CONTRACT rule 7. An contributor
 that finds itself editing this file has taken the wrong task.
@@ -344,7 +344,7 @@ def stage_audit(
     outcome - is in the observation vector at index 8.
 
     Binds: T-U8 (`positive_part` gives exactly 0 for any under-report; `audited = False` gives 0),
-    T-B7 (golden parity). Owning WO: a later task; the arithmetic is a later task and a later task.
+    T-B7 (golden parity). Owning WO: a later task; the arithmetic is later tasks.
     """
     raise NotImplementedError("PLAN section 2.5")
 

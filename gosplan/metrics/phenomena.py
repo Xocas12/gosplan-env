@@ -9,7 +9,7 @@ first computed in the Phase-2 acceptance run).
 
 These functions *measure*; they never act. Nothing here feeds an observation, a reward term or an
 agent (CONTRACT rule 6), and nothing here is a transition rule (CONTRACT rule 7): a phenomenon is a
-statistic computed from a finished `Ledger`, after the run, by the lead.
+statistic computed from a finished `Ledger`, after the run, by the maintainer.
 
 -------------------------------------------------------------------------------------------------
 HELD OUT - PLAN sections 4.1 and 12.3
@@ -341,8 +341,7 @@ def phenomenon_hidden_reserves(ledger: Ledger, cfg: EnvConfig) -> dict[str, floa
     Class: **emergence** (Claim A). Phase: **2**. **HELD OUT.**
 
     *** HELD OUT (PLAN sections 4.1, 12.3). No plot, table or test of this quantity before the
-    Phase-2 acceptance run - not during Phase 1 and not while debugging its mechanism. a later task and
-    a later task are forbidden from implementing it; the MC sanity harness may assert only conservation
+    Phase-2 acceptance run - not during Phase 1 and not while debugging its mechanism. later tasks are forbidden from implementing it; the MC sanity harness may assert only conservation
     and boundedness on the inventory mechanism, never a direction. ***
 
     Takes: `ledger` and `cfg`. Returns: a mapping with at least `hidden_reserves`,

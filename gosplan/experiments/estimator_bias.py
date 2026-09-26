@@ -115,7 +115,7 @@ ESTIMATOR_GRID_AXES: tuple[str, ...] = ("excluded_window", "degree", "bin_width"
 7.3 interface: "excluded window" is `(excl_lo, excl_hi)`, "polynomial degree" is `degree`, and
 "bandwidth" is `bin_width` - the interface exposes no separate bandwidth argument. If the interface
 agreed with the `forensics_core` owner at G1 gains one, this tuple gains a fourth axis and the
-change is recorded in the manifest. The *extent* of each axis is fixed by the lead at issue time and
+change is recorded in the manifest. The *extent* of each axis is fixed by the maintainer at issue time and
 printed in the table; the pre-registered PLAN section 4.5 point must be a member of the grid and is
 labelled as such in every figure."""
 
@@ -228,7 +228,7 @@ def main() -> int:
 
     Takes: nothing; the base configuration, the arm grids (`NOTCH_WIDTH_GRID`,
     `OVERFULFILMENT_CAP_GRID`), the seed count (`N_SEEDS`) and the estimator-settings grid fixed by
-    the lead are assembled here. Any command-line surface is built inside this function.
+    the maintainer are assembled here. Any command-line surface is built inside this function.
 
     Returns: a process exit code - 0 when every arm ran and `runs/estimator_bias/report.md` was
     written, 1 otherwise. The exit code says nothing about the estimator's performance: poor

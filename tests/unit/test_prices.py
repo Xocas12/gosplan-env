@@ -2,7 +2,7 @@
 
 Realises: PLAN section 2.10 (prices and final demand), PLAN section 7.5 (the standing
 price-sensitivity check) and PLAN section 11 (test architecture, unit/property category). Owning
-task: a later task (frozen tests; LEAD). Binds the corresponding task must-pass line of PLAN section 12.3,
+task: a later task (frozen tests; maintainer). Binds the corresponding task must-pass line of PLAN section 12.3,
 verbatim - "`tests/unit/test_prices.py` (cost-plus fixed point converges; positive)". Module under
 test: `gosplan/env/prices.py`.
 

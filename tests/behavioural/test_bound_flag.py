@@ -235,7 +235,7 @@ def test_reports_at_the_bound_are_recorded(implemented) -> None:
 
     The overshoot rows are the substance of CONTRACT rule 8's "never silently widen": an action
     above the bound is clipped and *counted*, never honoured. Owning WO: a later task; binds
-    a later task and a later task.
+    later tasks.
     """
     cfg = _cfg()
     rows = _report_rows(_episode(cfg, "Padder", TB8_SEEDS[0], implemented))

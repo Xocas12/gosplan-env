@@ -2,7 +2,7 @@ CONTRACT — gosplan-env
 These rules bind every session, human or model. Violations invalidate the session's output.
 
 1. FROZEN SPEC. spec/spec.py is provisional (v0) until gate G1 and frozen (v1) thereafter.
-   After v1, only the lead may change it, and only with a spec/CHANGELOG.md entry
+   After v1, only the maintainer may change it, and only with a spec/CHANGELOG.md entry
    (version, reason, affected tasks). No other session edits spec/spec.py.
 
 2. FROZEN TESTS. tests/unit, tests/behavioural and tests/golden are read-only for
@@ -33,7 +33,7 @@ These rules bind every session, human or model. Violations invalidate the sessio
 7. NO HARD-CODED PATHOLOGY. No transition rule or reward term may implement bunching,
    padding, storming, hoarding, shaving or trade directly. tests/behavioural/
    test_no_hardcoded_pathology.py checks this behaviourally with heuristic agents; passing
-   it is necessary, not sufficient — the lead reviews every env/ diff against this rule.
+   it is necessary, not sufficient — the maintainer reviews every env/ diff against this rule.
 
 8. BOUNDS ARE RESULTS. report_ratio is bounded at ρ_max = 10. The fraction of reports at
    the bound is logged; > 1% flags the run manifest BOUND_BINDING and the result is

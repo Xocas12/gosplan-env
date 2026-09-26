@@ -2,7 +2,7 @@
 
 Realises: PLAN sections 1 (claims and scope), 2 (environment specification), 3 (parameter
 registry) and 8 (repository layout). Owning task: a later task (Spec v0, CONTRACT, registry;
-LEAD).
+maintainer).
 
 What this package is. A rule-based planner sets targets, allocates promised inputs, audits and
 penalises; enterprises choose effort and what to report; the pre-registered phenomena of PLAN

@@ -4,7 +4,7 @@ Realises: PLAN section 6.1 (agents and baselines) and PLAN section 5 (the analyt
 policy `DPGreedy` replays), read under CONTRACT rules 6 (welfare blindness - no agent reads
 `StepInfo`, `State` or `PlannerView`) and 9 (policy randomness comes from the `seed_policy` stream).
 Owning tasks: a later task (`base`, `heuristic`), a later task (`dp`), a later task (`ppo.adapter`),
-a later task (`ppo.train`), a later task/a later task (`llm_ministry`).
+a later task (`ppo.train`), a later task (`llm_ministry`).
 
 The package re-exports the Phase-1 surface that every experiment script needs:
 

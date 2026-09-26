@@ -1,11 +1,11 @@
 # Reference dynamics - hand-checked worked example
 
-> **FILLED. a later task step 3 executed 2026-09-07.** Every numeric cell below was derived from the PLAN
+> **FILLED. Step 3 executed 2026-09-07.** Every numeric cell below was derived from the PLAN
 > formulas by an independent re-derivation, then compared against `ref/ref_step.py`. Two defects were
 > found and are recorded in section 6: ambiguity **#62** (cold-start deadlock) and ambiguity **#64**
 > (the T-U1 identity does not balance). #64 was found *here* and is fixed in this change.
 
-**Work order.** a later task Reference dynamics and frozen tests · P1 · LEAD · Difficulty 5 (PLAN §12.3).
+**Task.** Reference dynamics and frozen tests · P1 · maintainer · Difficulty 5 (PLAN §12.3).
 **Validate `ref` by hand on a 2-enterprise, 2-sector case - this document is that validation,
 committed.**
 
@@ -376,4 +376,4 @@ for: `report_lag > 0`, `aggregation_level = "sector"`, `channel_noise > 0`, `sel
 `objective_metric` other than `val`, the `fixed` horizon mode, or any Phase-2 toggle. Those branches
 exist in the code, are unexercised here, and should not be trusted until a case covers them.
 
-**Approver.** LEAD, 2026-09-07. Not a substitute for the second-party re-derivation noted at the top.
+**Approver.** maintainer, 2026-09-07. Not a substitute for the second-party re-derivation noted at the top.

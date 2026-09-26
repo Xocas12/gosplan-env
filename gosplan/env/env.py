@@ -4,7 +4,7 @@ Realises: PLAN section 2.5 (period schedule, driven through `gosplan/env/step.py
 (action space and the active-dimension rule), PLAN section 2.4 (the observation the wrapper returns,
 built by `gosplan/env/obs.py`), PLAN section 2.10 (the plan prices precomputed at construction) and
 PLAN section 2.12 (the geometric termination flag). Owning task: a later task (Step function and
-env wrapper) - a **LEAD**-owned unit (PLAN sections 12.3, 1.3 finding F14).
+env wrapper) - a **maintainer**-owned unit (PLAN sections 12.3, 1.3 finding F14).
 
 This is the `env.py` row of the PLAN section 8 layout: "reset/step wrapper, specs, info/ledger
 hookup". It holds no economics. The schedule is `gosplan/env/step.py`; the arithmetic is
@@ -157,7 +157,7 @@ class GosplanEnv:
 
     Binds: `tests/golden/*` (T-B7), `tests/unit/test_conservation.py` (T-U1),
     `tests/unit/test_env_api.py`, and `tests/behavioural/test_termination.py` (T-B9). Owning WO:
-    a later task (LEAD).
+    a later task (maintainer).
     """
 
     cfg: EnvConfig
@@ -247,7 +247,7 @@ class GosplanEnv:
 
         Binds: T-B7 (golden parity with `ref/`), T-U1 (conservation), T-B9 (empirical continuation
         equals `tenure`; no observation field correlates with periods remaining). Owning WO:
-        a later task (LEAD).
+        a later task (maintainer).
         """
         raise NotImplementedError("PLAN section 2.5")
 

@@ -267,7 +267,7 @@ altered.
 
 ### Item 8 - Tooling: availability, versions and prices
 
-**(a) The question.** Current availability and versions of the reference PPO implementation a later task
+**(a) The question.** Current availability and versions of the reference PPO implementation the port
 will pin, JAX multi-agent scaffolds for the JAX port, `rliable` for the interval estimates of
 PLAN section 4.3, and open-source MIP solvers for the PLAN section 6.2 oracle. The reference-PPO
 version, the solver version and the solver's optimality gap are all CONTRACT rule 10 manifest
@@ -289,9 +289,9 @@ fields, so these are operational facts the build depends on, not background.
 | JaxMARL | no release tag read; repository last pushed 2026-09-04 | GitHub `FLAIROx/JaxMARL` |
 | PureJaxRL | no release tag read; repository last pushed 2024-09-09 | GitHub `luchris429/purejaxrl` |
 
-**One finding here is load-bearing for a later task.** CleanRL's most recent tagged release is v1.0.0 from
+**One finding here is load-bearing.** CleanRL's most recent tagged release is v1.0.0 from
 2022-11-14, while the repository itself has been pushed as recently as 2026-04-20. A release tag is
-therefore **not** a usable pin: a later task must pin the reference PPO **by commit SHA**, and record that
+therefore **not** a usable pin: the port must pin the reference PPO **by commit SHA**, and record that
 SHA in the manifest under CONTRACT rule 10. Pinning `cleanrl==1.0.0` would pin something almost four
 years older than the code a reader would find on the default branch.
 
@@ -303,14 +303,14 @@ actively maintained. For the JAX port, JaxMARL is the better-maintained scaffold
 The repository carries no AI model or vendor names by the owner's standing instruction, and PLAN
 section 12.1 in any case requires the *lead* to record the tier-to-model mapping in the manifest at
 issue time — which is the right place for a fact that decays this fast. What is recorded here is the
-method: at issue time the lead selects one model per tier, records the identifier and version in the
+method: at issue time the maintainer selects one model per tier, records the identifier and version in the
 run manifest alongside the reference-PPO SHA, and budgets against the then-current per-token price.
 This is a **deliberate deviation from the task's wording**, recorded as such.
 
-**(c) What it implies.** a later task pins CleanRL by commit SHA. a later task targets JaxMARL. a later task uses
-`rliable` 1.2.0. a later task uses HiGHS 1.15.1 or OR-Tools 9.15 and records the optimality gap.
+**(c) What it implies.** Pin CleanRL by commit SHA. Target JaxMARL. Use `rliable` 1.2.0. Use
+HiGHS 1.15.1 or OR-Tools 9.15 and record the optimality gap.
 
-**(d)** Sourced, as of 2026-09-07: the versions in the table above, each read from the named package index or repository API on that date. These facts decay and must be re-read at a later task rather than trusted from this memo.
+**(d)** Sourced, as of 2026-09-07: the versions in the table above, each read from the named package index or repository API on that date. These facts decay and must be re-read when the port happens rather than trusted from this memo.
 
 ---
 

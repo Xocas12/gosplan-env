@@ -3,7 +3,7 @@
 Realises: PLAN sections 6.1 (the agent table), 2.3 (action dimensions), 2.4 (observation) and 2.5
 (phase within a plan period), under CONTRACT rules 6 (welfare blindness) and 9 (RNG). Owning work
 order: a later task (heuristic agents; this module is its first deliverable), with `IPPO` supplied by
-a later task and `DPGreedy` by a later task/a later task.
+a later task and `DPGreedy` by another.
 
 Relation to the frozen interface. `spec/spec.py` is the frozen interface (CONTRACT rule 1) but is
 not an importable package, so this module re-declares `Agent`, `Array` and `Phase` with signatures
@@ -39,7 +39,9 @@ from typing import TYPE_CHECKING, Literal, Protocol
 
 import numpy as np
 
-if TYPE_CHECKING:  # runtime home of the action record: gosplan/env/state.py (a later task, PLAN sec. 8)
+if (
+    TYPE_CHECKING
+):  # runtime home of the action record: gosplan/env/state.py (a later task, PLAN sec. 8)
     from gosplan.env.state import EnterpriseAction
 
 Array = np.ndarray

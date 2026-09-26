@@ -44,7 +44,7 @@ OPEN QUESTION (CONTRACT rule 3; do not silently choose)
     the categorical rows `aggregation_level`, `audit_mode`, `objective_metric`, `penalty_form`,
     `penalty_arg`, and the fixed rows `ratchet_cap_up`, `ratchet_cap_dn`, `alloc_eta_need`). The
     count 13 is confirmed by arithmetic - 100 * (13 + 2) = 1500 and 100 * (2 * 13 + 2) = 2800 - but
-    the membership is not. File an OPEN QUESTION and let the lead fix the list at issue time; the
+    the membership is not. File an OPEN QUESTION and let the maintainer fix the list at issue time; the
     list actually used is recorded in the manifest and printed in the table beside the ranges.
 
 Runtime bindings. `EnvConfig` is `gosplan.config.EnvConfig` (field-for-field identical to
@@ -127,7 +127,7 @@ def run(
     """Run the Saltelli design and write the total-order index table.
 
     Takes: `cfg`, the design centre - the post-G3 Phase-2 full configuration, already validated;
-    `factors`, the `N_FACTORS` swept INFO+INC parameter names the lead fixed (see the module
+    `factors`, the `N_FACTORS` swept INFO+INC parameter names the maintainer fixed (see the module
     docstring's ambiguity); `ranges`, each factor's PLAN section 3 sweep range, passed in explicitly
     so the assumption is data the caller supplies and the table prints, never a default hidden in
     this module; `out_dir`, where the table and report are written; `n_base`, `N_base` of the
@@ -178,7 +178,7 @@ def main() -> int:
     """Entry point: run the optional Saltelli design and write the index table.
 
     Takes: nothing; the design centre is the post-G3 Phase-2 full configuration, the factor list and
-    its ranges are the lead's record from the ambiguity resolution, and `n_base` is `N_BASE`. Any
+    its ranges are the maintainer's record from the ambiguity resolution, and `n_base` is `N_BASE`. Any
     command-line surface and any JAX device setup is built inside this function.
 
     Returns: a process exit code - 0 when the design ran and `runs/sobol/report.md` was written, 1

@@ -2,7 +2,7 @@
 
 Realises: PLAN sections 2.5-2.11 (the period schedule and every rule that moves a physical
 quantity) and PLAN section 11 (test architecture; property test **T-U1**). Owning task:
-a later task (frozen tests; LEAD). Binds the corresponding task must-pass line of PLAN section 12.3, verbatim -
+a later task (frozen tests; maintainer). Binds the corresponding task must-pass line of PLAN section 12.3, verbatim -
 "`tests/unit/test_conservation.py` (T-U1)". Modules under test: `gosplan/env/step.py`,
 `gosplan/env/env.py`, `gosplan/env/state.py`.
 

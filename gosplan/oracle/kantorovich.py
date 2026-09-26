@@ -3,7 +3,7 @@
 Realises: PLAN section 6.2 (non-anticipative expected-value MIP and the clairvoyant per-seed
 bound), PLAN section 2.9.4 (`W_oracle` is the denominator of `welfare_ratio` and `val_oracle` the
 denominator inside `specification_gap`), and CONTRACT rule 10 (the solver's version and optimality
-gap are manifest fields). Owning task: a later task (LEAD formulates the MIP, MID-strong
+gap are manifest fields). Owning task: a later task (maintainer formulates the MIP, MID-strong
 implements it against the chosen solver; parity test against brute force at `N = 2`).
 
 Phase status: **Phase-2 sketch.** The signature below is frozen now so that no type moves later
@@ -17,7 +17,7 @@ included; `tests/unit/test_spec_imports.py` enforces that the public surface of 
 section 10 is present and unchanged.
 
 Dependencies: the MIP is built and solved through an open-source solver (HiGHS or CBC, via OR-Tools
-or Pyomo - the lead verifies availability; `ortools` is the `solver` extra in `pyproject.toml`).
+or Pyomo - the maintainer verifies availability; `ortools` is the `solver` extra in `pyproject.toml`).
 That import belongs inside `solve_oracle`, not at module scope, so the skeleton stays importable in
 an environment with no solver installed.
 
@@ -39,7 +39,7 @@ a tuning knob, and a run that uses a different horizon says so in its manifest."
 
 SOLVER_CANDIDATES: tuple[str, ...] = ("HiGHS", "CBC")
 """The open-source MIP solvers PLAN section 6.2 admits, in preference order. Reached through
-OR-Tools or Pyomo; the lead verifies availability before a later task is issued. The solver actually used
+OR-Tools or Pyomo; the maintainer verifies availability before a later task is issued. The solver actually used
 and its version are returned in the result mapping and written to the manifest (CONTRACT
 rule 10)."""
 

@@ -3,8 +3,8 @@
 Realises: PLAN section 13 (gate G2), read against PLAN sections 4.5 (criteria 1-4 and the
 pre-registered estimator settings), 4.4 (the measurement window), 5 (the DP that supplies the
 ground truth), 12.3 (a later task, the experiments this gate drives), 7.5 (the price-vector
-sensitivity every headline table carries) and CONTRACT rules 8, 10 and 13. Run by: the **LEAD**;
-signed off by **Human + LEAD**. Implemented by no task: the experiments it drives are
+sensitivity every headline table carries) and CONTRACT rules 8, 10 and 13. Run by: the **maintainer**;
+signed off by **Human + maintainer**. Implemented by no task: the experiments it drives are
 `gosplan.experiments.dp_vs_ppo` (a later task) and `gosplan.experiments.phase1_gate` (a later task).
 
 CONTRACT rule 13: not a test, not on any must-pass list, never run by a contributor.
@@ -47,7 +47,7 @@ one pass/fail line per criterion, the per-seed counts behind it, the price-sensi
 section 7.5) and every hygiene flag; plus a `runs/<config-hash>/` directory per run with
 `manifest.json` (CONTRACT rule 10, including the reference-PPO version and the estimator backend).
 
-SIGN-OFF: **Human + LEAD**.
+SIGN-OFF: **Human + maintainer**.
 
 HELD OUT (PLAN section 4.1): rows 2, 5, 6 and 7 are not computed, plotted or mentioned here. G2
 concerns bunching (row 1) and padding (row 4), both **pipeline checks** - if they fail to appear
@@ -64,9 +64,9 @@ def main() -> int:
     from `runs/G1_decision.md`, the seed counts from `SEEDS_PER_LEVEL` and `N_SEEDS`. Returns: a process exit code - 0 when both experiments completed and their reports
     were written, non-zero when a run could not complete or the G1 record is missing. **The exit
     code never encodes the criteria**: pass and fail are the per-criterion lines in the two
-    reports, signed off by the human and the lead.
+    reports, signed off by the human and the maintainer.
 
-    Intended sequence, for the lead who implements this harness at the time of the run:
+    Intended sequence, for the maintainer who implements this harness at the time of the run:
       1. read `runs/G1_decision.md`; abort if it is absent - without the pre-registration there is
          no gate, only a sweep;
       2. call `gosplan.experiments.dp_vs_ppo.run(cfg, ap_levels)` for criterion 1 and collect
@@ -80,12 +80,12 @@ def main() -> int:
          `BOUND_BINDING` and target-runaway hygiene flags, the price-sensitivity table, and the
          config hashes of every run;
       6. where criterion 2 failed with criterion 1 passing, state in the record that this is a
-         result and name the diagnosis task the lead will write - never a parameter to move.
+         result and name the diagnosis task the maintainer will write - never a parameter to move.
 
     Owning WO: none - this is a lead-run gate harness (CONTRACT rule 13); the experiments it drives
-    are implemented in a later task and a later task.
+    are not yet implemented and a later task.
     """
-    raise NotImplementedError("PLAN section 13 (gate G2) - lead-run; experiments in a later task/a later task")
+    raise NotImplementedError("PLAN section 13 (gate G2) - lead-run; experiments in a later task")
 
 
 if __name__ == "__main__":

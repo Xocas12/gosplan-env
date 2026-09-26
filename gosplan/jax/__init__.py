@@ -1,9 +1,9 @@
-"""JAX port of the environment - **Phase 2, LEAD-owned, not yet written** (PLAN section 12.4).
+"""JAX port of the environment - **Phase 2, maintainer-owned, not yet written** (PLAN section 12.4).
 
 Realises: nothing yet. This package is the `gosplan/jax/` row of the PLAN section 8 layout
-("LEAD, P2: port + parity"). Owning task: a later task (JAX port), one unit, **LEAD**-owned -
+("maintainer, P2: port + parity"). Owning task: a later task (JAX port), one unit, **maintainer**-owned -
 PLAN section 1.3, finding F14 names the step function, the JAX port and the PPO adapter as the three
-units the lead writes itself rather than delegating. No contributor writes into this
+units the maintainer writes itself rather than delegating. No contributor writes into this
 package.
 
 Why the port exists. Phase 3's Saltelli/Sobol design (PLAN sections 4.3 and 12.5, a later task) needs

@@ -1,7 +1,7 @@
 """Configuration validation, hashing and the Phase-1 registry (PLAN section 3).
 
 Realises: PLAN section 3 (parameter registry, ranges and the P1 column) and PLAN section 11 (test
-architecture, unit/property category). Owning task: a later task (frozen tests; LEAD). Binds the
+architecture, unit/property category). Owning task: a later task (frozen tests; maintainer). Binds the
 a later task must-pass line of PLAN section 12.3, verbatim - "`tests/unit/test_config.py` (validation
 rejects: `rho_cap < 1`, `w < 0`, `theta < 1`, `sum_k a_jk >= 1`, negative caps; hash stable under
 field order; `p1_default_config()` matches `params.py`)". Module under test: `gosplan/config.py`.

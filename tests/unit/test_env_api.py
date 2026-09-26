@@ -2,7 +2,7 @@
 
 Realises: PLAN sections 2.3 (actions and their bounds), 2.5 (the period schedule as a typed state
 machine) and 2.12 (horizon), and PLAN section 11 (test architecture, unit/property category). Owning
-task: a later task (frozen tests; LEAD). Binds the corresponding task must-pass line of PLAN section 12.3,
+task: a later task (frozen tests; maintainer). Binds the corresponding task must-pass line of PLAN section 12.3,
 verbatim - "`tests/unit/test_env_api.py`". Modules under test: `gosplan/env/env.py`,
 `gosplan/env/step.py`, `gosplan/env/state.py`.
 

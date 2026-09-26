@@ -2,7 +2,7 @@
 
 Realises: PLAN section 3 (parameter registry), with the dual-classification and reporting rule of
 PLAN section 4.3 and the locked Phase-2 mechanism values of PLAN section 4.2. Owning task:
-a later task (Spec v0, CONTRACT, registry; LEAD). Consumed by a later task (`gosplan/config.py`), whose
+a later task (Spec v0, CONTRACT, registry; maintainer). Consumed by a later task (`gosplan/config.py`), whose
 `tests/unit/test_config.py` asserts that `p1_default_config()` agrees field by field with the data
 below - the two must never drift.
 
@@ -18,7 +18,7 @@ CONTRACT rule 11, verbatim:
 
 The arm split is what makes the C_OGAS / C_INC contrasts of PLAN section 4.3 well defined, so an
 arm is never adjusted to make a contrast come out: moving one is a `spec/CHANGELOG.md` entry
-(version, reason, affected tasks) signed off by the lead. `audit_rate` is the one
+(version, reason, affected tasks) signed off by the maintainer. `audit_rate` is the one
 dual-classified row - INFO by architecture and also a reward input through the audit penalty of
 PLAN section 2.8 - and PLAN section 4.3 requires it to be reported separately and never folded into
 the C_OGAS information contrast; the comment on its entry repeats this.
@@ -72,7 +72,7 @@ SourceStatus = Literal[
     "mechanism-toggle",
 ]
 """Provenance of a parameter's value and range, taken from the "Source status" column of PLAN
-section 3: `historical` (a documented schedule or series is the anchor, even where the lead has
+section 3: `historical` (a documented schedule or series is the anchor, even where the maintainer has
 still to source it, PLAN section 15); `qualitative` (the literature constrains the structure or the
 direction, not the number); `unsourced` (no defensible range - the value is a prior, and G1 picks
 it from the DP regime map); `design` (a modelling choice of PLAN section 2); `engineering` (a

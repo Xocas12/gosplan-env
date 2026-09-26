@@ -4,7 +4,7 @@
 
 Realises: PLAN section 13 (gate G4), read against PLAN sections 4.3 (the contrast design and its
 reporting rules), 7.1-7.5 (the four studies), 12.5 (a later task..a later task, the harnesses this gate drives),
-2.9.4 (the headline metrics) and CONTRACT rules 10 and 13. Run by: the **LEAD**; signed off by the
+2.9.4 (the headline metrics) and CONTRACT rules 10 and 13. Run by: the **maintainer**; signed off by the
 **Human**. Implemented by no task: the harnesses it drives are
 `gosplan.experiments.contrasts` (a later task), `sobol` (a later task, optional),
 `estimator_bias` (a later task), `llm_study` (a later task), `price_sensitivity` (a later task) and the
@@ -73,12 +73,12 @@ def main() -> int:
 
     Takes: nothing; C0 is the post-G3 Phase-2 full configuration, the contrasts are the overrides
     of PLAN section 4.3, the seed count is 30 with common random numbers, and the prompts and model
-    ids for the LLM study come from the lead's a later task record. Returns: a process exit code - 0 when
+    ids for the LLM study come from the maintainer's a later task record. Returns: a process exit code - 0 when
     every required study completed and the report was assembled, non-zero when one could not run.
     **The exit code encodes nothing about the conclusion**: `Delta_OGAS`, `Delta_INC` and `I` are
     read off the report with their intervals, and the gate is the human's sign-off.
 
-    Intended sequence, for the lead who implements this harness at the time of the run:
+    Intended sequence, for the maintainer who implements this harness at the time of the run:
       1. confirm gate G3 was signed off and that no arm carried into Phase 3 is labelled
          `NON-CONVERGED` (PLAN section 6.3) - a non-equilibrium arm's results are not
          interpretable, so a contrast built on one is not either;
@@ -97,9 +97,11 @@ def main() -> int:
          statement of PLAN section 1.2.
 
     Owning WO: none - this is a lead-run gate harness (CONTRACT rule 13); the experiments it drives
-    are implemented in a later task.
+    are not yet implemented.
     """
-    raise NotImplementedError("PLAN section 13 (gate G4) - lead-run; experiments in a later task..a later task")
+    raise NotImplementedError(
+        "PLAN section 13 (gate G4) - lead-run; experiments in a later task..a later task"
+    )
 
 
 if __name__ == "__main__":

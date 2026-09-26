@@ -48,7 +48,9 @@ from typing import TYPE_CHECKING, Literal
 
 from gosplan.agents.base import Array
 
-if TYPE_CHECKING:  # runtime home of the configuration: gosplan/config.py (a later task, PLAN section 8)
+if (
+    TYPE_CHECKING
+):  # runtime home of the configuration: gosplan/config.py (a later task, PLAN section 8)
     from gosplan.config import EnvConfig
 
 RegimeLabel = Literal["bunching", "pad_to_cap", "truthful_underfulfilment", "mixed"]
@@ -165,7 +167,7 @@ class DPSolution:
     0.05."""
 
     regime: RegimeLabel
-    """`classify_regime(self)` - the label the regime map of a later task colours by."""
+    """`classify_regime(self)` - the label the regime map colours by."""
 
     rho_edge_frac: float
     """Fraction of the stationary mass at the report grid edge, from

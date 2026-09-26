@@ -272,7 +272,7 @@ def test_observation_does_not_depend_on_forbidden_quantity(quantity: str) -> Non
     `(seed_env, purpose, indices)`, two runs that differ only in a forbidden field see identical
     randomness, so any difference in the observation is a leak and never noise.
 
-    Owning WO: a later task; binds a later task and a later task.
+    Owning WO: a later task; binds later tasks.
     """
     from gosplan.env.obs import build_observation
 
@@ -326,7 +326,7 @@ def test_periods_remaining_are_not_observable() -> None:
     Finding F4: under geometric termination the agent never observes periods remaining, so there is
     no end-game to exploit; that is the property the whole horizon design rests on. The statistical
     counterpart - that no field *correlates* with periods remaining - is T-B9 in
-    `test_termination.py`. Owning WO: a later task; binds a later task and a later task.
+    `test_termination.py`. Owning WO: a later task; binds later tasks.
     """
     from gosplan.env.obs import obs_spec
 
@@ -357,7 +357,7 @@ def test_agent_and_ppo_signatures_take_obs_only() -> None:
     CONTRACT rule 6 fixes the forward pass to `obs` alone, and the forbidden list adds "any
     agent reading `StepInfo`". `StepInfo` carries `welfare`, `val_true` and `val_measured` (PLAN
     section 2.9.3), so an agent that accepted one would read exactly the three quantities the rule
-    exists to keep away from it. Owning WO: a later task; binds a later task and a later task.
+    exists to keep away from it. Owning WO: a later task; binds later tasks.
     """
     import inspect
 

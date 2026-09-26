@@ -634,7 +634,7 @@ def test_rule_7_prose_about_pathologies_does_not_fire(tree: Path) -> None:
 def test_rule_7_note_states_that_passing_is_not_sufficient() -> None:
     """The guard prints rule 7's own wording on every run; this asserts it still says so."""
     assert "NECESSARY, NOT SUFFICIENT" in guard.RULE_7_NOTE
-    assert "the lead reviews every env/ diff against this rule" in guard.RULE_7_NOTE
+    assert "the maintainer reviews every env/ diff against this rule" in guard.RULE_7_NOTE
 
 
 # -------------------------------------------------------------------------------------------------

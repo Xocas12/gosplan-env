@@ -6,7 +6,7 @@ its own task (a later task-a later task).
 
 Experiments are not tests. CONTRACT rule 13 separates them: `tests/unit`, `tests/behavioural` and
 `tests/golden` are the frozen suites an contributor must pass, while the gates of PLAN section 13
-are run deliberately by the lead, write their artefacts under `runs/` with the manifest of CONTRACT
+are run deliberately by the maintainer, write their artefacts under `runs/` with the manifest of CONTRACT
 rule 10, and sit on no task's must-pass list. `make gate` refuses to run them on purpose.
 
 Uniform module surface. Every module here exposes exactly two callables plus the pre-registered
@@ -17,23 +17,23 @@ design constants its task fixes:
     main()    -> int                 entry point; returns a process exit code
 
 An exit code of 0 means the experiment ran and wrote its artefacts. It never means "the gate
-passed". A gate is a written sign-off by the human and/or the lead on named artefacts (PLAN section
+passed". A gate is a written sign-off by the human and/or the maintainer on named artefacts (PLAN section
 13); a gate that fails produces a written failure report whose successor is a lead diagnosis, never
 a parameter change made in order to pass, and parameter changes after G1 create a new, labelled
 study with its own pre-registration.
 
-| Module | WO | Gate | Artefacts under `runs/` | Cost (PLAN section 14) |
-|---|---|---|---|---|
-| `mc_sanity` | a later task | G0 | `mc_sanity/report.md` | CPU minutes |
-| `regime_map` | a later task | G1 | `regime_map/{table.parquet, regime.png, bhat.png}` | ~1 h, 8 cores |
-| `dp_vs_ppo` | a later task | G2 (1) | `dp_vs_ppo/report.md` | ~1 GPU-h or ~8 CPU-h |
-| `phase1_gate` | a later task | G2 (2-4) | `phase1_gate/report.md` | ~30 CPU-h, 4 h on 8 cores |
-| `exploitability` | a later task | G3 | `exploitability/report.md` | doubles the runs it audits |
-| `contrasts` | a later task | G4 | `contrasts/{table.parquet, report.md}` | hours (JAX) |
-| `sobol` | a later task | G4, optional | `sobol/{table.parquet, report.md}` | ~1-3 GPU-days |
-| `estimator_bias` | a later task | G4 | `estimator_bias/{table.parquet, report.md}` | hours |
-| `llm_study` | a later task | G4 | `llm_study/{report.md, transcripts/}` | ~4M tokens, tens of dollars |
-| `price_sensitivity` | a later task | G4 | `price_sensitivity/{table.parquet, report.md}` | minutes |
+| Module | Gate | Artefacts under `runs/` | Cost (PLAN section 14) |
+|---|---|---|---|
+| `mc_sanity` | G0 | `mc_sanity/report.md` | CPU minutes |
+| `regime_map` | G1 | `regime_map/{table.parquet, regime.png, bhat.png}` | ~1 h, 8 cores |
+| `dp_vs_ppo` | G2 (1) | `dp_vs_ppo/report.md` | ~1 GPU-h or ~8 CPU-h |
+| `phase1_gate` | G2 (2-4) | `phase1_gate/report.md` | ~30 CPU-h, 4 h on 8 cores |
+| `exploitability` | G3 | `exploitability/report.md` | doubles the runs it audits |
+| `contrasts` | G4 | `contrasts/{table.parquet, report.md}` | hours (JAX) |
+| `sobol` | G4, optional | `sobol/{table.parquet, report.md}` | ~1-3 GPU-days |
+| `estimator_bias` | G4 | `estimator_bias/{table.parquet, report.md}` | hours |
+| `llm_study` | G4 | `llm_study/{report.md, transcripts/}` | ~4M tokens, tens of dollars |
+| `price_sensitivity` | G4 | `price_sensitivity/{table.parquet, report.md}` | minutes |
 
 Phases follow the gates: G0-G2 are Phase 1 (a later task to a later task), G3 is Phase 2, G4 is Phase
 3 (a later task to a later task). Every module's own docstring carries its full artefact list, its inputs, and

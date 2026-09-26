@@ -186,7 +186,7 @@ the point of the design, and `tests/unit/test_contract_guard.py` asserts it dire
 ### The rule-2 exemption
 
 CONTRACT rule 2 makes `tests/unit`, `tests/behavioural` and `tests/golden` read-only **for
-contributors**; the lead may edit them. A script cannot see who opened a pull request, so it cannot
+contributors**; the maintainer may edit them. A script cannot see who opened a pull request, so it cannot
 apply that condition. The check therefore reports every frozen-test file in the diff at severity
 `review-required` — with one structural carve-out, and two suppressions for genuine lead edits.
 
@@ -248,12 +248,12 @@ Everything below needs a human, and none of it is weakened by the guard passing.
 | **Rule 4, in general** | A shaping term written under an innocent name, an extra addend in `enterprise_reward`, or a denylisted wrapper imported under an alias all pass the denylist. | `tests/unit/test_ppo_adapter.py` (inspection of the wrapped object) and test T-B6 (the reward recomputed independently from the five-term formula) |
 | **Rule 5, dynamically** | Whether `make_planner_view` actually *leaks* a true quantity into the view it returns. The guard checks signatures; leakage is behaviour. | Test T-B4's sentinel half |
 | **Rule 6, in general** | A true quantity smuggled into an observation under another name or as a derived function — "no function of `consumer`, no function of another enterprise's `cum_output`". | Test T-B5's sentinel sweep |
-| **Rule 7, in general** | **The important one.** Rule 7 forbids any transition rule or reward term that *implements* bunching, padding, storming, hoarding, shaving or trade. That is a claim about what the code means, not about what it is called. The guard's check is narrow and high-precision by design: it catches a rule that names the pathology it is supposed to let emerge, and nothing else. A rule that computes the same thing under a neutral name passes cleanly and violates rule 7 exactly as much. **Passing is necessary, not sufficient** — rule 7's own wording: *"passing it is necessary, not sufficient — the lead reviews every `env/` diff against this rule."* The guard prints that note on every run. | Behavioural test T-B1 (also not sufficient), and the lead, by hand, on **every** `gosplan/env/` diff |
-| **Rule 8, BOUNDS ARE RESULTS** | Whether a bound was silently widened or narrowed to fix a result is visible only against the pre-registration, and the `BOUND_BINDING` flag is a run-time property of a ledger. | Test T-B8; the run manifest; the lead |
+| **Rule 7, in general** | **The important one.** Rule 7 forbids any transition rule or reward term that *implements* bunching, padding, storming, hoarding, shaving or trade. That is a claim about what the code means, not about what it is called. The guard's check is narrow and high-precision by design: it catches a rule that names the pathology it is supposed to let emerge, and nothing else. A rule that computes the same thing under a neutral name passes cleanly and violates rule 7 exactly as much. **Passing is necessary, not sufficient** — rule 7's own wording: *"passing it is necessary, not sufficient — the maintainer reviews every `env/` diff against this rule."* The guard prints that note on every run. | Behavioural test T-B1 (also not sufficient), and the maintainer, by hand, on **every** `gosplan/env/` diff |
+| **Rule 8, BOUNDS ARE RESULTS** | Whether a bound was silently widened or narrowed to fix a result is visible only against the pre-registration, and the `BOUND_BINDING` flag is a run-time property of a ledger. | Test T-B8; the run manifest; the maintainer |
 | **Rule 10, MANIFEST** | Whether every run actually wrote a manifest with every required field is a property of runs, not of source. | `tests/unit/test_ledger.py`; the gate artefacts |
 | **Rule 11, PARAMETER ARMS** | The INFO/INC/SUPPLY/TECH classification in `gosplan/params.py` is a design decision; whether a reassignment was justified is not decidable from the diff. The guard does not even try. | A `spec/CHANGELOG.md` entry and lead sign-off |
 | **Rule 12, WORK ORDERS** | Whether an contributor read only the whitelisted files, wrote only the named files, ran the completion command verbatim and reported in the task's format. A script sees the files that changed, not the files that were read, and reading is half the rule. | The lead, comparing the diff and the session report against the task |
-| **Rule 1, "only the lead"** | Authorship is pull-request metadata, not source. | Review and branch protection |
+| **Rule 1, "only the maintainer"** | Authorship is pull-request metadata, not source. | Review and branch protection |
 
 ### Testing and extending it
 

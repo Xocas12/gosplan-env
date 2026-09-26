@@ -3,7 +3,7 @@
 Realises: PLAN sections 2.8 (the bonus schedule `B(rho)`), 2.9.1 (the enterprise reward and its
 analytic scale), 2.9.2-2.9.3 (fulfilment measure, `val_measured`, `val_true`, CES welfare), 2.9.4
 (the three headline metrics) and PLAN section 11 (test architecture; property tests **T-U2** and
-**T-U3**, and the components of **T-B6**). Owning task: a later task (frozen tests; LEAD). Binds
+**T-U3**, and the components of **T-B6**). Owning task: a later task (frozen tests; maintainer). Binds
 the corresponding task must-pass line of PLAN section 12.3, verbatim - "`tests/unit/test_reward.py` (T-U2, T-U3,
 T-B6 components; `val`, `val_true`, CES welfare with `sigma_c -> 1` limit = Cobb-Douglas)". Module
 under test: `gosplan/env/reward.py`.

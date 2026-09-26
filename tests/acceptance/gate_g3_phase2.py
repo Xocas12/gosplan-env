@@ -3,7 +3,7 @@
 Realises: PLAN section 13 (gate G3), read against PLAN sections 4.1 (the phenomena and their
 classes), 4.2 (the mechanism parameters locked before Phase 2), 6.2 (the oracle), 6.3
 (exploitability), 12.4 (a later task..a later task, the mechanisms and the acceptance harness this gate drives)
-and CONTRACT rules 10 and 13. Run by: the **LEAD**; signed off by **Human + LEAD**. Implemented by
+and CONTRACT rules 10 and 13. Run by: the **maintainer**; signed off by **Human + maintainer**. Implemented by
 no task: the harness it drives is a later task, on the metrics of a later task, the
 exploitability audit of a later task (`gosplan.experiments.exploitability`), the oracle of a later task
 and the JAX port of a later task.
@@ -36,7 +36,7 @@ oracle gap recorded; JAX parity.* Four conditions:
   2. **Exploitability below threshold on all arms used** (PLAN section 6.3): per arm and seed,
      `(R_BR - R_pop) / abs(R_pop)` under a fresh best-responder with the same PPO configuration and
      budget. The threshold is provisional at `EXPLOITABILITY_THRESHOLD = 0.05` and is finalised by
-     the lead at this gate. An arm above it is labelled `NON-CONVERGED` and its *results are not
+     the maintainer at this gate. An arm above it is labelled `NON-CONVERGED` and its *results are not
      interpretable*: it is reported with the label, never quietly dropped, re-trained until it
      passes, or re-labelled.
   3. **Oracle gap recorded** (PLAN section 6.2): the expected-value MIP's welfare is `W_oracle`,
@@ -51,7 +51,7 @@ ARTEFACTS (PLAN section 13): `runs/phase2_acceptance/report.md`, plus
 `runs/exploitability/report.md`, the oracle's solve record and the JAX parity record, each with the
 `runs/<config-hash>/manifest.json` of CONTRACT rule 10.
 
-SIGN-OFF: **Human + LEAD**.
+SIGN-OFF: **Human + maintainer**.
 
 THE HOLD ENDS HERE, AND ONLY HERE (PLAN section 4.1). Rows 2, 5, 6 and 7 have been computed nowhere
 before this run - not in Phase 1, not while debugging their mechanisms, not "in passing". The
@@ -75,9 +75,9 @@ def main() -> int:
     and the arm list come from the corresponding task issue record and the Phase-2 spec revision. Returns: a
     process exit code - 0 when the acceptance run completed and its artefacts were written,
     non-zero when it could not complete. **The exit code never encodes the verdict**: pass, failure
-    and the `NON-CONVERGED` labels are lines in the reports, signed off by the human and the lead.
+    and the `NON-CONVERGED` labels are lines in the reports, signed off by the human and the maintainer.
 
-    Intended sequence, for the lead who implements this harness at the time of the run:
+    Intended sequence, for the maintainer who implements this harness at the time of the run:
       1. confirm the Phase-2 spec revision is in force and `spec/CHANGELOG.md` records it
          (CONTRACT rule 1), and that every mechanism value matches PLAN section 4.2 exactly -
          a mismatch invalidates the hold, whichever direction it moves the result;
@@ -93,7 +93,7 @@ def main() -> int:
          statement, the arm labels, the oracle gap, the parity number and every config hash.
 
     Owning WO: none - this is a lead-run gate harness (CONTRACT rule 13); the experiments it drives
-    are implemented in a later task, a later task, a later task, a later task and a later task.
+    are not yet implemented, later tasks, later tasks.
     """
     raise NotImplementedError("PLAN section 13 (gate G3) - lead-run; experiment in a later task")
 

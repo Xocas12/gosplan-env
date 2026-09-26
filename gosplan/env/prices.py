@@ -132,7 +132,7 @@ def recompute_prices(planner_io: Array, cfg: EnvConfig) -> Array:
 
     Binds: `tests/unit/test_prices.py` - agrees with `initial_prices` to 1e-12 when `planner_io`
     equals `cfg.supply.io_matrix`, which is the Phase-1 state at every `t`. Owning WO: a later task
-    (solver), Phase-2 activation with a later task/a later task.
+    (solver), Phase-2 activation with a later task.
     """
     raise NotImplementedError("PLAN section 2.10")
 
@@ -165,7 +165,7 @@ def perturbed_price_vectors(prices: Array, seeds: tuple[int, ...]) -> tuple[Arra
     Randomness - an open item for the v1 freeze. CONTRACT rule 9 requires every draw made
     under `gosplan/env/` to go through `gosplan.rng.draw(seed_env, purpose, *indices)`, and the
     `Purpose` enumeration of PLAN section 2.15 has no value for a price perturbation. Two
-    resolutions are admissible and the lead must record one in `spec/CHANGELOG.md`: (i) add a
+    resolutions are admissible and the maintainer must record one in `spec/CHANGELOG.md`: (i) add a
     purpose (for example `pricepert`) to `Purpose` at the v1 freeze and draw
     `dist="normal", mean=0.0, sigma=PRICE_PERTURBATION_SIGMA` with `shape=(J,)` keyed by each seed;
     or (ii) move this helper to `gosplan/experiments/price_sensitivity.py`, which is outside

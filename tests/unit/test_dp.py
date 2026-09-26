@@ -2,7 +2,7 @@
 
 Realises: PLAN section 5 (the analytical layer - the single-enterprise DP solved before any
 multi-agent RL) and PLAN section 11 (test architecture, unit/property category). Owning task:
-a later task (frozen tests; LEAD). Binds the corresponding task must-pass line of PLAN section 12.3, verbatim -
+a later task (frozen tests; maintainer). Binds the corresponding task must-pass line of PLAN section 12.3, verbatim -
 "`tests/unit/test_dp.py` (value iteration converges; with `a*pen -> inf` and `g = 0` the policy
 reports truthfully; with `beta = 0, s = 0` effort is 0; regime classifier on synthetic
 distributions; `DPGreedy` reproduces the DP policy inside the env at `N = 1`)". Module under test:

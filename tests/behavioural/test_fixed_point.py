@@ -202,7 +202,7 @@ def test_targets_grow_at_exactly_one_plus_g(growth: float, implemented) -> None:
 
     This is the forcing term of finding F1 (PLAN sections 1.3, 2.7.1): because the map has a fixed
     point at `g = 0`, `g` must be a treatment variable rather than a constant, and this test is
-    what pins its arithmetic. Owning WO: a later task; binds a later task and a later task.
+    what pins its arithmetic. Owning WO: a later task; binds later tasks.
     """
     cfg = _cfg(incentive=dict(growth_directive=growth))
     for seed in TB2_SEEDS:

@@ -1,7 +1,7 @@
 """Monte-Carlo sanity harness - PLAN sections 12.3 (task specification), 13 (gate G0) and 14.
 
 Realises: its task specification of PLAN section 12.3. Owning task: a later task (MID-strong,
-difficulty 3; depends on a later task heuristics and a later task ledger). Gate: **G0** - the lead signs off on
+difficulty 3; depends on a later task heuristics and a later task ledger). Gate: **G0** - the maintainer signs off on
 a green frozen suite, a clean report from this harness, and a review of every `gosplan/env/` diff
 against CONTRACT rule 7.
 
@@ -209,7 +209,7 @@ def main() -> int:
 
     Returns: a process exit code - 0 when every configuration ran and `runs/mc_sanity/report.md` was
     written with every assertion holding, 1 when an assertion failed or the report could not be
-    written. The exit code never means "gate G0 passed": G0 is the lead's written sign-off on this
+    written. The exit code never means "gate G0 passed": G0 is the maintainer's written sign-off on this
     report together with a green frozen suite and the CONTRACT rule 7 diff review of `gosplan/env/`
     (PLAN section 13).
 

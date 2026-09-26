@@ -91,7 +91,7 @@ by PLAN section 4.2.
 ## 2. The critical path
 
 The DAG of PLAN section 12.2, drawn with the dependency edges the tasks actually carry. Gate nodes
-are hexagons; the LEAD-owned join points (a later task and the P2 spec revision)
+are hexagons; the maintainer-owned join points (a later task and the P2 spec revision)
 are the places where the graph narrows to a single owner.
 
 ```mermaid
@@ -109,7 +109,7 @@ flowchart TD
   WO004 --> WO007
   WO004 --> WO008
   WO007 --> WO008
-  WO005 --> WO009["a later task step/env LEAD"]
+  WO005 --> WO009["a later task step/env maintainer"]
   WO006 --> WO009
   WO007 --> WO009
   WO008 --> WO009
@@ -117,25 +117,25 @@ flowchart TD
   WO009 --> WO011["a later task ledger"]
   WO010 --> WO012["a later task MC sanity"]
   WO011 --> WO012
-  WO012 --> G0{{"G0 Scaffold and sanity - LEAD"}}
+  WO012 --> G0{{"G0 Scaffold and sanity - maintainer"}}
 
-  G0 --> WO013["a later task spec v1 freeze LEAD"]
+  G0 --> WO013["a later task spec v1 freeze maintainer"]
   WO013 --> WO014["a later task single-enterprise DP"]
   WO014 --> WO015["a later task regime map"]
   WO015 --> G1{{"G1 Regime map and freeze - human picks P1 values"}}
 
   G1 --> WO016["a later task P1 metrics"]
-  G1 --> WO017["a later task PPO adapter LEAD"]
+  G1 --> WO017["a later task PPO adapter maintainer"]
   WO017 --> WO018["a later task train harness"]
   WO011 --> WO018
   WO014 --> WO019["a later task DP vs PPO"]
   WO018 --> WO019
   WO016 --> WO020["a later task P1 gate exp"]
   WO018 --> WO020
-  WO019 --> G2{{"G2 Phase 1 gate - human + LEAD"}}
+  WO019 --> G2{{"G2 Phase 1 gate - human + maintainer"}}
   WO020 --> G2
 
-  G2 --> P2SPEC["P2 spec revision LEAD"]
+  G2 --> P2SPEC["P2 spec revision maintainer"]
   P2SPEC --> WO021["a later task quality"]
   P2SPEC --> WO022["a later task delivery timing"]
   P2SPEC --> WO023["a later task holding, audit, soft budget"]
@@ -144,7 +144,7 @@ flowchart TD
   P2SPEC --> WO027["a later task oracle"]
   P2SPEC --> WO028["a later task exploitability"]
   WO025 --> WO026["a later task LLM ministry adapter"]
-  WO021 --> WO029["a later task JAX port LEAD"]
+  WO021 --> WO029["a later task JAX port maintainer"]
   WO022 --> WO029
   WO023 --> WO029
   WO024 --> WO029
@@ -161,7 +161,7 @@ flowchart TD
   WO028 --> WO031
   WO029 --> WO031
   WO030 --> WO031
-  WO031 --> G3{{"G3 Phase 2 acceptance - human + LEAD"}}
+  WO031 --> G3{{"G3 Phase 2 acceptance - human + maintainer"}}
 
   G3 --> WO032["a later task contrasts"]
   G3 --> WO034["a later task estimator bias"]
@@ -198,10 +198,10 @@ those are the plan's budget estimates, not measurements.
 
 | Gate | Work orders | Pass condition (PLAN section 13) | Artefacts | Sign-off | Compute (PLAN section 14) |
 |---|---|---|---|---|---|
-| **G0 Scaffold and sanity** | a later task - a later task | Full frozen suite green; MC sanity report clean; lead's diff review of `env/` against CONTRACT rule 7 | `runs/mc_sanity/report.md` | LEAD | MC sanity: 3 agents x 2,000 episodes x 21 configs at approx. 50 agent-steps each - CPU minutes |
+| **G0 Scaffold and sanity** | a later task - a later task | Full frozen suite green; MC sanity report clean; maintainer's diff review of `env/` against CONTRACT rule 7 | `runs/mc_sanity/report.md` | maintainer | MC sanity: 3 agents x 2,000 episodes x 21 configs at approx. 50 agent-steps each - CPU minutes |
 | **G1 Regime map and freeze** | a later task - a later task | Regime map produced; human selects the P1 dagger values from the interior of the bunching region; three `a*pen` levels and the `b_hat_DP` thresholds recorded **before** any training | `runs/G1_decision.md`, `spec` v1.0.0 | Human | DP regime map: 500 configs at approx. 1 CPU-min each - approx. 1 h on 8 cores |
-| **G2 Phase 1 gate** | a later task - a later task | PLAN section 4.5 criteria 1-4: DP recovery, bunching present/absent, padding elasticity, hygiene | `runs/dp_vs_ppo/report.md`, `runs/phase1_gate/report.md` | Human + LEAD | DP-vs-PPO: 3 levels x 10 seeds at `N=1`, approx. 2M env steps - approx. 1 GPU-h or 8 CPU-h. P1 gate: 2 arms x 30 seeds at `N=20`, approx. 5M env steps at approx. 3k steps/s in NumPy - approx. 30 h CPU, approx. 4 h on 8 cores |
-| **G3 Phase 2 acceptance** | a later task - a later task | Held-out phenomena 2, 5, 6, 7 evaluated on the PLAN section 4.2 values (pass or reported failure); exploitability below threshold on all arms used; oracle gap recorded; JAX parity | `runs/phase2_acceptance/report.md` | Human + LEAD | P2 acceptance: approx. 8 configs x 30 seeds - approx. 1-2 days CPU, or hours on JAX. Exploitability doubles the runs it audits - budget for it |
+| **G2 Phase 1 gate** | a later task - a later task | PLAN section 4.5 criteria 1-4: DP recovery, bunching present/absent, padding elasticity, hygiene | `runs/dp_vs_ppo/report.md`, `runs/phase1_gate/report.md` | Human + maintainer | DP-vs-PPO: 3 levels x 10 seeds at `N=1`, approx. 2M env steps - approx. 1 GPU-h or 8 CPU-h. P1 gate: 2 arms x 30 seeds at `N=20`, approx. 5M env steps at approx. 3k steps/s in NumPy - approx. 30 h CPU, approx. 4 h on 8 cores |
+| **G3 Phase 2 acceptance** | a later task - a later task | Held-out phenomena 2, 5, 6, 7 evaluated on the PLAN section 4.2 values (pass or reported failure); exploitability below threshold on all arms used; oracle gap recorded; JAX parity | `runs/phase2_acceptance/report.md` | Human + maintainer | P2 acceptance: approx. 8 configs x 30 seeds - approx. 1-2 days CPU, or hours on JAX. Exploitability doubles the runs it audits - budget for it |
 | **G4 Final report** | a later task - a later task | Contrasts with CIs; estimator-bias curves; LLM study; price sensitivity on every headline table | final report | Human | Contrasts: 5 x 30 on JAX - hours. Sobol (optional): 1,500-2,800 runs, JAX only - approx. 1-3 GPU-days. Estimator bias: 10 x 30 plus the DP - hours. LLM study: approx. 4M tokens - tens of dollars |
 
 The five strings in the Gate column - `G0 Scaffold and sanity`, `G1 Regime map and freeze`,
@@ -211,7 +211,7 @@ section 4 headings below, in `CONTRIBUTING.md` section 9 and in the `Gate` dropd
 `.github/ISSUE_TEMPLATE/gate.yml`. Do not paraphrase one.
 
 Programme-wide, PLAN section 14 also budgets **delegation**: approx. 38 tasks at approx. 40k
-tokens each including retries, at the mid tier, so approx. 1.5M tokens - dollars, with the lead's
+tokens each including retries, at the mid tier, so approx. 1.5M tokens - dollars, with the maintainer's
 spec, test and task writing plus ambiguity resolutions dominating the real cost.
 
 JAX is required for Sobol and helpful from P2 onward. Phase 1 is deliberately achievable in NumPy,
@@ -228,48 +228,48 @@ criterion 1 passing is a multi-agent effect and is a **result**, reported and no
 
 ## 4. Work orders by milestone
 
-Owner tiers are LEAD, MID-strong and MID-fast; the lead maps the MID tiers to specific current
+Owner tiers are maintainer, MID-strong and MID-fast; the maintainer maps the MID tiers to specific current
 models at issue time and records the mapping in the manifest (PLAN section 12.1). "Diff." is the
 1-5 difficulty field on the task.
 
 ### G0 Scaffold and sanity (a later task - a later task)
 
-| WO | Title | Owner | Diff. | Depends on | Unblocks |
-|---|---|---|---|---|---|
-| a later task | Parameter sourcing memo | LEAD | 3 | nothing (root of the DAG) | a later task, via the `source` field of every `ParamSpec`; a later task via research item 8 |
-| a later task | Spec v0, CONTRACT, registry | LEAD | 4 | a later task | a later task - and every later task, which reads the frozen interface |
-| a later task | Reference dynamics and frozen tests | LEAD | 5 | a later task | supplies the must-pass suites for a later task - a later task; no task names it under *Depends on* |
-| a later task | Config | MID-fast | 2 | a later task | a later task |
-| a later task | RNG | MID-fast | 2 | a later task | a later task, the `selfobs` draw, a later task |
-| a later task | Production | MID-strong | 3 | a later task | a later task |
-| a later task | Planner | MID-strong | 3 | a later task | a later task |
-| a later task | Reporting and reward | MID-strong | 3 | a later task | `reward_scale`, which scales observation field 9, a later task |
-| a later task | Observation | MID-fast | 2 | in practice also a later task, for the `selfobs` noise draw, and a later task for `reward_scale`, which scales observation field 9 | a later task |
-| a later task | Step function and env wrapper | **LEAD** | 5 | a later task | a later task - and every Phase-2 mechanism task |
-| a later task | Heuristic agents | MID-fast | 2 | a later task | a later task, `TruthfulMyopic` drives the parity test, a later task |
-| a later task | Ledger and manifest | MID-fast | 2 | a later task | a later task - a later task |
-| a later task | Monte-Carlo sanity harness | MID-strong | 3 | a later task | gate **G0** |
+| Title | Owner | Diff. | Depends on | Unblocks |
+|---|---|---|---|---|
+| Parameter sourcing memo | maintainer | 3 | nothing (root of the DAG) | a later task, via the `source` field of every `ParamSpec`; a later task via research item 8 |
+| Spec v0, CONTRACT, registry | maintainer | 4 | - | a later task - and every later task, which reads the frozen interface |
+| Reference dynamics and frozen tests | maintainer | 5 | - | supplies the must-pass suites for a later task - a later task; no task names it under *Depends on* |
+| Config | MID-fast | 2 | - | a later task |
+| RNG | MID-fast | 2 | - | a later task, the `selfobs` draw, a later task |
+| Production | MID-strong | 3 | - | a later task |
+| Planner | MID-strong | 3 | - | a later task |
+| Reporting and reward | MID-strong | 3 | - | `reward_scale`, which scales observation field 9, a later task |
+| Observation | MID-fast | 2 | in practice also a later task, for the `selfobs` noise draw, and a later task for `reward_scale`, which scales observation field 9 | - |
+| Step function and env wrapper | **maintainer** | 5 | - | a later task - and every Phase-2 mechanism task |
+| Heuristic agents | MID-fast | 2 | - | a later task, `TruthfulMyopic` drives the parity test, a later task |
+| Ledger and manifest | MID-fast | 2 | - | a later task - a later task |
+| Monte-Carlo sanity harness | MID-strong | 3 | - | gate **G0** |
 
 a later task is forbidden from computing or plotting any held-out quantity (PLAN section 4.1 rows 2, 5, 6
 and 7); its assertions are conservation and boundedness only, never direction.
 
 ### G1 Regime map and freeze (a later task - a later task)
 
-| WO | Title | Owner | Diff. | Depends on | Unblocks |
-|---|---|---|---|---|---|
-| a later task | Spec v1 freeze | **LEAD** | 3 | a later task and the written G0 sign-off | a later task - a later task. After this only the lead may change `spec/spec.py`, and only with a `spec/CHANGELOG.md` entry (CONTRACT rule 1) |
-| a later task | Single-enterprise DP | MID-strong | 4 | a later task | a later task; supplies `DPGreedy` and the `b_hat_DP` thresholds |
-| a later task | Regime map | MID-fast | 2 | a later task | gate **G1** - produces the candidate list the human chooses from |
+| Title | Owner | Diff. | Depends on | Unblocks |
+|---|---|---|---|---|
+| Spec v1 freeze | **maintainer** | 3 | a later task and the written G0 sign-off | a later task - a later task. After this only the maintainer may change `spec/spec.py`, and only with a `spec/CHANGELOG.md` entry (CONTRACT rule 1) |
+| Single-enterprise DP | MID-strong | 4 | - | a later task; supplies `DPGreedy` and the `b_hat_DP` thresholds |
+| Regime map | MID-fast | 2 | - | gate **G1** - produces the candidate list the human chooses from |
 
 ### G2 Phase 1 gate (a later task - a later task)
 
-| WO | Title | Owner | Diff. | Depends on | Unblocks |
-|---|---|---|---|---|---|
-| a later task | Phase-1 metrics (rows 1 and 4 only) | MID-strong | 3 | a later task; issued after G1 | a later task |
-| a later task | PPO adapter | **LEAD** | 5 | a later task; issued after G1 | a later task |
-| a later task | Training harness | MID-strong | 3 | a later task | a later task |
-| a later task | DP-vs-PPO recovery (G2 criterion 1) | MID-strong | 3 | a later task, and the signed G1 record | gate **G2**, criterion 1 |
-| a later task | Phase-1 gate experiment (G2 criteria 2-4) | MID-strong | 3 | a later task, and the signed G1 record | gate **G2**, criteria 2-4 |
+| Title | Owner | Diff. | Depends on | Unblocks |
+|---|---|---|---|---|
+| Phase-1 metrics (rows 1 and 4 only) | MID-strong | 3 | a later task; issued after G1 | - |
+| PPO adapter | **maintainer** | 5 | a later task; issued after G1 | - |
+| Training harness | MID-strong | 3 | - | a later task |
+| DP-vs-PPO recovery (G2 criterion 1) | MID-strong | 3 | a later task, and the signed G1 record | gate **G2**, criterion 1 |
+| Phase-1 gate experiment (G2 criteria 2-4) | MID-strong | 3 | a later task, and the signed G1 record | gate **G2**, criteria 2-4 |
 
 a later task is forbidden from implementing phenomena rows 2, 5, 6 and 7. Those arrive at a later task and are
 computed for the first time in the P2 acceptance run.
@@ -277,24 +277,24 @@ computed for the first time in the P2 acceptance run.
 ### G3 Phase 2 acceptance (a later task - a later task)
 
 Every task in this block is a **placeholder, not issuable yet**: each is gated on G2 *and* on the
-LEAD's P2 spec revision that follows it. PLAN section 12.4 fixes the owner tier only; the lead sets
+maintainer's P2 spec revision that follows it. PLAN section 12.4 fixes the owner tier only; the maintainer sets
 the difficulty at issue, so no task here carries a 1-5 number today and its issue carries no
 `difficulty:` label until then. Every issue in this block also carries `blocked`: gate G2 is
 unsigned and the P2 spec revision has not happened.
 
-| WO | Title | Owner | Diff. | Depends on | Unblocks |
-|---|---|---|---|---|---|
-| a later task | Quality mechanism on | MID-strong | set at issue | G2 and the P2 spec revision; a later task | a later task, row 3, a later task |
-| a later task | Delivery timing (`stochastic`, `backloaded`) | MID-fast | set at issue | G2 and the revision; a later task | a later task, row 2, storming, a later task |
-| a later task | Input holding loss, targeted audits, soft budget | MID-strong | set at issue | G2 and the revision; a later task | a later task, row 5, a later task |
-| a later task | Trade matching | MID-strong implements; **LEAD** writes the matching rule and the surplus definition in the revision | set at issue | G2 and the revision; a later task | a later task, row 6, blat, a later task |
-| a later task | Rule-based ministry, `n_ministries` | MID-strong | set at issue | G2 and the revision; a later task | a later task, the `ministry_passthrough` leg of C_OGAS, a later task |
-| a later task | LLM ministry adapter | MID-strong; **LEAD** supplies the prompts | set at issue | G2 and the revision; a later task | a later task |
-| a later task | Oracle (expected-value MIP) | MID-strong implements; **LEAD** formulates the MIP | set at issue | G2 and the revision; a later task item 8 (solver availability) | "oracle gap recorded", a later task - every `welfare_ratio` denominator |
-| a later task | Exploitability harness | MID-strong | set at issue | G2 and the revision; a later task, and a later task if the audited arms run on JAX | "exploitability below threshold", a later task, the non-converged labels |
-| a later task | JAX port | **LEAD**, one unit, not delegated | set at issue | G2 and the revision; a later task - a later task | if the audited arms run on JAX, "JAX parity", a later task |
-| a later task | Held-out phenomena metrics (rows 2, 3, 5, 6, 7) and the P2 heuristic agents | MID-strong | set at issue | G2 and the revision; a later task - a later task | a later task, gate **G3** |
-| a later task | Phase-2 acceptance experiment | MID-strong writes the harness; **LEAD runs it** | set at issue | G2 and the revision; a later task - a later task | gate **G3** |
+| Title | Owner | Diff. | Depends on | Unblocks |
+|---|---|---|---|---|
+| Quality mechanism on | MID-strong | set at issue | G2 and the P2 spec revision; a later task | a later task, row 3, a later task |
+| Delivery timing (`stochastic`, `backloaded`) | MID-fast | set at issue | G2 and the revision; a later task | a later task, row 2, storming, a later task |
+| Input holding loss, targeted audits, soft budget | MID-strong | set at issue | G2 and the revision; a later task | a later task, row 5, a later task |
+| Trade matching | MID-strong implements; **maintainer** writes the matching rule and the surplus definition in the revision | set at issue | G2 and the revision; a later task | a later task, row 6, blat, a later task |
+| Rule-based ministry, `n_ministries` | MID-strong | set at issue | G2 and the revision; a later task | a later task, the `ministry_passthrough` leg of C_OGAS, a later task |
+| LLM ministry adapter | MID-strong; **maintainer** supplies the prompts | set at issue | G2 and the revision; a later task | - |
+| Oracle (expected-value MIP) | MID-strong implements; **maintainer** formulates the MIP | set at issue | G2 and the revision; a later task item 8 (solver availability) | "oracle gap recorded", a later task - every `welfare_ratio` denominator |
+| Exploitability harness | MID-strong | set at issue | G2 and the revision; a later task, and a later task if the audited arms run on JAX | "exploitability below threshold", a later task, the non-converged labels |
+| JAX port | **maintainer**, one unit, not delegated | set at issue | G2 and the revision; a later task - a later task | if the audited arms run on JAX, "JAX parity", a later task |
+| Held-out phenomena metrics (rows 2, 3, 5, 6, 7) and the P2 heuristic agents | MID-strong | set at issue | G2 and the revision; a later task - a later task | a later task, gate **G3** |
+| Phase-2 acceptance experiment | MID-strong writes the harness; **maintainer runs it** | set at issue | G2 and the revision; a later task - a later task | gate **G3** |
 
 a later task is where the four held-out phenomena are measured for the first time, in the P2 acceptance
 run only. Nothing earlier may plot, tabulate or test them.
@@ -303,17 +303,17 @@ run only. Nothing earlier may plot, tabulate or test them.
 
 Every task here is a **placeholder, not issuable yet**: all are gated on G3, and therefore on the P2
 spec revision and on a later task. PLAN section 12.5 fixes the owner tier only, so no task here carries a
-1-5 number today and its issue carries no `difficulty:` label until the lead sets one. Every issue
+1-5 number today and its issue carries no `difficulty:` label until the maintainer sets one. Every issue
 in this block also carries `blocked`: gate G3 is unsigned.
 
-| WO | Title | Owner | Diff. | Depends on | Unblocks |
-|---|---|---|---|---|---|
-| a later task | Contrasts harness with `rliable` | MID-strong | set at issue | G3; a later task | a later task, gate **G4** |
-| a later task | Saltelli/Sobol design and total-order indices (optional) | MID-strong | set at issue | G3; JAX only, a later task | a later task, gate **G4** as an optional table |
-| a later task | Estimator-bias study | MID-strong | set at issue | G3; a later task | a later task, gate **G4**; the `forensic-stats` coupling |
-| a later task | LLM ministry study | MID-strong; **LEAD** writes both framing prompts and the manipulation-check prompt | set at issue | G3; a later task item 8 | a later task, gate **G4** |
-| a later task | Price-vector sensitivity on every headline table | MID-fast | set at issue | G3; a later task, if run, a later task | a later task, gate **G4** |
-| a later task | Report generation: figures, tables, manifest roll-up | MID-fast | set at issue | G3; a later task - a later task | gate **G4**. Last task in the plan |
+| Title | Owner | Diff. | Depends on | Unblocks |
+|---|---|---|---|---|
+| Contrasts harness with `rliable` | MID-strong | set at issue | G3; a later task | a later task, gate **G4** |
+| Saltelli/Sobol design and total-order indices (optional) | MID-strong | set at issue | G3; JAX only, a later task | a later task, gate **G4** as an optional table |
+| Estimator-bias study | MID-strong | set at issue | G3; a later task | a later task, gate **G4**; the `forensic-stats` coupling |
+| LLM ministry study | MID-strong; **maintainer** writes both framing prompts and the manipulation-check prompt | set at issue | G3; a later task item 8 | a later task, gate **G4** |
+| Price-vector sensitivity on every headline table | MID-fast | set at issue | G3; a later task, if run, a later task | a later task, gate **G4** |
+| Report generation: figures, tables, manifest roll-up | MID-fast | set at issue | G3; a later task - a later task | gate **G4**. Last task in the plan |
 
 ---
 
@@ -323,25 +323,25 @@ in this block also carries `blocked`: gate G3 is unsigned.
 
 | After | Concurrent set | Note |
 |---|---|---|
-| a later task | a later task | a later task writes the suites the other two must pass, so it should land first in wall-clock terms even though it is not their dependency |
-| a later task | **a later task** | The Phase-1 fan-out. Four separate sessions, disjoint "Write only" lists, all checked against a later task's frozen suite |
-| a later task | a later task | Both single-file tasks on disjoint paths |
-| G1 | a later task | Both depend only on a later task |
-| a later task | a later task | Two independent experiments, one per G2 criterion group |
+| - | a later task | a later task writes the suites the other two must pass, so it should land first in wall-clock terms even though it is not their dependency |
+| - | **a later task** | The Phase-1 fan-out. Four separate sessions, disjoint "Write only" lists, all checked against a later task's frozen suite |
+| - | a later task | Both single-file tasks on disjoint paths |
+| G1 | - | Both depend only on a later task |
+| - | a later task | Two independent experiments, one per G2 criterion group |
 | the P2 spec revision | **a later task** | The Phase-2 fan-out. a later task waits on a later task; a later task wait on a later task - a later task; a later task additionally waits on a later task if the arms it audits run on JAX |
-| G3 | a later task | a later task waits on a later task; a later task waits on every headline table |
+| G3 | - | a later task waits on a later task; a later task waits on every headline table |
 
 ### 5.2 Strict serialisation points
 
 - **a later task -> a later task -> a later task.** The trunk: sourcing before registry, registry before reference
   dynamics and frozen tests. No task in the fan-out can be *checked* until a later task exists.
-- a later task, the LEAD-owned join. Five upstream tasks converge on the step function and the env
-  wrapper; nothing downstream starts until it lands. LEAD-owned by design (PLAN finding F14).
+- a later task, the maintainer-owned join. Five upstream tasks converge on the step function and the env
+  wrapper; nothing downstream starts until it lands. maintainer-owned by design (PLAN finding F14).
 - a later task, the spec v1 freeze. Everything before it works against a provisional interface;
   everything after works against a frozen one.
-- **The P2 spec revision**, LEAD-owned, between G2 and a later task. a later task's matching rule and surplus
+- **The P2 spec revision**, maintainer-owned, between G2 and a later task. a later task's matching rule and surplus
   definition, and a later task's MIP formulation, are written here - not by the contributors.
-- a later task and a later task, the two roll-up tasks. Each waits on its whole block.
+- later tasks, the two roll-up tasks. Each waits on its whole block.
 - **Every gate.** A gate is a written sign-off on named artefacts, not a vibe. No task in the next
   block is issued before the previous gate is signed.
 
@@ -380,10 +380,10 @@ own pre-registration (PLAN section 13).
 
 | Gate | Signs | What the signature asserts |
 |---|---|---|
-| G0 | LEAD | Frozen suite green, MC sanity report clean, and the lead has personally reviewed every `env/` diff against CONTRACT rule 7 (no hard-coded pathology) |
+| G0 | maintainer | Frozen suite green, MC sanity report clean, and the maintainer has personally reviewed every `env/` diff against CONTRACT rule 7 (no hard-coded pathology) |
 | G1 | Human | The regime map exists, and the values in 6.1 are recorded before any training run |
-| G2 | Human + LEAD | PLAN section 4.5 criteria 1-4, each with an explicit pass/fail line in the report |
-| G3 | Human + LEAD | Held-out phenomena 2, 5, 6 and 7 evaluated on the section 4.2 locked values - pass **or reported failure**; exploitability below threshold on all arms used; oracle gap recorded; JAX parity |
+| G2 | Human + maintainer | PLAN section 4.5 criteria 1-4, each with an explicit pass/fail line in the report |
+| G3 | Human + maintainer | Held-out phenomena 2, 5, 6 and 7 evaluated on the section 4.2 locked values - pass **or reported failure**; exploitability below threshold on all arms used; oracle gap recorded; JAX parity |
 | G4 | Human | Contrasts with CIs; estimator-bias curves; LLM study; price sensitivity on every headline table |
 
 A failed gate is signed as failed and produces a written failure report. The next task is a
@@ -391,12 +391,12 @@ lead diagnosis.
 
 ### 6.3 Open ambiguity reports
 
-Two ambiguity reports are filed and unresolved. Both need a decision from the lead or the human;
+Two ambiguity reports are filed and unresolved. Both need a decision from the maintainer or the human;
 neither blocks any test, because nothing in `testpaths` depends on either answer.
 
 | Report | Question | Options on the table | Blocked |
 |---|---|---|---|
-| [`open question 001`](open question 001) | Which task is authorised to author `tests/acceptance/`, given that no task's "Write only" list names it? | (A) add `tests/acceptance/*` to a LEAD task's "Write only", a later task being the natural home since it already re-runs the full suite; (B) declare the directory LEAD-authored outside the whitelist system, exempt from CONTRACT rule 12 | Nothing. The five harnesses are excluded from `testpaths` |
+| [`open question 001`](open question 001) | Which task is authorised to author `tests/acceptance/`, given that no task's "Write only" list names it? | (A) add `tests/acceptance/*` to a maintainer task's "Write only", a later task being the natural home since it already re-runs the full suite; (B) declare the directory maintainer-authored outside the whitelist system, exempt from CONTRACT rule 12 | Nothing. The five harnesses are excluded from `testpaths` |
 | [`open question 002`](open question 002) | What are the module names for the P2 acceptance harness and the P3 report generator, which PLAN section 8's tree does not draw? | (A) add both names to the section 8 tree now and create the stubs; (B) note that P2/P3 harness module names are fixed at the P2 spec revision, and leave the two files uncreated until then | Nothing. Both modules are P2/P3 and no Phase-1 test imports them |
 
 Neither answer changes any dynamics, metric or result. Both are recorded here so that the next
@@ -477,6 +477,6 @@ they are the instruments that say whether the optimiser works. If they fail, not
 them means anything, and the correct move is a lead diagnosis, not a parameter search.
 
 **Placeholders are not specifications.** Every task from a later task to a later task is marked NOT ISSUABLE YET
-and carries a difficulty the lead sets at issue. Their dependency lists are real; their
+and carries a difficulty the maintainer sets at issue. Their dependency lists are real; their
 implementation notes are provisional and are rewritten by the P2 spec revision (for the G3 block) or
 after G3 (for the G4 block). Do not start one because it looks ready.

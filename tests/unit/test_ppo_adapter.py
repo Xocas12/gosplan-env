@@ -2,7 +2,7 @@
 
 Realises: PLAN section 6.1 (agents; the IPPO adapter over a pinned reference PPO), PLAN section
 2.9.1 (the analytic reward scale) and PLAN section 11 (test architecture; the adapter half of
-**T-B5**). Owning task: a later task (frozen tests; LEAD). Binds the corresponding task must-pass line of
+**T-B5**). Owning task: a later task (frozen tests; maintainer). Binds the corresponding task must-pass line of
 PLAN section 12.3, verbatim - "`tests/unit/test_ppo_adapter.py` (forward takes `obs` only - T-B5; no
 `RunningMeanStd` on rewards, checked by inspection of the wrapped object; actions within bounds)".
 Module under test: `gosplan/agents/ppo/adapter.py`.
@@ -228,7 +228,7 @@ def test_manifest_entry_pins_the_reference_implementation(p1_cfg, implemented) -
     """`manifest_entry()` records the pinned learner, as CONTRACT rule 10 requires.
 
     Assertion: the mapping returned carries `reference_impl` and `reference_version` (both non-empty
-    strings, with no default on `PPOConfig` - the lead pins them when a later task is issued) plus the
+    strings, with no default on `PPOConfig` - the maintainer pins them when a later task is issued) plus the
     TECH hyper-parameters `gamma = 0.99`, `lambda_gae = 0.97`, `learning_rate = 3e-4`,
     `clip_coef = 0.2`, `entropy_coef_start = 0.01`, `entropy_coef_end = 0.001` and
     `normalise_advantages = True`; and those values reach the manifest's `reference_ppo_version`

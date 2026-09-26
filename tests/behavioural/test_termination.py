@@ -169,7 +169,7 @@ def test_empirical_continuation_equals_tenure() -> None:
     estimated separately on the first and second halves of `TB9_SEEDS` agrees with `psi` in both
     (a hazard that drifted with the seed would average out otherwise).
 
-    Owning WO: a later task; binds a later task and a later task.
+    Owning WO: a later task; binds later tasks.
     """
     cfg = _cfg()
     lengths = []
@@ -257,7 +257,7 @@ def test_no_observation_field_predicts_periods_remaining() -> None:
     `test_periods_remaining_are_not_observable` in `test_welfare_blindness.py` (T-B5), which asserts
     that no observation entry *is* the remaining-period count; a leak could be either shape.
 
-    Owning WO: a later task; binds a later task and a later task.
+    Owning WO: a later task; binds later tasks.
     """
     from gosplan.env.obs import NEVER_OBSERVED, obs_spec
 

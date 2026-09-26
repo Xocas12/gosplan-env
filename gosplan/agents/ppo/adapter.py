@@ -3,11 +3,11 @@
 Realises: PLAN section 6.1 (the `IPPO` row), PLAN section 2.3 (action bounds), PLAN section 2.4
 (observation), PLAN section 2.5 (phases) and PLAN section 3 (the TECH hyper-parameters that live
 with the adapter rather than in `EnvConfig`, because the environment never reads them). Owning work
-order: a later task (LEAD).
+order: a later task (maintainer).
 
 **gosplan does not implement PPO.** PLAN section 6.1 requires a *thin adapter around a reference
 implementation* - a CleanRL-style continuous PPO for the NumPy path, a PureJaxRL/JaxMARL-style loop
-for the JAX path - whose exact package and version the lead verifies when the task is issued
+for the JAX path - whose exact package and version the maintainer verifies when the task is issued
 and which the run manifest records (CONTRACT rule 10, `PPOConfig.reference_impl` and
 `reference_version`). Everything in this module is glue: observation in, bounded action out,
 hyper-parameters pinned, and the two rules below enforced at the boundary.
@@ -110,7 +110,7 @@ class PPOConfig:
     reference_impl: str
     """Import path or package name of the reference PPO this adapter wraps, e.g. a CleanRL-style
     continuous PPO on the NumPy path or a PureJaxRL/JaxMARL-style loop on the JAX path (PLAN section
-    6.1). **No default**: PLAN names families, not a package, and the lead verifies the choice when
+    6.1). **No default**: PLAN names families, not a package, and the maintainer verifies the choice when
     a later task is issued. Recorded in the manifest (CONTRACT rule 10)."""
 
     reference_version: str
@@ -171,7 +171,7 @@ class IPPO:
     `gosplan/agents/ppo/train.py`.
 
     Everything the module docstring states about CONTRACT rules 4 and 6 is a property of this class
-    and is checked by `tests/unit/test_ppo_adapter.py`. Owning WO: a later task (LEAD).
+    and is checked by `tests/unit/test_ppo_adapter.py`. Owning WO: a later task (maintainer).
     """
 
     cfg: EnvConfig

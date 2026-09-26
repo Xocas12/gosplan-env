@@ -1,7 +1,7 @@
 """The frozen interface exists and exposes the whole PLAN section 10 surface.
 
 Realises: PLAN section 10 (`spec/spec.py` v0 - the interface skeleton) and PLAN section 11 (test
-architecture, unit/property category). Owning task: a later task (frozen tests; LEAD). Binds:
+architecture, unit/property category). Owning task: a later task (frozen tests; maintainer). Binds:
 the corresponding task must-pass line of PLAN section 12.3, verbatim - "`tests/unit/test_spec_imports.py`
 (spec imports; every public symbol in section 10 present)".
 
@@ -11,7 +11,7 @@ runs now and must pass now: it is the only thing standing between a typo in the 
 twenty tasks written against it.
 
 CONTRACT RULE 1 is what it guards. `spec/spec.py` is provisional (v0, `SPEC_VERSION` "0.1.0") until
-gate G1 and frozen (v1, "1.0.0") thereafter at a later task; after v1 only the lead may change it, and
+gate G1 and frozen (v1, "1.0.0") thereafter at a later task; after v1 only the maintainer may change it, and
 only with a `spec/CHANGELOG.md` entry. So this module asserts the *presence and shape* of the
 section 10 surface and never a version literal: a bump from "0.1.0" to "1.0.0" is a sanctioned
 change, a missing symbol never is.

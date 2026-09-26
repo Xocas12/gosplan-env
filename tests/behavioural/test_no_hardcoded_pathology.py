@@ -3,7 +3,7 @@
 Realises: PLAN section 11 (behavioural test T-B1) and CONTRACT rule 7, read against PLAN sections
 2.6-2.8 (the transition rules the clauses probe), 4.1 (phenomena and their classes), 4.4
 (measurement window) and 4.5 (the pre-registered histogram settings). Owning task:
-a later task (the LEAD writes `ref/`, `tests/unit`, `tests/behavioural`, `tests/golden`). It is on
+a later task (the maintainer writes `ref/`, `tests/unit`, `tests/behavioural`, `tests/golden`). It is on
 the must-pass list of a later task (heuristic agents) and is the standing check every
 `gosplan/env/` diff is measured against.
 
@@ -17,7 +17,7 @@ check the rule names by path.
     configuration below - is not pushed into pathological behaviour by the environment itself. It
     cannot show that no rule anywhere encodes a pathology: a rule that fires only under a
     configuration, a state or a policy this file never visits passes it untouched. CONTRACT rule 7
-    therefore also requires that **the LEAD reviews every `gosplan/env/` diff against rule 7**, by
+    therefore also requires that **the maintainer reviews every `gosplan/env/` diff against rule 7**, by
     reading it, at gate G0 (PLAN section 13) and at every later change. A green T-B1 never
     substitutes for that review, and no session may cite this file as evidence that a rule is
     admissible.

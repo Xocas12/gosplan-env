@@ -129,13 +129,13 @@ gosplan-env/
       prices.py               # §2.10
       trade.py                # §2.13 (P2)
       ministry.py             # §2.14 (P2)
-      step.py                 # LEAD: period schedule §2.5, assembles modules
+      step.py                 # maintainer: period schedule §2.5, assembles modules
       env.py                  # reset/step wrapper, specs, info/ledger hookup
     agents/
       base.py                 # Agent protocol
       heuristic.py            # Random, TruthfulMyopic, Padder, DPGreedy (P2: Berliner, Weitzman, Kornai)
       dp.py                   # §5
-      ppo/adapter.py          # LEAD: thin adapter over reference PPO
+      ppo/adapter.py          # maintainer: thin adapter over reference PPO
       ppo/train.py            # training harness, checkpoints, eval
       llm_ministry.py         # P2
     oracle/kantorovich.py     # P2
@@ -154,9 +154,9 @@ gosplan-env/
       estimator_bias.py       # P3
       llm_study.py            # P3
       price_sensitivity.py    # P3
-    jax/                      # LEAD, P2: port + parity
+    jax/                      # maintainer, P2: port + parity
   ref/
-    ref_step.py               # LEAD: slow pure-Python reference dynamics — the test oracle
+    ref_step.py               # maintainer: slow pure-Python reference dynamics — the test oracle
     gen_golden.py             # generates tests/golden/*.json from ref
   tests/
     unit/                     # property and conservation tests (frozen)
@@ -188,11 +188,11 @@ section it realises.
 
 | File | What it is | Owner |
 |---|---|---|
-| `CONTRACT.md` | PLAN §9 verbatim: the 13 rules that bind every session, human or model | LEAD |
-| `README.md` | this file | LEAD |
-| `spec/CHANGELOG.md` | every change to `spec/spec.py` after the v1 freeze: version, reason, affected tasks, approver | LEAD |
-| `docs/params_sources.md` | a later task deliverable: sourced range or explicit prior for every provisional parameter | LEAD |
-| `docs/ref_worked_example.md` | a later task deliverable: the hand-checked 2-enterprise, 2-sector validation of `ref/ref_step.py` | LEAD |
+| `CONTRACT.md` | PLAN §9 verbatim: the 13 rules that bind every session, human or model | maintainer |
+| `README.md` | this file | maintainer |
+| `spec/CHANGELOG.md` | every change to `spec/spec.py` after the v1 freeze: version, reason, affected tasks, approver | maintainer |
+| `docs/params_sources.md` | a later task deliverable: sourced range or explicit prior for every provisional parameter | maintainer |
+| `docs/ref_worked_example.md` | a later task deliverable: the hand-checked 2-enterprise, 2-sector validation of `ref/ref_step.py` | maintainer |
 | `ROADMAP.md` | the task list, the gate conditions and the dependency order | maintainer |
 
 ---
@@ -211,9 +211,9 @@ make format      # ruff check --fix and ruff format
 make spec-check  # spec/spec.py imports and exposes every PLAN §10 public symbol
 ```
 
-`make test` runs **only** the frozen suites. `tests/acceptance/` holds the lead-run gate experiments
+`make test` runs **only** the frozen suites. `tests/acceptance/` holds the maintainer-run gate experiments
 and is never collected: not by CI, not by a contributor, not on any task's must-pass
-list (CONTRACT rule 13). `make gate` exists and deliberately refuses - a gate is run by the lead, on
+list (CONTRACT rule 13). `make gate` exists and deliberately refuses - a gate is run by the maintainer, on
 purpose, and writes its artefacts under `runs/` with the manifest of CONTRACT rule 10.
 
 While the repository is a skeleton, the only tests present are stubs that assert the interface
@@ -227,10 +227,10 @@ Lint and line length: `ruff`, `line-length = 100`, `target-version = py312`.
 
 | Category | Location | Written by | Frozen | In CI | Purpose |
 |---|---|---|---|---|---|
-| Unit / property | `tests/unit` | LEAD | yes | yes | conservation, monotonicity, invariances, bounds, scale |
-| Behavioural | `tests/behavioural` | LEAD | yes | yes | heuristic-agent dynamics; no-hard-coded-pathology; information invariants |
+| Unit / property | `tests/unit` | maintainer | yes | yes | conservation, monotonicity, invariances, bounds, scale |
+| Behavioural | `tests/behavioural` | maintainer | yes | yes | heuristic-agent dynamics; no-hard-coded-pathology; information invariants |
 | Golden | `tests/golden` | generated from `ref/` | yes | yes | implementation == reference to 1e-9 on seeded trajectories |
-| Acceptance | `tests/acceptance` | LEAD | n/a | **no** | gates G0-G4; experiments, not tests |
+| Acceptance | `tests/acceptance` | maintainer | n/a | **no** | gates G0-G4; experiments, not tests |
 
 Test ids referenced throughout the docstrings are `T-U#` (unit / property) and `T-B#` (behavioural),
 enumerated in PLAN §11. The first three categories are read-only for contributors: if a test looks
@@ -244,11 +244,11 @@ Work proceeds through five gates. A gate is a written sign-off on named artefact
 
 | Gate | After | Pass condition | Artefacts | Sign-off |
 |---|---|---|---|---|
-| **G0** | a later task | Full frozen suite green; MC sanity report clean; lead's diff review of `env/` against CONTRACT rule 7 | `runs/mc_sanity/report.md` | LEAD |
-| **G1** | a later task | Regime map produced; human selects the P1 provisional values from the interior of the bunching region; three `a·pen` levels and the `b̂_DP` thresholds recorded **before** any training | `runs/G1_decision.md`, `spec` v1.0.0 | Human |
-| **G2** | a later task | PLAN §4.5 criteria 1-4 | `runs/dp_vs_ppo/report.md`, `runs/phase1_gate/report.md` | Human + LEAD |
-| **G3** | a later task | Held-out phenomena 2, 5, 6, 7 evaluated on the PLAN §4.2 values (pass or reported failure); exploitability below threshold on all arms used; oracle gap recorded; JAX parity | `runs/phase2_acceptance/report.md` | Human + LEAD |
-| **G4** | a later task | Contrasts with CIs; estimator-bias curves; LLM study; price sensitivity on every headline table | final report | Human |
+| **G0** | `mc_sanity` | Full frozen suite green; MC sanity report clean; maintainer's diff review of `env/` against CONTRACT rule 7 | `runs/mc_sanity/report.md` | maintainer |
+| **G1** | `regime_map` | Regime map produced; human selects the P1 provisional values from the interior of the bunching region; three `a·pen` levels and the `b̂_DP` thresholds recorded **before** any training | `runs/G1_decision.md`, `spec` v1.0.0 | Human |
+| **G2** | `dp_vs_ppo`, `phase1_gate` | PLAN §4.5 criteria 1-4 | `runs/dp_vs_ppo/report.md`, `runs/phase1_gate/report.md` | Human + maintainer |
+| **G3** | `exploitability`, phase-2 acceptance | Held-out phenomena 2, 5, 6, 7 evaluated on the PLAN §4.2 values (pass or reported failure); exploitability below threshold on all arms used; oracle gap recorded; JAX parity | `runs/phase2_acceptance/report.md` | Human + maintainer |
+| **G4** | `contrasts`, `estimator_bias`, `llm_study` | Contrasts with CIs; estimator-bias curves; LLM study; price sensitivity on every headline table | final report | Human |
 
 **A gate that fails produces a written failure report.** The next task is then a lead
 diagnosis - never a parameter change made in order to pass the gate. Parameter changes after G1

@@ -2,7 +2,7 @@
 
 Realises: PLAN section 11 (test architecture - the unit/property, behavioural and golden categories,
 their owners and their frozen status) and PLAN section 12.3 (the "Must pass" line of every Phase-1
-task task). Owning task: a later task (reference dynamics and frozen tests; LEAD).
+task task). Owning task: a later task (reference dynamics and frozen tests; maintainer).
 
 FROZEN BY CONTRACT RULE 2. `tests/unit`, `tests/behavioural` and `tests/golden` are read-only for
 contributors. An contributor may not edit a test, may not skip one, and may not
@@ -12,7 +12,7 @@ frozen surface: the fixtures below are the configuration objects the frozen test
 "the configuration this result was produced under" is a single auditable fact rather than a literal
 repeated in twenty modules.
 
-CONTRACT RULE 13 keeps `tests/acceptance/` out of this suite entirely: it holds the lead-run gate
+CONTRACT RULE 13 keeps `tests/acceptance/` out of this suite entirely: it holds the maintainer-run gate
 experiments G0-G4 of PLAN section 13, nothing there is a unit test, and `pyproject.toml`'s
 `testpaths` never collects it.
 

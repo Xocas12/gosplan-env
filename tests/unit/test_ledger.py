@@ -2,7 +2,7 @@
 
 Realises: PLAN sections 2.2 and 4 (the `StepRecord` columns and the ledger they form), CONTRACT rule
 10 (the manifest) and CONTRACT rule 8 (bounds are results), plus PLAN section 11 (test architecture;
-the unit half of **T-B8**). Owning task: a later task (frozen tests; LEAD). Binds the corresponding task
+the unit half of **T-B8**). Owning task: a later task (frozen tests; maintainer). Binds the corresponding task
 must-pass line of PLAN section 12.3, verbatim - "`tests/unit/test_ledger.py` (round-trip parquet;
 manifest has every rule-10 field; `BOUND_BINDING` logic, T-B8)". Module under test:
 `gosplan/metrics/ledger.py`.

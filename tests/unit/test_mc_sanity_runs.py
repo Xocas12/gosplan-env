@@ -3,7 +3,7 @@
 Realises: PLAN section 12.3 (its task specification), PLAN section 13 (gate G0, whose artefact is
 `runs/mc_sanity/report.md`), PLAN section 14 (the wall-clock estimate the harness measures against
 reality) and PLAN section 11 (test architecture, unit/property category). Owning task:
-a later task (frozen tests; LEAD). Binds the corresponding task must-pass line of PLAN section 12.3, verbatim -
+a later task (frozen tests; maintainer). Binds the corresponding task must-pass line of PLAN section 12.3, verbatim -
 "`tests/unit/test_mc_sanity_runs.py` (smoke)". Module under test:
 `gosplan/experiments/mc_sanity.py`.
 
@@ -14,7 +14,7 @@ time per episode; writes `runs/mc_sanity/report.md`."
 
 SMOKE, NOT A GATE. These tests run the harness at a small `n_episodes` and `n_perturbations` and
 assert that it runs, returns the documented mapping and writes its report. The gate itself is G0,
-run by the lead with the full 2,000-episode sweep (CONTRACT rule 13: tests are not experiments, and
+run by the maintainer with the full 2,000-episode sweep (CONTRACT rule 13: tests are not experiments, and
 nothing in `tests/acceptance/` is on any task's must-pass list).
 
 HELD OUT. a later task is forbidden from computing or plotting any quantity in PLAN section 4.1 rows 2

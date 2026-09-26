@@ -3,7 +3,7 @@
 Realises: PLAN section 7.4 (the LLM ministry study) over the ministry layer of PLAN section 2.14,
 with the manifest requirements of CONTRACT rule 10. Owning tasks: a later task (the adapter -
 `MinistryView` to text, strict-JSON parsing, retry, fallback, prompt/completion logging, version
-pinning) and a later task (the study harness; the lead writes both framing prompts and the
+pinning) and a later task (the study harness; the maintainer writes both framing prompts and the
 manipulation-check prompt).
 
 What this replaces. `ministry_forward(view, cfg)` (PLAN section 2.14, a later task) is the rule-based
@@ -121,7 +121,7 @@ class LLMMinistryConfig:
 
     model_id: str
     """Provider-qualified model identifier, pinned to an exact version - not a moving alias. **No
-    default**: the models are chosen by the lead when a later task is issued and there is no defensible
+    default**: the models are chosen by the maintainer when a later task is issued and there is no defensible
     placeholder."""
 
     model_version: str
