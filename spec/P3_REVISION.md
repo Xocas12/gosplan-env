@@ -92,6 +92,14 @@ windows.
 - Truth for (b) is relative to the arm's own smooth counterpart (PLAN: "relative to its own
   w = 0.25 arm").
 
+**Amendment (2026-09-27, during the run).** The "reused" arms could not be reused.
+- Spec 2.0.0 added two `InformationConfig` fields, so every Phase-1 configuration hash changed. The
+  30-seed notched and smooth runs were therefore retrained under the current spec.
+- All 10 arms thus share one spec and one code version, which is cleaner than the planned mix. The
+  cost is about 100 runs instead of 40.
+- The retrained runs sit in `runs/phase1_gate/runs` under the new hashes, beside the untouched G2
+  runs.
+
 **Estimator grid.**
 - Excluded window in `{[0.95, 1.02], [0.97, 1.02], [0.93, 1.03]}`
 - Degree in `{5, 7, 9}`
