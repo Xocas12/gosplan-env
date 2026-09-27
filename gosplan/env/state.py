@@ -124,6 +124,7 @@ class State:
     pending_deliv: Array | None = None  # (N, J, M) deliveries waiting for a later step
     trade_surplus_acc: Array | None = None  # (N,) trade surplus accrued this period
     ministry_prev: Array | None = None  # (N,) each ministry's previous forward for i
+    trade_offer_posted: Array | None = None  # (N, J) offers posted at the last REPORT (R15)
 
 
 @dataclass
@@ -284,6 +285,7 @@ def initial_state(cfg: EnvConfig) -> State:
         pending_deliv=np.zeros((n, j, cfg.incentive.steps_per_period)),
         trade_surplus_acc=np.zeros(n),
         ministry_prev=target.copy(),  # P2 R10: a ministry's first "previous forward" is T_0
+        trade_offer_posted=np.zeros((n, j)),  # P2 R15: nothing posted before the first REPORT
         t_period=0,
         k_step=0,
         phase="produce",
@@ -314,6 +316,8 @@ def ensure_p2_fields(state: State, cfg: EnvConfig) -> State:
         state.trade_surplus_acc = np.zeros(n)
     if state.ministry_prev is None:
         state.ministry_prev = target.copy()
+    if state.trade_offer_posted is None:
+        state.trade_offer_posted = np.zeros((n, j))
     return state
 
 

@@ -457,6 +457,20 @@ attached, behaviour is unchanged. `GosplanEnv.step` also copies the state field-
 **Approver.** LEAD.
 
 
+## 2.1.0 - 2026-09-27 (LEAD; spec/P2_REVISION.md R15, G3 diagnosis D1)
+
+- New `State.trade_offer_posted (N, J)`, initialised to 0: the trade offers posted at the last
+  REPORT step.
+- The R9 trade stage at step 0 now executes those posted offers, not the step-0 action's
+  `trade_offer`. The PPO adapter emits `trade_offer` only at REPORT (PLAN section 2.3), so as
+  implemented at 2.0.x no learner could trade (`runs/G3_record.md` D1).
+- `SPEC_VERSION` is bumped so every configuration hash changes: no run under the 2.0.x trade timing
+  can be read back as a 2.1.0 run.
+- Golden files are unaffected, because trade is off in Phase 1. The golden render excludes the new
+  field, as it does the other Phase-2 fields.
+- The JAX port mirrors the rule.
+- Affected work orders: WO-024, WO-029, WO-031 (G3b), and the Phase-3 studies run after it.
+
 ## 2.0.1 - 2026-09-26 (LEAD; additive, no behaviour change)
 
 - `GosplanEnv.__init__` gains the keyword-only `ministry_policy=None` (and `gosplan.env.step.advance`
