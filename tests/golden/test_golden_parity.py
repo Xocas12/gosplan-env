@@ -194,7 +194,13 @@ def _render_state(state):
 
     # Spec 2.0.0 (P2 revision, LEAD edit): the four Phase-2 fields appended to `State` are outside
     # the Phase-1 reference's scope and are excluded from the Phase-1 digest.
-    p2_fields = {"claim_history", "pending_deliv", "trade_surplus_acc", "ministry_prev"}
+    p2_fields = {
+        "claim_history",
+        "pending_deliv",
+        "trade_surplus_acc",
+        "ministry_prev",
+        "trade_offer_posted",
+    }
     parts = [
         f"{f.name}={render(getattr(state, f.name))};"
         for f in dataclasses.fields(state)

@@ -319,7 +319,10 @@ def stage_trade_volume(
         return state, np.zeros(n), np.zeros(n)
     from gosplan.env.trade import trade_stage
 
-    state, surplus, sold = trade_stage(state, action.trade_offer, cfg, t, effort=action.effort)
+    # R15: execute the offers posted at the last REPORT (the adapter emits `trade_offer` only
+    # there, PLAN section 2.3), not the step-0 action's.
+    posted = np.asarray(state.trade_offer_posted, dtype=float)
+    state, surplus, sold = trade_stage(state, posted, cfg, t, effort=action.effort)
     state.trade_surplus_acc = np.asarray(state.trade_surplus_acc, dtype=float) + surplus
     return state, surplus, sold
 
@@ -689,6 +692,10 @@ def advance(
         elif stage is PeriodStage.REPORT:
             output = np.array(state.cum_output, dtype=float)
             state = stage_report(state, action, cfg)
+            # R15: post this REPORT's trade offers for the next period's trade stage.
+            state.trade_offer_posted = np.clip(
+                np.asarray(action.trade_offer, dtype=float), -1.0, 1.0
+            )
             # R10: between REPORT and the planner. `ministry_policy` (a `MinistryPolicy`, e.g.
             # the WO-026 LLM ministry; P3 revision S5) defaults to the rule-based ministry.
             state = stage_ministry(state, cfg, ministry_policy)

@@ -792,3 +792,38 @@ def test_deliveries_conserve_goods_when_claims_differ_from_obligations() -> None
         np.testing.assert_allclose(
             np.sum([r.deliv for r in rows], axis=0), (1 - phi) * shipped, atol=1e-9
         )
+
+
+def test_trade_executes_offers_posted_at_report() -> None:
+    """R15: offers are posted at REPORT and executed at the next period's step-0 trade stage;
+    a PRODUCE-phase `trade_offer` is ignored."""
+    import numpy as np
+
+    from gosplan.agents.heuristic import TruthfulMyopic
+    from gosplan.config import p2_default_config
+    from gosplan.env.env import GosplanEnv
+    from gosplan.metrics.ledger import Ledger
+
+    cfg = p2_default_config()
+    n, j = cfg.supply.n_enterprises, cfg.supply.n_sectors
+    offers = np.where(np.arange(n)[:, None] % 2 == 0, 1.0, -1.0) * np.ones((n, j))
+
+    def volume(post_at: str) -> float:
+        env = GosplanEnv(cfg)
+        ledger = Ledger()
+        env.attach_ledger(ledger)
+        agent = TruthfulMyopic(cfg)
+        rng = np.random.default_rng(0)
+        obs, _ = env.reset(3, 0)
+        for _ in range(3 * (cfg.incentive.steps_per_period + 1)):
+            phase = env.phase()
+            action = agent.act(obs, phase, rng)
+            if phase == post_at:
+                action.trade_offer = offers.copy()
+            obs, _r, done, _i = env.step(action)
+            if done:
+                break
+        return float(sum(r.trade_volume for r in ledger.records))
+
+    assert volume("report") > 0.0
+    assert volume("produce") == 0.0

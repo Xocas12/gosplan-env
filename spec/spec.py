@@ -40,7 +40,7 @@ Array = np.ndarray
 """Alias for every numeric array in the interface (PLAN section 10). The JAX port substitutes its
 own array type behind the same name; no module may rely on numpy-only methods in a signature."""
 
-SPEC_VERSION = "2.0.0"
+SPEC_VERSION = "2.1.0"
 """Provisional spec version (PLAN section 10 header). Bumped to "1.0.0" by WO-013 at the v1 freeze;
 every later change needs a `spec/CHANGELOG.md` entry (CONTRACT rule 1). Written into every run
 manifest (CONTRACT rule 10)."""
@@ -650,6 +650,7 @@ class State:
     pending_deliv: Array | None = None  # (N, J, M) deliveries waiting for a later step
     trade_surplus_acc: Array | None = None  # (N,) trade surplus accrued this period
     ministry_prev: Array | None = None  # (N,) each ministry's previous forward for i
+    trade_offer_posted: Array | None = None  # (N, J) offers posted at the last REPORT (R15)
 
 
 @dataclass
