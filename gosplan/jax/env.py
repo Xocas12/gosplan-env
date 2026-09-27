@@ -151,6 +151,7 @@ class JState:
     pending_deliv: jax.Array
     trade_surplus_acc: jax.Array
     ministry_prev: jax.Array
+    trade_offer_posted: jax.Array
     t_period: int
     k_step: int
     phase: str
@@ -188,6 +189,7 @@ def initial_jstate(cfg: EnvConfig, seed_env: int, seed_policy: int, t_period: in
         pending_deliv=jnp.zeros((n, j, cfg.incentive.steps_per_period)),
         trade_surplus_acc=jnp.zeros(n),
         ministry_prev=target,
+        trade_offer_posted=jnp.zeros((n, j)),
         t_period=int(t_period),
         k_step=0,
         phase="produce",
@@ -497,7 +499,7 @@ def trade(state: JState, action, cfg: EnvConfig):
     need = jnp.asarray(s["a_rows"]) * state.target[:, None]
     x_before = state.inv_inputs
     x_after, sold = execute_trades(
-        x_before, action["trade_offer"], need, _visible(state, cfg), float(cfg.supply.trade_tau)
+        x_before, state.trade_offer_posted, need, _visible(state, cfg), float(cfg.supply.trade_tau)
     )
     surplus = trade_surplus(state, x_before, x_after, jnp.clip(action["effort"], 0.0, 1.0), cfg)
     return (
@@ -664,6 +666,9 @@ def advance(state: JState, action, cfg: EnvConfig):
         reward = -reward_scale(cfg) * cost
     else:
         state = process_reports(state, action, cfg)
+        state = dataclasses.replace(
+            state, trade_offer_posted=jnp.clip(action["trade_offer"], -1.0, 1.0)
+        )  # R15
         state = ministry(state, cfg)
         view = planner_view(state, cfg)
         state, penalty = audit(state, view, cfg)
