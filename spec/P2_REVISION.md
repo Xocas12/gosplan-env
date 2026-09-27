@@ -371,3 +371,23 @@ reads the step-0 PRODUCE action's `trade_offer`. The PPO adapter (WO-017, PLAN s
 
 **Re-evaluation.** Row 6 is re-evaluated in a labelled study, **G3b**: C0 at 30 seeds, R14's pass
 rule for row 6, run only if the owner approves. Rows 2, 5 and 7 are not re-evaluated.
+
+## R16. Exploitability audit, revised (G3 diagnosis D2) - pre-registered before G3b
+
+At G3 the best responder was trained from scratch for 500k steps. It never reached the population's
+return, so the audit measured the best responder's weakness, not the population's exploitability.
+
+**Rule.**
+- **Warm start.** The best responder in seat 0 starts from the population's own checkpoint, then
+  trains for the full gate budget (1M agent-steps, `GATE_SIZING`) against the frozen population in
+  the other seats. Its starting point is at least the population's return, up to evaluation noise.
+- **Ratio floor.**
+  `exploitability = (R_BR - R_pop) / max(|R_pop|, 1.0)`.
+  The floor is 1 reward unit, which is one notch bonus at `rho = 1.1` after `reward_scale`. It
+  keeps the ratio defined when the population's return is near 0.
+- **Threshold.** 5% (PLAN section 6.3), applied to the maximum over audited seeds. An arm above it
+  is NON-CONVERGED.
+- **Seeds.** G3b C0, seeds 0-9.
+
+**Application.** Implemented with R15, and applied only after the in-flight Phase-3 runs finish.
+Those runs' own exploitability numbers come from the old audit and are labelled as such.
