@@ -30,6 +30,13 @@ OUT_DIR = Path("runs/phase2_acceptance")
 """Artefact directory (PLAN section 13 names `runs/phase2_acceptance/report.md` as the G3 record)."""
 
 REPORT_PATH = OUT_DIR / "report.md"
+G3B_DIR = Path("runs/phase2_acceptance_g3b")
+G3B_HEADER = (
+    "> **Labelled study G3b** (spec/P2_REVISION.md R15, R16; runs/G3_record.md). Spec 2.1.0 (trade\n"
+    "> offers posted at REPORT), C0 only, 30 seeds; its purpose is row 6 and the R16 exploitability\n"
+    "> audit. Rows 2, 5 and 7 stand as first evaluated in runs/phase2_acceptance/report.md; their\n"
+    "> values below are supplementary, and the rows needing the R7_NULL / R3_QW arms are not run.\n\n"
+)
 TABLE_PATH = OUT_DIR / "table.parquet"
 
 SEED_ROOT = 1000
@@ -615,9 +622,17 @@ def render_report(result: dict) -> str:
 
 def main() -> int:
     """Run the R14 acceptance set and write `runs/phase2_acceptance/report.md`."""
+    global BR_TOTAL_AGENT_STEPS, ORACLE_HORIZON, CLAIRVOYANT_SEEDS
     import sys
 
-    if "--smoke" in sys.argv:
+    if "--g3b" in sys.argv:
+        # Labelled study G3b (spec/P2_REVISION.md R15, R16; runs/G3_record.md owner decision):
+        # C0 only at 30 seeds under spec 2.1.0, row 6 re-evaluated, R16 audit on seeds 0-9.
+        BR_TOTAL_AGENT_STEPS = 1_000_000
+        res = run(G3B_DIR, None, {"C0": 30, "R7_NULL": 0, "R3_QW": 0}, {"C0": 10})
+        text = (G3B_DIR / REPORT_PATH.name).read_text(encoding="utf-8")
+        (G3B_DIR / REPORT_PATH.name).write_text(G3B_HEADER + text, encoding="utf-8")
+    elif "--smoke" in sys.argv:
         from gosplan.experiments.phase1_gate import GATE_SIZING
 
         out = Path(sys.argv[sys.argv.index("--smoke") + 1])
@@ -629,7 +644,6 @@ def main() -> int:
             eval_episodes=1,
             measure_episodes=2,
         )
-        global BR_TOTAL_AGENT_STEPS, ORACLE_HORIZON, CLAIRVOYANT_SEEDS
         BR_TOTAL_AGENT_STEPS, ORACLE_HORIZON, CLAIRVOYANT_SEEDS = 2_000, 6, 1
         res = run(out, tiny, {a: 2 for a in ARMS}, {a: 1 for a in ARMS})
     else:
