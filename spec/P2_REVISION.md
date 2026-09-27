@@ -348,3 +348,26 @@ training.
 - Target runaways use the Phase-1 definition.
 
 **C0 post-G3 values.** R11 stands as the Phase-3 C0 unless the owner's G3 decision changes it.
+
+## R15. Trade offers are posted at REPORT (G3 diagnosis D1) - written, not yet applied
+
+This fixes the defect found at G3 (`runs/G3_record.md` D1). As implemented, the trade stage (R9)
+reads the step-0 PRODUCE action's `trade_offer`. The PPO adapter (WO-017, PLAN section 2.3) emits
+`trade_offer` only at REPORT, so learners could never trade.
+
+**Rule.**
+- At REPORT the environment stores the action's `trade_offer` in a new state field
+  `State.trade_offer_posted (N, J)`, initialised to 0.
+- The trade stage at step 0 of period `t + 1` executes those posted offers.
+- At `t = 0` nothing has been posted, so there is no trade.
+- Everything else in R9 is unchanged: visibility, matching, tau, surplus and the peer block.
+
+**Application.**
+- The rule is applied only after the Phase-3 runs launched from `3f40b6e` onwards have finished.
+- It bumps `SPEC_VERSION`, so every configuration hash changes and no run under the old dynamics
+  can be read back as if it were new.
+- The golden parity test excludes the new field, as it does the other Phase-2 fields.
+- The JAX port mirrors the rule, and the parity tests are re-run.
+
+**Re-evaluation.** Row 6 is re-evaluated in a labelled study, **G3b**: C0 at 30 seeds, R14's pass
+rule for row 6, run only if the owner approves. Rows 2, 5 and 7 are not re-evaluated.
