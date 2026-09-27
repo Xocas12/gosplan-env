@@ -99,3 +99,17 @@ appear):
 3. **Proceed.** The Phase-3 contrasts, already running under the current code, continue as a
    labelled study carrying L3. The LEAD recommends proceeding, because no contrast lever is a trade
    parameter.
+
+## OWNER DECISION (2026-09-27): the LEAD's recommendations, delegated
+
+The owner instructed: "Do what's recommended on your judgment". Recorded as:
+
+1. **Exploitability.** The audit is redesigned first (spec/P2_REVISION.md R16), and the 5%
+   threshold is then applied to the revised audit. The G3 audit above stands as inconclusive.
+2. **D1.** R15 is applied after the in-flight Phase-3 runs finish. The labelled study **G3b** is
+   approved: C0 at 30 seeds under spec 2.1.0, re-evaluating row 6. The R16 audit is run on G3b's
+   populations.
+3. **Phase 3** continues as a labelled study carrying L3 (no horizontal trade).
+
+G3 stays **NOT PASSED** as recorded. G3b is a separate, labelled record and never rewrites this
+one.
