@@ -54,6 +54,7 @@ imported inside the function that uses them, never at module scope.
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -551,7 +552,10 @@ def _exploitability(out_dir: Path, arm_cfgs, root: int, contrasts) -> dict[str, 
             target = (Path(out_dir) / "runs" / _g2.seeded(arm_cfgs[name], s, root).hash()).resolve()
             link = audit / target.name
             if target.exists() and not link.exists():
-                link.symlink_to(target, target_is_directory=True)
+                # Relative, so the committed run tree stays valid in any checkout and in an sdist.
+                link.symlink_to(
+                    os.path.relpath(target, link.parent.resolve()), target_is_directory=True
+                )
         jobs.append((name, audit, out_dir))
     results = _pool(_exploit_one, jobs) if jobs else []
     out = {name: r for (name, *_), r in zip(jobs, results, strict=True)}

@@ -108,7 +108,10 @@ def exploitability_arms(
             target = (Path(out_dir) / "runs" / arm_config(arm, s).hash()).resolve()
             link = audit / target.name
             if target.exists() and not link.exists():
-                link.symlink_to(target, target_is_directory=True)
+                # Relative, so the committed run tree stays valid in any checkout and in an sdist.
+                link.symlink_to(
+                    os.path.relpath(target, link.parent.resolve()), target_is_directory=True
+                )
         out[arm] = audit
     return out
 
