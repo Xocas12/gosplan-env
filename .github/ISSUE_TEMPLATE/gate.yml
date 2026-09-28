@@ -21,7 +21,7 @@ body:
 
         Gates are run by the **lead**, deliberately. `make gate` refuses on purpose.
         `tests/acceptance/` holds the gate harnesses; it is excluded from `testpaths`, is on no
-        work order's must-pass list, and no implementer session runs it (CONTRACT rule 13).
+        task's must-pass list, and no contributor runs it (CONTRACT rule 13).
   - type: dropdown
     id: gate
     attributes:
@@ -30,7 +30,7 @@ body:
         These five strings are the GitHub MILESTONE names, and GitHub matches a milestone by
         exact string, so they are reproduced verbatim from ROADMAP.md sections 3 and 4 and
         CONTRIBUTING.md section 9. Set this issue's milestone to the same string. The gates
-        fire after WO-012 (G0), WO-015 (G1), WO-020 (G2), WO-031 (G3) and WO-037 (G4)
+        fire after G0, G1, G2, G3 and G4
         respectively (PLAN §13).
       options:
         - "G0 Scaffold and sanity"
@@ -43,12 +43,12 @@ body:
   - type: textarea
     id: prerequisites
     attributes:
-      label: Prerequisite work orders
-      description: Every work-order issue that must be closed before this gate is evaluated.
+      label: Prerequisite tasks
+      description: Every task issue that must be closed before this gate is evaluated.
       placeholder: |
-        - #3 WO-000 ... closed
+        - #3 a later task ... closed
         - ...
-        - #15 WO-012 monte-carlo sanity harness ... closed
+        - #15 a later task monte-carlo sanity harness ... closed
     validations:
       required: true
   - type: textarea
@@ -96,7 +96,7 @@ body:
       description: >-
         Who signs, per PLAN §13. G0 - LEAD. G1 - Human. G2 - Human + LEAD. G3 - Human + LEAD.
         G4 - Human. Record the name and the date next to each required signature; an unsigned
-        gate does not unblock the cards behind it.
+        gate does not unblock the tasks behind it.
       value: |
         - [ ] LEAD:
         - [ ] Human:
@@ -107,11 +107,11 @@ body:
     attributes:
       label: If the gate does not pass
       description: >-
-        Link the written failure report and the LEAD DIAGNOSIS work order that follows it. Leave
+        Link the written failure report and the LEAD DIAGNOSIS task that follows it. Leave
         as "n/a - passed" only when it did.
       value: |
         - Failure report:
-        - Lead diagnosis work order:
+        - Lead diagnosis task:
     validations:
       required: false
   - type: checkboxes

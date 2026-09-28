@@ -3,8 +3,8 @@
 Realises: PLAN section 11 (behavioural test T-B8) and CONTRACT rule 8, read against PLAN sections
 2.3 (the action bounds), 2.8 (`R_i = clip(rho, 0, rho_max) * T_i`), 4.4 (the measurement window -
 reports at `rho_max` are included in histograms and flagged), 4.5 (the G2 hygiene criterion: the
-flag absent in all Phase-1 gate runs) and 10 (`Ledger`, `write_manifest`). Owning work order:
-**WO-002**; on the must-pass list of **WO-011** (`gosplan/metrics/ledger.py`).
+flag absent in all Phase-1 gate runs) and 10 (`Ledger`, `write_manifest`). Owning task:
+a later task; on the must-pass list of a later task (`gosplan/metrics/ledger.py`).
 
 CONTRACT rule 8 (BOUNDS ARE RESULTS): `report_ratio` is bounded at `rho_max = 10`. The fraction of
 reports at the bound is logged; more than 1% flags the run manifest `BOUND_BINDING` and the result
@@ -17,11 +17,11 @@ A test that only checked the raising half would pass a ledger that flagged every
 
 The mechanism under test, in three pieces:
 
-    1. `process_reports` (WO-007) clips `rho` to `rho_max` and records whether the report sat at
+    1. `process_reports` clips `rho` to `rho_max` and records whether the report sat at
        the bound, so `StepRecord.at_bound` is the environment's own observation, not the test's;
-    2. `Ledger.append` (WO-011) maintains the running fraction and raises `BOUND_BINDING_FLAG` when
+    2. `Ledger.append` maintains the running fraction and raises `BOUND_BINDING_FLAG` when
        it exceeds `AT_BOUND_FLAG_THRESHOLD`, counting REPORT rows only;
-    3. `write_manifest` (WO-011) carries every raised flag into `runs/<hash>/manifest.json`
+    3. `write_manifest` carries every raised flag into `runs/<hash>/manifest.json`
        (CONTRACT rule 10), which is where a reader of the result meets it.
 
 `bound_binding(ledger)` answers the same question of a finished ledger; the two answers must agree,
@@ -43,10 +43,10 @@ import numpy as np
 import pytest
 
 SKIP_REASON = (
-    "skeleton: T-B8 assertions are written by WO-002 (frozen tests); they bind WO-011 "
-    "(Ledger.append, bound_binding, write_manifest) and WO-007 (process_reports)"
+    "skeleton: T-B8 assertions are written by frozen tests; they bind a later task "
+    "(Ledger.append, bound_binding, write_manifest) and process_reports"
 )
-"""Reason attached to every `@pytest.mark.skip` below; the bodies arrive with WO-002."""
+"""Reason attached to every `@pytest.mark.skip` below; the bodies arrive with a later task."""
 
 BOUND_FLAG = "BOUND_BINDING"
 """The flag string of CONTRACT rule 8; `gosplan.metrics.ledger.BOUND_BINDING_FLAG` must equal it.
@@ -73,7 +73,7 @@ OVERSHOOT_RATIO = 25.0
 than accepted, and that the clipped row still counts as `at_bound` (PLAN section 2.8)."""
 
 TB8_SEEDS: tuple[int, ...] = (0, 1, 2)
-"""Environment seeds, one episode each. A WO-002 test-design constant; the driving policy makes the
+"""Environment seeds, one episode each. A a later task test-design constant; the driving policy makes the
 at-bound fraction deterministic, so the seeds vary only the environment's draws."""
 
 
@@ -118,7 +118,7 @@ def _cfg(**sections):
 def _episode(cfg, agent_name, seed_env, implemented, max_periods=None):
     """Drive one episode of `GosplanEnv` with a named heuristic; return the ledger records.
 
-    Gated on the environment (WO-009), the heuristic agents (WO-010) and the ledger (WO-011), so a
+    Gated on the environment, the heuristic agents and the ledger, so a
     behavioural module skips naming its missing dependency rather than failing.
     """
     from gosplan.agents import heuristic
@@ -234,8 +234,8 @@ def test_reports_at_the_bound_are_recorded(implemented) -> None:
     `cfg.tech.report_max_ratio == RHO_MAX`.
 
     The overshoot rows are the substance of CONTRACT rule 8's "never silently widen": an action
-    above the bound is clipped and *counted*, never honoured. Owning WO: **WO-002**; binds
-    **WO-007** and **WO-011**.
+    above the bound is clipped and *counted*, never honoured. Owning WO: a later task; binds
+    later tasks.
     """
     cfg = _cfg()
     rows = _report_rows(_episode(cfg, "Padder", TB8_SEEDS[0], implemented))
@@ -258,7 +258,7 @@ def test_flag_is_raised_above_one_percent(implemented) -> None:
     - the incremental flag from `Ledger.append` and the batch predicate `bound_binding` agreeing on
     the same ledger. Assert the fraction is computed over REPORT rows only: PRODUCE rows carry no
     report, and counting them would dilute the fraction by a factor of `M + 1` and hide a binding
-    bound. Owning WO: **WO-002**; binds **WO-011**.
+    bound. Owning WO: a later task; binds a later task.
     """
     from gosplan.metrics.ledger import Ledger, bound_binding
 
@@ -279,8 +279,8 @@ def test_flag_is_absent_below_one_percent(implemented) -> None:
 
     Without this half, a ledger that raised the flag unconditionally would pass T-B8 - and the G2
     hygiene criterion of PLAN section 4.5 requires the flag to be *absent* in all Phase-1 gate runs,
-    so a false positive would block the gate as loudly as a false negative. Owning WO: **WO-002**;
-    binds **WO-011**.
+    so a false positive would block the gate as loudly as a false negative. Owning WO: a later task;
+    binds a later task.
     """
     from gosplan.metrics.ledger import Ledger, bound_binding
 
@@ -303,7 +303,7 @@ def test_manifest_carries_the_flag(implemented, tmp_path) -> None:
     does not contain `BOUND_FLAG`.
 
     CONTRACT rule 8 requires the result to be *reported with the flag*: a flag that lives only in a
-    ledger object nobody reads is not a report. Owning WO: **WO-002**; binds **WO-011**.
+    ledger object nobody reads is not a report. Owning WO: a later task; binds a later task.
     """
     import json
 
