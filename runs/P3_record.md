@@ -80,7 +80,14 @@ Seed-paired deltas are on `welfare_ratio`: IQM with a 95% bootstrap CI over 15 s
 unit-tested. The owner's command is in the report: install the SDK, add a credential, then
 `uv run python -m gosplan.experiments.llm_study claude-opus-5 claude-sonnet-5`.
 
-## Next (owner decisions at G3, delegated)
+## Update (2026-09-28): G3b complete
+
+See `runs/G3b_record.md`. With trade possible (spec 2.1.0), C0 populations post only buy offers,
+so row 6 still does not appear. That makes it unlikely, though not shown by a re-run, that L3
+changed the contrasts' C0 leg. The revised audit (R16) finds the C0 populations non-converged
+(median exploitability 0.80). This is limitation **L4**, and it applies to every contrast above.
+
+## Next (owner decisions at G3, delegated) - as written before G3b
 
 1. Apply R15 (trade offers posted at REPORT; spec 2.1.0) and R16 (the revised exploitability
    audit).

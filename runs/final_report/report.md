@@ -543,6 +543,164 @@ Sizing: `{'n_envs': 8, 'rollout_steps': 125, 'total_agent_steps': 1000000, 'eval
 
 ---
 
+## Labelled study G3b - record
+
+_Source: `runs/G3b_record.md`_
+
+### Labelled study G3b - record (LEAD)
+
+**Status: G3b does not change G3.** G3 stays **NOT PASSED** as recorded in `runs/G3_record.md`.
+G3b was approved at G3 (owner decision 2, delegated) to answer two questions. Row 6 now fails on
+learned behaviour, and the revised audit finds the populations far from equilibrium. Written on
+2026-09-28. The human sign-off is pending.
+
+- Source: `runs/phase2_acceptance_g3b/report.md` and `result.json`.
+- Spec 2.1.0: R15 (trade offers posted at REPORT) and R16 (the revised exploitability audit).
+- Design: C0 only, 30 seeds, the same `seed_env = 1000 + s` and learner as G3. The R16 audit ran on
+  seeds 0-9.
+- The run started on 2026-09-28 at 07:51 UTC and ended at 21:08 UTC.
+- Limitations L1 and L2 carry forward. L3 (no trade was possible) is lifted for G3b only.
+
+#### Question 1 - row 6 (blat), after the D1 fix: **FAILURE (does not appear)**
+
+| Statistic | Value |
+|---|---|
+| trade volume share, mean over 30 seeds [95% CI] | 0 [0, 0] |
+| matched trade pairs, all 30 seeds, 100 measurement episodes each | 0 |
+
+This is a behavioural result, not a pipeline defect. It was checked three ways:
+
+1. **The fix works.** The pre-run smoke test (tiny untrained policies under spec 2.1.0) matched
+   166 and 335 trade pairs. Offers are posted at REPORT, stored, and executed by the next period's
+   trade stage.
+2. **The learned policies post only buy orders.** A deterministic rollout of the trained C0
+   populations for seeds 0-9 recorded every posted `trade_offer` at REPORT.
+   - Every offer was negative, meaning a want to buy (`gosplan/env/trade.py`: a negative offer is
+     a want, a positive one an offer to sell).
+   - Offers ranged from -1.000 to -0.358, with per-seed means between -0.90 and -0.99.
+   - Not one of the offers was a sell offer. With no seller, the matching rule (R9) can execute
+     nothing.
+3. **This agrees with row 5.** The same populations push input requests to the upper bound
+   (request inflation excess 1.96, as at G3). Every enterprise wants more of every input and none
+   parts with any.
+
+Row 6 is therefore evaluated, and it fails under R14's rule: the lower CI bound is not above 0.
+In the terms of PLAN section 4.2: under C0 the learned enterprises hoard rather than barter, so
+horizontal trade does not emerge.
+
+#### Question 2 - the R16 exploitability audit: **NON-CONVERGED**
+
+| Seeds audited | Median ratio | Max ratio | Seeds above the 5% threshold |
+|---|---|---|---|
+| 10 | 0.797 | 0.990 | 9 of 10 |
+
+- R16's design: the best responder starts from the population policy, trains for 1M steps, and the
+  ratio is `(R_BR - R_pop) / max(|R_pop|, 1)`.
+- Sorted per-seed ratios: -1.244, 0.125, 0.341, 0.364, 0.694, 0.899, 0.929, 0.972, 0.983, 0.990.
+- The one negative seed (1007) is one where the population's own return is about -30 and the best
+  responder fell further, to about -68.
+- **Interpretation.** Unlike the pre-R16 audit (G3 D2), this audit is informative. Starting from
+  the population's own policy, a single enterprise can improve its return substantially on 9 of
+  10 seeds. The learned C0 populations are **not** approximate equilibria at the 5% threshold.
+- Every Phase-2 and Phase-3 number from these populations therefore describes the learner's
+  *outcome*, not an equilibrium of the institution. This strengthens L1 and is carried forward as
+  **L4**.
+
+#### Supplementary (not re-evaluations; the G3 values stand)
+
+- **Row 2:** excess storming Gini 0.118 [0.086, 0.150] (G3: 0.137).
+- **Row 5:** request inflation excess 1.96, and corr(X, shortfall) excess 0.52 (G3: 1.96 and 0.55).
+- **Row 7:** C0 hidden reserves 0.173 [0.068, 0.316] (G3: 0.222).
+- **Welfare:** welfare_ratio is 0.0335 (G3: 0.034). specification_gap is 0.0124, with no sign
+  change across price seeds 11, 12 and 13.
+- **Not evaluated in G3b:** row 7's null arm and row 3 need the R7_NULL and R3_QW arms, which
+  G3b does not run. The report's generic template prints "FAILURE" beside `nan` for these rows;
+  read that as "not evaluated here".
+- **Checks:** JAX parity passes (7.1e-14). Hygiene passes (runaway 0.0000, `BOUND_BINDING` 0). The
+  oracle gap is 0.
+
+#### Consequences
+
+- G3 remains NOT PASSED. G3b adds two findings:
+  - Row 6 fails behaviourally, because learners hoard and never offer to sell.
+  - Under the revised audit the C0 populations are non-converged (L4).
+- The Phase-3 contrasts (`runs/P3_record.md`) were run before R15, carrying L3. G3b shows that
+  even with trade possible, C0 populations do not trade. L3 is therefore unlikely to have changed
+  the contrasts' C0 leg. This is an inference, not a re-run: the contrast arms were not re-trained
+  under spec 2.1.0.
+- The owner decides at G3/G4 whether a longer-trained or differently configured learner is
+  commissioned. That would be a new labelled study, because the numbers here must not be tuned to
+  pass.
+
+---
+
+## Labelled study G3b - acceptance re-run (R15, R16)
+
+_Source: `runs/phase2_acceptance_g3b/report.md`_
+
+> **Labelled study G3b** (spec/P2_REVISION.md R15, R16; runs/G3_record.md). Spec 2.1.0 (trade
+> offers posted at REPORT), C0 only, 30 seeds; its purpose is row 6 and the R16 exploitability
+> audit. Rows 2, 5 and 7 stand as first evaluated in runs/phase2_acceptance/report.md; their
+> values below are supplementary, and the rows needing the R7_NULL / R3_QW arms are not run.
+
+### Gate G3 - Phase-2 acceptance (WO-031)
+
+Pre-registration: `spec/P2_REVISION.md` R14. Limitations carried from Phase 1: L1 (PPO does not recover the single-enterprise DP's mixed under-reporting strategy) and L2 (the bunching estimator on degenerate and peaked distributions); see `runs/G2_record.md`.
+
+**G3: NOT PASSED**
+
+#### Conditions
+
+- heldout_evaluated: PASS (rows 2, 5, 6, 7 computed on the PLAN section 4.2 values; appearance is reported per row below)
+- exploitability: FAIL
+- oracle_gap_recorded: PASS
+- jax_parity: PASS
+- price_sensitivity: PASS (computed; a sign change is reported below, never suppressed)
+- hygiene: PASS
+
+#### Held-out phenomena (C0, mean over seeds [95% seed-bootstrap CI])
+
+- Row 2 storming: excess Gini 0.1180 [0.0863, 0.1501] - APPEARS
+- Row 5 hoarding: request inflation excess 1.9608 [1.9402, 1.9779]; corr(X, shortfall) excess 0.5153 [0.3500, 0.6780] (0 seeds with an undefined correlation) - APPEARS
+- Row 6 blat: trade volume share 0.000e+00 [0.000e+00, 0.000e+00] - FAILURE (does not appear)
+- Row 7 hidden reserves: C0 0.1734 [0.0677, 0.3161]; R7_NULL nan [nan, nan] (vanishes if upper < 0.01) - FAILURE (present: True, vanishes under null: False)
+- Row 3 quality (pipeline check): mean qbar C0 - R3_QW nan [nan, nan] - FAILURE
+
+#### Oracle (WO-027)
+
+- C0: W_oracle 1.9836, val_oracle 38.1873, status optimal, solver HiGHS (HiGHS via OR-Tools 9.15.6755), optimality gap 0.00e+00, horizon 40
+- R7_NULL: W_oracle 1.9836, val_oracle 38.1873, status optimal, solver HiGHS (HiGHS via OR-Tools 9.15.6755), optimality gap 0.00e+00, horizon 40
+- R3_QW: W_oracle 1.9836, val_oracle 38.1873, status optimal, solver HiGHS (HiGHS via OR-Tools 9.15.6755), optimality gap 0.00e+00, horizon 40
+- Clairvoyant welfare, C0 seeds 0-4 (UPPER BOUND ONLY, never a denominator): 1.9791, 1.9797, 1.9812, 1.9816, 1.9815
+
+#### Headline metrics and price sensitivity (C0)
+
+- welfare_ratio W / W_oracle: 0.0335
+- specification_gap at base prices and under price seeds (11, 12, 13): 0.0124, 0.0122, 0.0125, 0.0125 - sign change: no
+
+#### Exploitability (WO-028)
+
+- C0: max 0.9905, median 0.7966 over 10 seeds (threshold 0.05, provisional; finalised by the lead at G3 (PLAN section 6.3)) NON-CONVERGED
+
+#### JAX parity (WO-029)
+
+- max |NumPy - JAX| over 100 agent-steps: p1 1.07e-14, p2 7.11e-14 (tolerance 1e-05)
+
+#### Hygiene
+
+- BOUND_BINDING runs: 0
+- max training-episode runaway fraction after 20%: 0.0000 (limit 0.05)
+
+#### Arms and seeds
+
+- C0: 30 seeds, overrides none
+- R7_NULL: 0 seeds, overrides {'incentive': {'growth_directive': 0.0, 'penalty_arg': 'absolute'}}
+- R3_QW: 0 seeds, overrides {'incentive': {'objective_metric': 'quality_weighted'}, 'information': {'quality_measurability': 1.0}}
+
+Sizing: `{'n_envs': 8, 'rollout_steps': 125, 'total_agent_steps': 1000000, 'eval_every_updates': 250, 'eval_episodes': 10, 'measure_episodes': 100}`; git `347721bc2018a4126fe9b255cce51a1e060eafb2-dirty`.
+
+---
+
 ## Phase 3 - contrasts (WO-032)
 
 _Source: `runs/contrasts/report.md`_
@@ -809,7 +967,14 @@ Seed-paired deltas are on `welfare_ratio`: IQM with a 95% bootstrap CI over 15 s
 unit-tested. The owner's command is in the report: install the SDK, add a credential, then
 `uv run python -m gosplan.experiments.llm_study claude-opus-5 claude-sonnet-5`.
 
-#### Next (owner decisions at G3, delegated)
+#### Update (2026-09-28): G3b complete
+
+See `runs/G3b_record.md`. With trade possible (spec 2.1.0), C0 populations post only buy offers,
+so row 6 still does not appear. That makes it unlikely, though not shown by a re-run, that L3
+changed the contrasts' C0 leg. The revised audit (R16) finds the C0 populations non-converged
+(median exploitability 0.80). This is limitation **L4**, and it applies to every contrast above.
+
+#### Next (owner decisions at G3, delegated) - as written before G3b
 
 1. Apply R15 (trade offers posted at REPORT; spec 2.1.0) and R16 (the revised exploitability
    audit).
@@ -821,5 +986,5 @@ unit-tested. The owner's command is in the report: install the SDK, add a creden
 
 ## Manifest roll-up (CONTRACT rule 10)
 
-463 run manifests; the full table is `runs/final_report/manifests.md`.
+495 run manifests; the full table is `runs/final_report/manifests.md`.
 

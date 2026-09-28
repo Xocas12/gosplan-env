@@ -41,7 +41,7 @@ studies, and that is how they must be cited.
 | G1 | `runs/G1_decision.md` | Phase-1 values chosen (the owner delegated the decision) |
 | G2 | `runs/G2_record.md` | **not passed**: PPO did not recover the single-enterprise DP optimum in three attempts. Criteria 2-4 were run afterwards as a labelled study |
 | G3 | `runs/G3_record.md` | **not passed**: rows 2 and 5 appear; row 7 fails its null test; row 3 and hygiene fail; row 6 was not evaluable because of a trade defect (D1); the exploitability audit was inconclusive (D2) |
-| G3b | `runs/phase2_acceptance_g3b/` | labelled study after the D1 fix (R15) and the revised audit (R16); in progress |
+| G3b | `runs/G3b_record.md` | labelled study after the D1 fix (R15) and the revised audit (R16): row 6 **fails behaviourally** (learners post only buy offers, so nothing trades), and the revised audit finds the populations **non-converged** (median exploitability 0.80) |
 | P3 | `runs/P3_record.md` | contrasts, estimator bias and price sensitivity complete as a labelled study; the LLM study is NOT RUN (it needs model credentials) |
 | G4 | `runs/final_report/report.md` | not met until the LLM study runs; human sign-off pending |
 
@@ -52,6 +52,8 @@ Three limitations travel with every learned-agent number:
   over-confident on sharply peaked ones (G2 criterion 2).
 - **L3.** Every Phase-2 and Phase-3 number before G3b comes from an economy in which no learner
   could post a trade offer (G3 D1).
+- **L4.** Under the revised audit (R16) the learned C0 populations are not approximate equilibria:
+  a warm-started best responder gains on 9 of 10 seeds (G3b).
 
 The learned Phase-2 economy is heavily degraded: `welfare_ratio` is about 0.03, where the
 truthful-myopic baseline reaches about 0.53. Every contrast is a movement within that economy.
