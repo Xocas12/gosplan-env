@@ -510,9 +510,9 @@ def _jsonable(value: object) -> object:
     return str(value)
 
 
-def _ci(t) -> str:
+def _ci(t, fmt: str = ".4f") -> str:
     m, lo, hi = t
-    return f"{m:.4f} [{lo:.4f}, {hi:.4f}]"
+    return f"{m:{fmt}} [{lo:{fmt}}, {hi:{fmt}}]"
 
 
 def render_report(result: dict) -> str:
@@ -548,7 +548,7 @@ def render_report(result: dict) -> str:
         f"corr(X, shortfall) excess {_ci(v['row5_hoarding']['corr_excess'])} "
         f"({v['row5_hoarding']['n_seeds_corr_nan']} seeds with an undefined correlation) - "
         f"{'APPEARS' if v['row5_hoarding']['appears'] else 'FAILURE (does not appear)'}",
-        f"- Row 6 blat: trade volume share {_ci(v['row6_blat']['trade_volume_share'])} - "
+        f"- Row 6 blat: trade volume share {_ci(v['row6_blat']['trade_volume_share'], '.3e')} - "
         f"{'APPEARS' if v['row6_blat']['appears'] else 'FAILURE (does not appear)'}",
         f"- Row 7 hidden reserves: C0 {_ci(v['row7_hidden_reserves']['c0'])}; R7_NULL "
         f"{_ci(v['row7_hidden_reserves']['null'])} (vanishes if upper < {VANISH_TOL}) - "
