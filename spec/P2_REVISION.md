@@ -351,6 +351,9 @@ training.
 
 ## R15. Trade offers are posted at REPORT (G3 diagnosis D1) - written, not yet applied
 
+**Applied on 2026-09-28** (commit 51b001a, spec 2.1.0), after the in-flight Phase-3 runs had
+finished. The text below is unchanged from the version written before it was applied.
+
 This fixes the defect found at G3 (`runs/G3_record.md` D1). As implemented, the trade stage (R9)
 reads the step-0 PRODUCE action's `trade_offer`. The PPO adapter (WO-017, PLAN section 2.3) emits
 `trade_offer` only at REPORT, so learners could never trade.
