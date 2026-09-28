@@ -3,7 +3,7 @@
 Realises: PLAN section 11 (behavioural test T-B3), read against PLAN sections 2.7.2 (allocation),
 2.7.3 (physical delivery - the padding-to-shortage channel), 2.10 (the I-O structure that carries
 the shortage), 2.6 (the coverage aggregator the shortage arrives at) and 4.4 (measurement window).
-Owning work order: **WO-002**; on the must-pass list of **WO-010** and binding **WO-006**
+Owning task: a later task; on the must-pass list of a later task and binding a later task
 (`allocate`, `deliver`).
 
 What T-B3 asserts (PLAN section 11, verbatim): *`Padder` with `S = 0` produces `fill < 1` for all
@@ -20,7 +20,7 @@ A claim above stock lowers `poolfill` for the whole good, so every buyer of that
 than it was promised; a claim below stock leaves the difference sitting in `S`. Both are
 *consequences* of those four lines. CONTRACT rule 7 forbids implementing either directly, and this
 test is the behavioural evidence that the consequence is present without such a rule - the
-structural evidence is the lead's diff review named in `test_no_hardcoded_pathology.py`.
+structural evidence is the maintainer's diff review named in `test_no_hardcoded_pathology.py`.
 
 Propagation, not just shortfall. The Phase-1 `io_matrix` (PLAN section 3) is a 5-cycle with chords:
 every sector needs two inputs at 0.2 each, so a shortage in any one sector reaches every other
@@ -31,7 +31,7 @@ buyers - the shortage arriving as a physical constraint, not as a bookkeeping en
     *** THE DIRECTION OF HOARDING IS ASSERTED NOWHERE. ***
 
     PLAN section 4.1 row 5 (hoarding -> shortage) is an **emergence** claim and is HELD OUT until
-    the Phase-2 acceptance run (WO-030). This file asserts *propagation* only: that a claim not
+    the Phase-2 acceptance run. This file asserts *propagation* only: that a claim not
     backed by stock reduces what downstream buyers physically receive. It does not compute request
     inflation `q_ij / need_ij` as a statistic, does not compute `corr(X_ij, 1 - fill_downstream)`,
     does not compare any quantity against a truthful baseline as an *excess*, and asserts no
@@ -49,10 +49,10 @@ import numpy as np
 import pytest
 
 SKIP_REASON = (
-    "skeleton: T-B3 assertions are written by WO-002 (frozen tests); they bind WO-006 "
-    "(allocate/deliver), WO-009 (the DELIVER step) and WO-010 (Padder, TruthfulMyopic)"
+    "skeleton: T-B3 assertions are written by frozen tests; they bind a later task "
+    "(allocate/deliver), the DELIVER step and Padder, TruthfulMyopic"
 )
-"""Reason attached to every `@pytest.mark.skip` below; the bodies arrive with WO-002."""
+"""Reason attached to every `@pytest.mark.skip` below; the bodies arrive with a later task."""
 
 PADDING_AGENT = "Padder"
 """`gosplan.agents.heuristic.Padder`: `rho = 1` every period at `PADDER_EFFORT = 0.3`. At
@@ -66,7 +66,7 @@ TRUTHFUL_AGENT = "TruthfulMyopic"
 TB3_SEEDS: tuple[int, ...] = (0, 1, 2)
 """Environment seeds, one episode each per agent, under common random numbers: both agents are run
 at the same `seed_env`, so the yield and audit draws are identical and the only difference between
-the two rollouts is the report (PLAN sections 2.15, 4.3). A WO-002 test-design constant."""
+the two rollouts is the report (PLAN sections 2.15, 4.3). A a later task test-design constant."""
 
 MEASUREMENT_WINDOW_START_PERIOD = 2
 """Periods `t >= 2` (PLAN section 4.4) for the rollout tests. The constructed-state test of
@@ -123,7 +123,7 @@ def _cfg(**sections):
 def _episode(cfg, agent_name, seed_env, implemented, max_periods=None):
     """Drive one episode of `GosplanEnv` with a named heuristic; return the ledger records.
 
-    Gated on the environment (WO-009), the heuristic agents (WO-010) and the ledger (WO-011), so a
+    Gated on the environment, the heuristic agents and the ledger, so a
     behavioural module skips naming its missing dependency rather than failing.
     """
     from gosplan.agents import heuristic
@@ -174,7 +174,7 @@ def test_zero_stock_claim_gives_zero_fill(implemented) -> None:
 
     This is the constructed-state form of the clause. It exercises PLAN section 2.7.3 directly, in
     one call, so a failure localises to `deliver` rather than to the schedule. Owning WO:
-    **WO-002**; binds **WO-006**.
+    a later task; binds a later task.
     """
     # LEAD edit (AMBIGUITY-008): the constructed-state form this docstring specifies. The earlier
     # rollout body could never pair a zero stock with its own claim (the Padder produces output).
@@ -220,7 +220,7 @@ def test_padder_shortage_reaches_every_downstream_buyer(implemented) -> None:
 
     Do not assert a magnitude and do not compare the shortfall against another agent's: the size of
     the shortage is not a pre-registered quantity, and the hoarding direction is held out (PLAN
-    section 4.1 row 5). Owning WO: **WO-002**; binds **WO-006** and **WO-009**.
+    section 4.1 row 5). Owning WO: a later task; binds later tasks.
     """
     cfg = _cfg()
     seen_short = False
@@ -253,7 +253,7 @@ def test_truthful_myopic_gives_full_fill(implemented) -> None:
     the two rollouts share every environment draw and differ only in the report, so a shortage in
     one and none in the other isolates the claim as its cause. It is *not* a baseline to difference
     a phenomenon against (PLAN section 4.1 row 5 is held out); no excess is formed here. Owning WO:
-    **WO-002**; binds **WO-006** and **WO-010**.
+    a later task; binds later tasks.
     """
     cfg = _cfg()
     for seed in TB3_SEEDS:

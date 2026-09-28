@@ -3,7 +3,7 @@
 Realises: PLAN sections 4.1 (rows 1 and 4 only - the two Phase-1 pipeline checks), 4.4 (measurement
 window), 4.5 (pre-registered estimator settings and the G2 criteria), 7.3 (the coupling to
 `forensics_core` and its vendored fallback) and PLAN section 11 (test architecture, unit/property
-category). Owning work order: **WO-002** (frozen tests; LEAD). Binds the WO-016 must-pass line of
+category). Owning task: a later task (frozen tests; maintainer). Binds the corresponding task must-pass line of
 PLAN section 12.3, verbatim - "`tests/unit/test_phenomena_p1.py` (estimator on synthetic densities
 with known excess mass recovers it within 5%; hole mass; SE by bootstrap; fallback and
 `forensics_core` signatures identical)". Modules under test: `gosplan/metrics/phenomena.py`,
@@ -18,11 +18,11 @@ Measurement window (PLAN section 4.4): periods `t >= 2`; no end-of-episode exclu
 termination; reports at `rho_max` included in the histogram and flagged.
 
 HELD OUT. Rows 2 (storming), 5 (hoarding), 6 (blat) and 7 (hidden reserves) of PLAN section 4.1 are
-Phase-2 emergence claims: WO-016 is forbidden from implementing them, and no test here computes,
+Phase-2 emergence claims: a later task is forbidden from implementing them, and no test here computes,
 plots or asserts any quantity belonging to them. Rows 1 and 4 are **pipeline checks**, not evidence
 for Claim A: if bunching fails to appear the optimiser is broken.
 
-FROZEN BY CONTRACT RULE 2. SKELETON: every test is `@pytest.mark.skeleton` and skipped until WO-016
+FROZEN BY CONTRACT RULE 2. SKELETON: every test is `@pytest.mark.skeleton` and skipped until a later task
 lands; each docstring states the exact assertion, formula and tolerance.
 """
 
@@ -131,7 +131,7 @@ def test_estimator_recovers_a_known_excess_mass_within_five_percent(implemented)
     `|b_hat - b_true| / b_true <= 0.05`, at several planted values spanning the range gate G2
     cares about.
 
-    First bullet of the WO-016 must-pass list; tolerance 5% is PLAN section 12.3's, verbatim.
+    First bullet of the corresponding task must-pass list; tolerance 5% is PLAN section 12.3's, verbatim.
     """
     estimate = _estimator(implemented)
     rng = np.random.default_rng(0)
@@ -197,7 +197,7 @@ def test_standard_error_is_a_bootstrap_over_seeds(implemented) -> None:
     materially smaller `se` on the same data, and the estimator must not do that. `ci_lo` and
     `ci_hi` bracket `excess_mass` and widen as the number of seeds falls.
 
-    Third bullet of the WO-016 must-pass list. Seeds are the independent replicates of PLAN section
+    Third bullet of the corresponding task must-pass list. Seeds are the independent replicates of PLAN section
     4.3; treating reports as independent would understate every interval in the paper.
     """
     estimate = _estimator(implemented)
@@ -284,7 +284,7 @@ def test_fallback_and_forensics_core_expose_identical_signatures(implemented) ->
     `excess_mass` values agree to within the estimator's own tolerance; when it is not, the test
     asserts the fallback resolved and `name == FALLBACK_BACKEND`.
 
-    Fourth bullet of the WO-016 must-pass list. `backend.name` and `backend.version` are written to
+    Fourth bullet of the corresponding task must-pass list. `backend.name` and `backend.version` are written to
     the manifest (`estimator_backend`, `estimator_version`, CONTRACT rule 10), so a `b_hat` is
     always traceable to the code that produced it.
     """

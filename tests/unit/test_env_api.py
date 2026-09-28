@@ -2,7 +2,7 @@
 
 Realises: PLAN sections 2.3 (actions and their bounds), 2.5 (the period schedule as a typed state
 machine) and 2.12 (horizon), and PLAN section 11 (test architecture, unit/property category). Owning
-work order: **WO-002** (frozen tests; LEAD). Binds the WO-009 must-pass line of PLAN section 12.3,
+task: a later task (frozen tests; maintainer). Binds the corresponding task must-pass line of PLAN section 12.3,
 verbatim - "`tests/unit/test_env_api.py`". Modules under test: `gosplan/env/env.py`,
 `gosplan/env/step.py`, `gosplan/env/state.py`.
 
@@ -22,11 +22,11 @@ relevant to the current phase are **ignored** by the environment, never rejected
 environment never trusts an agent to have masked them itself.
 
 CONTRACT RULE 6: `StepInfo` carries true quantities for the ledger and for lead-run experiments; no
-agent, policy or reward term may read it (the WO-010 forbidden list names "any agent reading
+agent, policy or reward term may read it (the forbidden list names "any agent reading
 `StepInfo`"). CONTRACT RULE 8: `report_ratio` is bounded at `rho_max` and the fraction of reports at
 the bound is a logged result.
 
-FROZEN BY CONTRACT RULE 2. SKELETON: every test is `@pytest.mark.skeleton` and skipped until WO-009
+FROZEN BY CONTRACT RULE 2. SKELETON: every test is `@pytest.mark.skeleton` and skipped until a later task
 lands; each docstring states the exact assertion, formula and tolerance.
 """
 
@@ -52,7 +52,7 @@ def _zero_action(cfg):
 
 
 def _fresh(cfg, seed_env, implemented):
-    """A reset `GosplanEnv`, gated on the environment being implemented (WO-009)."""
+    """A reset `GosplanEnv`, gated on the environment being implemented."""
     from gosplan.env.env import GosplanEnv
 
     implemented(GosplanEnv.reset, GosplanEnv.step, GosplanEnv.phase)
@@ -285,7 +285,7 @@ def test_active_action_dims_at_the_phase_1_configuration(p1_cfg, implemented) ->
     when their Phase-2 mechanisms are switched on (`supply.quality_matters`, non-zero
     `capital_dep`/investment, `information.horizontal_visibility > 0`), which the same test checks
     by flipping each toggle. The answer must be a pure function of the configuration and must not
-    change within a run: the PPO adapter builds heads from it once (WO-017).
+    change within a run: the PPO adapter builds heads from it once.
     """
     from gosplan.env.env import GosplanEnv
 
@@ -352,7 +352,7 @@ def test_step_info_is_recorded_to_an_attached_ledger(p1_cfg, implemented) -> Non
     appends exactly `N * P * (M + 1)` records, each carrying the run hash, the episode, `t_period`,
     `k_step`, `phase`, `enterprise` and `sector` that identify it; without a ledger the environment
     runs unchanged and records nothing. No agent-facing code path touches `StepInfo` (CONTRACT rule
-    6, WO-010 forbidden list).
+    6, forbidden list).
     """
     from gosplan.env.env import GosplanEnv
     from gosplan.metrics.ledger import Ledger

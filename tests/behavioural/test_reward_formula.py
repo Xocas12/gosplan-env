@@ -3,7 +3,7 @@
 Realises: PLAN section 11 (behavioural test T-B6) and CONTRACT rule 4, read against PLAN sections
 2.9.1 (the enterprise reward), 2.8 (`bonus`, the audit penalty), 2.9.2 (the fulfilment measure
 `rho` keys on), 2.9.3 (the logged-only aggregates) and finding F9 (why the scale is analytic).
-Owning work order: **WO-002**; on the must-pass list of **WO-007** (`gosplan/env/reward.py`).
+Owning task: a later task; on the must-pass list of a later task (`gosplan/env/reward.py`).
 
 CONTRACT rule 4 (REWARD TERMS), verbatim in substance. The enterprise reward is exactly
 
@@ -14,7 +14,7 @@ with `scale = reward_scale(cfg)` computed analytically from the configuration. N
 no auxiliary reward, no curiosity term, no potential-based term, and **no running reward
 normalisation** - running statistics change the effective reward over training and, with
 heavy-tailed penalties, shrink the notch in normalised units. Per-batch advantage normalisation
-inside PPO is permitted and is checked in `tests/unit/test_ppo_adapter.py` (WO-017), not here.
+inside PPO is permitted and is checked in `tests/unit/test_ppo_adapter.py`, not here.
 
 What T-B6 asserts (PLAN section 11, verbatim): *reward equals the five-term formula recomputed
 independently on random states.* The five terms are `scale`, `c_ik`, `B(rho_i)`,
@@ -55,10 +55,10 @@ import numpy as np
 import pytest
 
 SKIP_REASON = (
-    "skeleton: T-B6 assertions are written by WO-002 (frozen tests); they bind WO-007 "
+    "skeleton: T-B6 assertions are written by frozen tests; they bind a later task "
     "(enterprise_reward, bonus, reward_scale, audit_and_penalise)"
 )
-"""Reason attached to every `@pytest.mark.skip` below; the bodies arrive with WO-002."""
+"""Reason attached to every `@pytest.mark.skip` below; the bodies arrive with a later task."""
 
 Overrides = dict[str, dict[str, object]]
 """Shape of a configuration override document: arm name -> field name -> value, applied on top of
@@ -81,7 +81,7 @@ schedules of PLAN section 2.8 - notched (`w = 0`, `rho_cap = 1.2`), the smooth c
 penalty switches; the fifth removes the slope, leaving the notch alone."""
 
 N_RANDOM_STATES = 512
-"""Random states drawn per configuration and phase. A WO-002 test-design constant: enough to visit
+"""Random states drawn per configuration and phase. A a later task test-design constant: enough to visit
 every branch of every conditional several times, small enough to stay a unit-speed test."""
 
 RANDOM_STATE_SEED = 20021
@@ -188,7 +188,7 @@ def test_produce_step_reward_equals_minus_scaled_cost(overrides: Overrides) -> N
     `state.last_audited` or `state.last_penalty`: re-draw those three fields and assert the reward
     is bitwise unchanged, so no report-step quantity leaks into a production step.
 
-    Owning WO: **WO-002**; binds **WO-007**.
+    Owning WO: a later task; binds a later task.
     """
     from gosplan.env.reward import reward_scale
 
@@ -224,7 +224,7 @@ def test_report_step_reward_equals_five_term_formula(overrides: Overrides) -> No
     Assert `trade_surplus` is `None` or exactly zero throughout Phase 1, so the fifth term is
     present in the formula and inert in the configuration (PLAN section 2.13).
 
-    Owning WO: **WO-002**; binds **WO-007**.
+    Owning WO: a later task; binds a later task.
     """
     from gosplan.env.reward import bonus, reward_scale
 
@@ -259,7 +259,7 @@ def test_no_term_outside_the_contract_rule_4_list() -> None:
     period-level `welfare`, `val_true` and `val_measured` are re-drawn - the reward reads none of
     them (CONTRACT rules 4 and 6).
 
-    Owning WO: **WO-002**; binds **WO-007**.
+    Owning WO: a later task; binds a later task.
     """
     import inspect
 
@@ -294,7 +294,7 @@ def test_scale_is_analytic_and_reward_is_not_normalised() -> None:
 
     The adapter-side half of rule 4 - that the wrapped reference PPO carries no reward
     normalisation and that per-batch advantage normalisation is on - is
-    `tests/unit/test_ppo_adapter.py` (WO-017). Owning WO: **WO-002**; binds **WO-007**.
+    `tests/unit/test_ppo_adapter.py`. Owning WO: a later task; binds a later task.
     """
     import inspect
 

@@ -2,7 +2,7 @@
 
 Realises: PLAN sections 2.7.1-2.7.5 (planner rules, which read only a `PlannerView`), 2.9.2
 (fulfilment measure) and PLAN section 11 (test architecture; property test **T-U4**). Owning work
-order: **WO-002** (frozen tests; LEAD). Binds the WO-006 must-pass line of PLAN section 12.3,
+order: a later task (frozen tests; maintainer). Binds the corresponding task must-pass line of PLAN section 12.3,
 verbatim - "`tests/unit/test_planner.py` (T-U4; allocation sums to `avail_j`; `eta_q = 0` ignores
 requests; `poolfill` in [0,1]; delivery conservation)". Module under test: `gosplan/env/planner.py`.
 
@@ -22,7 +22,7 @@ CONTRACT RULE 7: none of these rules implements a pathology. A claim above stock
 lines of PLAN section 2.7.3 - never rules of their own, and no assertion below asserts a direction
 of agent behaviour.
 
-FROZEN BY CONTRACT RULE 2. SKELETON: every test is `@pytest.mark.skeleton` and skipped until WO-006
+FROZEN BY CONTRACT RULE 2. SKELETON: every test is `@pytest.mark.skeleton` and skipped until a later task
 lands; each docstring states the exact assertion, formula and tolerance.
 """
 
@@ -247,7 +247,7 @@ def test_allocation_sums_to_available_supply_per_good(p1_cfg, implemented) -> No
     exists, not what exists. The `1e-6` regularisers keep the weights finite when a need or a
     request is zero, which the test must exercise with a zero-need buyer and a zero-request buyer.
 
-    Second bullet of the WO-006 must-pass list.
+    Second bullet of the corresponding task must-pass list.
     """
     from gosplan.env.planner import allocate
 
@@ -277,7 +277,7 @@ def test_allocation_ignores_requests_at_zero_request_elasticity(p1_cfg, implemen
     PLAN section 4.2) the allocation must instead vary with requests, which the same test asserts as
     its complement.
 
-    Third bullet of the WO-006 must-pass list, and finding F7: in Phase 1 requests are logged but
+    Third bullet of the corresponding task must-pass list, and finding F7: in Phase 1 requests are logged but
     inert. The Phase-2 change is a rule about weights, never an instruction to inflate a request
     (CONTRACT rule 7).
     """
@@ -303,7 +303,7 @@ def test_poolfill_lies_in_the_unit_interval(p1_cfg, implemented) -> None:
     pool. A sector with no claims at all gives `poolfill_j = 1` (the empty-pool convention that
     keeps `deliv = alloc * poolfill` well defined when `alloc` is already 0).
 
-    Fourth bullet of the WO-006 must-pass list.
+    Fourth bullet of the corresponding task must-pass list.
     """
     from gosplan.env.planner import allocate, deliver
 
@@ -337,7 +337,7 @@ def test_delivery_conserves_goods(p1_cfg, tiny_cfg, implemented) -> None:
     sinks in the whole period are the holding loss and the inventory cap of PLAN section 2.11, both
     of which belong to REPORT, not DELIVER.
 
-    Fifth bullet of the WO-006 must-pass list, and the DELIVER half of test T-U1.
+    Fifth bullet of the corresponding task must-pass list, and the DELIVER half of test T-U1.
     """
     from gosplan.env.planner import allocate, deliver
 
@@ -364,7 +364,7 @@ def test_fill_is_one_when_the_claim_is_zero(p1_cfg, implemented) -> None:
     Assertion: for an enterprise with `claimed_i = 0`, `deliver` returns `fill_i == 1.0` exactly
     (whatever its stock), ships nothing, and leaves its stock unchanged; no NaN, no warning, and the
     zero claim contributes 0 to both the numerator and the denominator of its sector's `poolfill`.
-    Stated explicitly in PLAN section 2.7.3 and in the WO-006 card.
+    Stated explicitly in PLAN section 2.7.3 and in its task specification.
     """
     from gosplan.env.planner import allocate, deliver
 
@@ -426,7 +426,7 @@ def test_planner_view_filters_are_the_identity_at_phase_1(p1_cfg, implemented) -
         channel noise `claimed_i <- claimed_i * exp(xi_i)`, `xi ~ N(0, sigma_ch**2)`,
                       key `(seed_env, "channel", t, i)`
 
-    The WO-006 card requires all three branches to be implemented even though Phase 1 makes each of
+    The task specification requires all three branches to be implemented even though Phase 1 makes each of
     them the identity - "implement them (they are in the frozen signature), test the identity case".
     """
     from gosplan.env.planner import make_planner_view
