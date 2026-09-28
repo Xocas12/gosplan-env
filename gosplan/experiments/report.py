@@ -27,6 +27,7 @@ SECTIONS: tuple[tuple[str, str], ...] = (
     ("Phase 3 - estimator-bias study (WO-034)", "runs/estimator_bias/report.md"),
     ("Phase 3 - price-vector sensitivity (WO-036)", "runs/price_sensitivity/report.md"),
     ("Phase 3 - LLM ministry study (WO-035)", "runs/llm_study/report.md"),
+    ("Phase 3 - record", "runs/P3_record.md"),
 )
 """Every report the final report embeds, in reading order."""
 

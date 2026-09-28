@@ -4,18 +4,24 @@ Design: spec/P3_REVISION.md S4. Truth: (a) the DP's exact stationary distributio
 
 ## Pre-registered setting (excl[0.95,1.02]|deg9|bw0.005)
 
-| w | cap | DP truth | DP-sample bias | sim truth | sim bias | sim RMSE | CI coverage |
-|---|---|---|---|---|---|---|---|
-| 0.0 | 1.2 | nan | nan | 64.189 | 40497.882 | 97089.650 | 0.00 |
-| 0.0 | inf | nan | nan | 72.461 | -41.530 | 48.069 | 0.00 |
-| 0.02 | 1.2 | nan | nan | -3.405 | -0.486 | 0.530 | 0.20 |
-| 0.02 | inf | nan | nan | -2.883 | -0.931 | 0.950 | 0.00 |
-| 0.05 | 1.2 | nan | nan | -2.293 | -0.770 | 1.080 | 0.40 |
-| 0.05 | inf | nan | nan | -1.710 | -1.292 | 1.568 | 0.00 |
-| 0.1 | 1.2 | nan | nan | -0.643 | -1.383 | 1.682 | 0.20 |
-| 0.1 | inf | nan | nan | -1.468 | -0.525 | 1.466 | 0.20 |
-| 0.25 | 1.2 | nan | nan | 0.000 | 0.368 | 0.912 | 0.40 |
-| 0.25 | inf | nan | nan | 0.000 | 0.078 | 1.692 | 0.33 |
+| w | cap | DP P(rho in [1.00,1.02]) | DP truth | sim truth | defined / seeds | sim bias | sim RMSE | sim median error | CI coverage |
+|---|---|---|---|---|---|---|---|---|---|
+| 0.0 | 1.2 | 0.879 | undefined | 64.189 | 18 / 30 | 40497.882 | 97089.650 | 25.524 | 0.00 |
+| 0.0 | inf | 0.879 | undefined | 72.461 | 3 / 5 | -41.530 | 48.069 | -52.385 | 0.00 |
+| 0.02 | 1.2 | 0.000 | undefined | -3.405 | 5 / 5 | -0.486 | 0.530 | -0.592 | 0.20 |
+| 0.02 | inf | 0.000 | undefined | -2.883 | 5 / 5 | -0.931 | 0.950 | -0.999 | 0.00 |
+| 0.05 | 1.2 | 0.000 | undefined | -2.293 | 5 / 5 | -0.770 | 1.080 | -0.735 | 0.40 |
+| 0.05 | inf | 0.000 | undefined | -1.710 | 5 / 5 | -1.292 | 1.568 | -1.594 | 0.00 |
+| 0.1 | 1.2 | 0.000 | undefined | -0.643 | 5 / 5 | -1.383 | 1.682 | -1.409 | 0.20 |
+| 0.1 | inf | 0.000 | undefined | -1.468 | 5 / 5 | -0.525 | 1.466 | -0.462 | 0.20 |
+| 0.25 | 1.2 | 0.000 | undefined | 0.000 | 5 / 5 | 0.368 | 0.912 | 0.201 | 0.40 |
+| 0.25 | inf | 0.000 | undefined | 0.000 | 30 / 30 | 0.078 | 1.692 | 0.078 | 0.33 |
+
+Notes (read before the numbers):
+
+- **DP truth is undefined in the estimator's units on every arm.** The DP's reports lie on its 0.02 report grid, so its stationary distribution is a set of point masses. Every smooth (w = 0.25) counterpart puts zero mass in the excess window [1.00, 1.02], and S4's truth divides by that counterpart's mean per-bin mass there. The DP column therefore reports the defined quantity, the DP's probability of a report in the window. The estimator is not scored against the DP (the estimator on a 0.02-grid point mass is degenerate at bin width 0.005 or 0.01 by construction).
+- **Undefined estimates are counted, not dropped silently.** When a seed's measured mass falls almost entirely inside the excluded window, the polynomial counterfactual has no support and the estimate is infinite or its CI undefined (AMBIGUITY-022, as in the Phase-1 gate report). `defined / seeds` counts the seeds that enter bias, RMSE and median error. Near-zero but positive counterfactual support gives finite but huge estimates, which dominate the mean; the median error is shown beside it as a supplementary, robust summary (added when reporting, not pre-registered).
+- These are the study's findings about the estimator under full bunching; nothing was re-tuned (PLAN section 4.5).
 
 ## Across settings (simulation; mean |bias| over arms, mean coverage)
 
