@@ -56,6 +56,10 @@ dev = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build.targets.sdist]
+# Run artefacts (checkpoints, ledgers, symlinked audit subsets) are results, not package source.
+exclude = ["runs/"]
+
 [tool.hatch.build.targets.wheel]
 # Flat layout: PLAN section 8 puts gosplan/ at the repository root, not under src/.
 packages = ["gosplan"]
