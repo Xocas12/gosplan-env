@@ -47,6 +47,30 @@ def test_summary_statistics() -> None:
     assert out["ci_coverage"][key] == pytest.approx(0.75)
 
 
+def test_undefined_estimates_are_counted() -> None:
+    from gosplan.experiments.estimator_bias import summarise
+
+    rows = [
+        {
+            "source": "simulation",
+            "w": 0.0,
+            "rho_cap": 1.2,
+            "setting": "s",
+            "truth": 1.0,
+            "b_hat": b,
+            "ci_lo": float("nan"),
+            "ci_hi": float("nan"),
+        }
+        for b in (float("inf"), 2.0, 3.0, 100.0)
+    ]
+    out = summarise(rows)
+    key = "simulation|0.0|1.2|s"
+    assert out["n_total"][key] == 4
+    assert out["n_defined"][key] == 3
+    assert out["median_error"][key] == pytest.approx(2.0)
+    assert math.isnan(out["ci_coverage"][key])
+
+
 def test_grid_and_reuse() -> None:
     from gosplan.experiments.estimator_bias import (
         ESTIMATOR_GRID,

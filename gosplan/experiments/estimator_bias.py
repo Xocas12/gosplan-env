@@ -301,6 +301,12 @@ def run(
         "bias": stats["bias"],
         "rmse": stats["rmse"],
         "ci_coverage": stats["ci_coverage"],
+        "median_error": stats["median_error"],
+        "n_defined": stats["n_defined"],
+        "n_total": stats["n_total"],
+        "dp_window_mass": {
+            f"{k[0]}|{k[1]}": float(np.mean((dp_rho[k] >= 1.0) & (dp_rho[k] <= 1.02))) for k in arms
+        },
         "power_curve": power,
         "estimator": backend[0],
         "estimator_version": backend[1],
@@ -443,19 +449,31 @@ def summarise(rows: list[dict[str, object]]) -> dict[str, dict[str, float]]:
     groups: dict[str, list[dict]] = {}
     for r in rows:
         groups.setdefault(f"{r['source']}|{r['w']}|{r['rho_cap']}|{r['setting']}", []).append(r)
-    bias, rmse, cov = {}, {}, {}
+    bias, rmse, cov, med, n_def, n_tot = {}, {}, {}, {}, {}, {}
     for key, rs in groups.items():
         err = np.array([r["b_hat"] - r["truth"] for r in rs], dtype=float)
+        n_tot[key] = int(err.size)
         err = err[np.isfinite(err)]
+        # An undefined estimate (no counterfactual support, AMBIGUITY-022) or an undefined truth
+        # drops out of bias and RMSE; `n_defined` says how many remain, so none vanish silently.
+        n_def[key] = int(err.size)
         bias[key] = float(err.mean()) if err.size else float("nan")
         rmse[key] = float(np.sqrt((err**2).mean())) if err.size else float("nan")
+        med[key] = float(np.median(err)) if err.size else float("nan")
         covered = [
             r["ci_lo"] <= r["truth"] <= r["ci_hi"]
             for r in rs
             if np.isfinite(r["truth"]) and np.isfinite(r["ci_lo"]) and np.isfinite(r["ci_hi"])
         ]
         cov[key] = float(np.mean(covered)) if covered else float("nan")
-    return {"bias": bias, "rmse": rmse, "ci_coverage": cov}
+    return {
+        "bias": bias,
+        "rmse": rmse,
+        "ci_coverage": cov,
+        "median_error": med,
+        "n_defined": n_def,
+        "n_total": n_tot,
+    }
 
 
 def measure_rho_seed(job: tuple) -> list[list[float]]:
@@ -620,20 +638,43 @@ def render_report(res: dict, grid) -> str:
         "",
         f"## Pre-registered setting ({pre})",
         "",
-        "| w | cap | DP truth | DP-sample bias | sim truth | sim bias | sim RMSE | CI coverage |",
-        "|---|---|---|---|---|---|---|---|",
+        "| w | cap | DP P(rho in [1.00,1.02]) | DP truth | sim truth | defined / seeds | "
+        "sim bias | sim RMSE | sim median error | CI coverage |",
+        "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for arm in res["arms"]:
         w, cap = arm["w"], arm["rho_cap"]
-        k_dp = f"dp_exact|{w}|{cap}|{pre}"
         k_sim = f"simulation|{w}|{cap}|{pre}"
         lines.append(
-            f"| {w} | {cap} | {_truth(res, 'dp', w, cap, pre)} | "
-            f"{res['bias'].get(k_dp, float('nan')):.3f} | "
-            f"{_truth(res, 'sim', w, cap, pre)} | {res['bias'].get(k_sim, float('nan')):.3f} | "
+            f"| {w} | {cap} | {res.get('dp_window_mass', {}).get(f'{w}|{cap}', float('nan')):.3f} | "
+            f"{_truth(res, 'dp', w, cap, pre)} | {_truth(res, 'sim', w, cap, pre)} | "
+            f"{res.get('n_defined', {}).get(k_sim, '-')} / {res.get('n_total', {}).get(k_sim, '-')} | "
+            f"{res['bias'].get(k_sim, float('nan')):.3f} | "
             f"{res['rmse'].get(k_sim, float('nan')):.3f} | "
+            f"{res.get('median_error', {}).get(k_sim, float('nan')):.3f} | "
             f"{res['ci_coverage'].get(k_sim, float('nan')):.2f} |"
         )
+    lines += [
+        "",
+        "Notes (read before the numbers):",
+        "",
+        "- **DP truth is undefined in the estimator's units on every arm.** The DP's reports lie on "
+        "its 0.02 report grid, so its stationary distribution is a set of point masses. Every "
+        "smooth (w = 0.25) counterpart puts zero mass in the excess window [1.00, 1.02], and S4's "
+        "truth divides by that counterpart's mean per-bin mass there. The DP column therefore "
+        "reports the defined quantity, the DP's probability of a report in the window. The "
+        "estimator is not scored against the DP (the estimator on a 0.02-grid point mass is "
+        "degenerate at bin width 0.005 or 0.01 by construction).",
+        "- **Undefined estimates are counted, not dropped silently.** When a seed's measured mass "
+        "falls almost entirely inside the excluded window, the polynomial counterfactual has no "
+        "support and the estimate is infinite or its CI undefined (AMBIGUITY-022, as in the "
+        "Phase-1 gate report). `defined / seeds` counts the seeds that enter bias, RMSE and median "
+        "error. Near-zero but positive counterfactual support gives finite but huge estimates, "
+        "which dominate the mean; the median error is shown beside it as a supplementary, "
+        "robust summary (added when reporting, not pre-registered).",
+        "- These are the study's findings about the estimator under full bunching; nothing was "
+        "re-tuned (PLAN section 4.5).",
+    ]
     lines += [
         "",
         "## Across settings (simulation; mean |bias| over arms, mean coverage)",
@@ -674,7 +715,9 @@ def render_report(res: dict, grid) -> str:
 def _truth(res, which: str, w, cap, sid: str) -> str:
     d = res["dp_truth"] if which == "dp" else res["sim_truth"]
     v = d.get(f"{w}|{cap}|{sid}")
-    return "n/a" if v is None else f"{v:.3f}"
+    if v is None:
+        return "n/a"
+    return "undefined" if not np.isfinite(v) else f"{v:.3f}"
 
 
 if __name__ == "__main__":
