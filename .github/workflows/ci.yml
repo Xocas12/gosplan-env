@@ -39,10 +39,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up uv and Python 3.12
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.12"
           # setup-uv's own cache, keyed on the lock file; no actions/cache step needed.
@@ -71,10 +71,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up uv and Python 3.12
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.12"
           enable-cache: true
@@ -88,7 +88,7 @@ jobs:
 
       - name: Upload junit.xml
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: junit-${{ github.run_id }}-${{ github.run_attempt }}
           path: junit.xml
@@ -122,14 +122,14 @@ jobs:
             exit 1
           fi
           if grep -n 'tests/acceptance' collected.txt; then
-            echo "::error file=pyproject.toml,line=68::CONTRACT rule 13 violated (TESTS ARE NOT EXPERIMENTS): pytest collected an item under tests/acceptance/. That directory holds the lead-run gate experiments G0-G4 of PLAN section 13; nothing there is a unit test, nothing there is on a work order must-pass list, and no CI run and no implementer session executes it. Restore both guards: every file there is named gate_*.py and never test_*.py, and [tool.pytest.ini_options] testpaths lists only tests/unit, tests/behavioural and tests/golden."
+            echo "::error file=pyproject.toml,line=68::CONTRACT rule 13 violated (TESTS ARE NOT EXPERIMENTS): pytest collected an item under tests/acceptance/. That directory holds the lead-run gate experiments G0-G4 of PLAN section 13; nothing there is a unit test, nothing there is on a task must-pass list, and no CI run and no contributor executes it. Restore both guards: every file there is named gate_*.py and never test_*.py, and [tool.pytest.ini_options] testpaths lists only tests/unit, tests/behavioural and tests/golden."
             exit 1
           fi
           echo "OK: nothing collected under tests/acceptance/ (CONTRACT rule 13)."
 
       - name: Upload collection report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: collected-${{ github.run_id }}-${{ github.run_attempt }}
           path: collected.txt
@@ -148,13 +148,13 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # Full history: on a pull request the guard diffs against the base commit.
           fetch-depth: 0
 
       - name: Set up uv and Python 3.12
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.12"
           enable-cache: true
@@ -187,10 +187,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up uv and Python 3.12
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.12"
           enable-cache: true
@@ -200,7 +200,7 @@ jobs:
         run: uv build
 
       - name: Upload dist
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dist-${{ github.run_id }}-${{ github.run_attempt }}
           path: dist/

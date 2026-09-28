@@ -2,9 +2,9 @@
 
 Realises: PLAN section 11 (behavioural test T-B1) and CONTRACT rule 7, read against PLAN sections
 2.6-2.8 (the transition rules the clauses probe), 4.1 (phenomena and their classes), 4.4
-(measurement window) and 4.5 (the pre-registered histogram settings). Owning work order:
-**WO-002** (the LEAD writes `ref/`, `tests/unit`, `tests/behavioural`, `tests/golden`). It is on
-the must-pass list of **WO-010** (heuristic agents) and is the standing check every
+(measurement window) and 4.5 (the pre-registered histogram settings). Owning task:
+a later task (the maintainer writes `ref/`, `tests/unit`, `tests/behavioural`, `tests/golden`). It is on
+the must-pass list of a later task (heuristic agents) and is the standing check every
 `gosplan/env/` diff is measured against.
 
 CONTRACT rule 7 (NO HARD-CODED PATHOLOGY): no transition rule or reward term may implement
@@ -17,7 +17,7 @@ check the rule names by path.
     configuration below - is not pushed into pathological behaviour by the environment itself. It
     cannot show that no rule anywhere encodes a pathology: a rule that fires only under a
     configuration, a state or a policy this file never visits passes it untouched. CONTRACT rule 7
-    therefore also requires that **the LEAD reviews every `gosplan/env/` diff against rule 7**, by
+    therefore also requires that **the maintainer reviews every `gosplan/env/` diff against rule 7**, by
     reading it, at gate G0 (PLAN section 13) and at every later change. A green T-B1 never
     substitutes for that review, and no session may cite this file as evidence that a rule is
     admissible.
@@ -54,7 +54,7 @@ HELD-OUT PHENOMENA (PLAN section 4.1). Clause 3 computes a within-period effort 
 *operationalisation* of row 2 (storming). It is admissible here, and only here, because it is an
 **equality against the mechanically implied value**: no baseline is subtracted, no excess is
 formed, no direction is asserted and no number is reported. Rows 2, 5, 6 and 7 are computed as
-phenomena for the first time in the Phase-2 acceptance run (WO-030). Nothing in this file may
+phenomena for the first time in the Phase-2 acceptance run. Nothing in this file may
 compute request inflation as a *statistic*, `corr(X_ij, 1 - fill_downstream)`, trade volume as a
 *measurement*, or `max(0, S_i - R_i) / T_i`.
 """
@@ -65,10 +65,10 @@ import numpy as np
 import pytest
 
 SKIP_REASON = (
-    "skeleton: T-B1 assertions are written by WO-002 (frozen tests); the behaviour they bind is "
-    "WO-010 (heuristic agents) on the environment of WO-005..WO-009"
+    "skeleton: T-B1 assertions are written by frozen tests; the behaviour they bind is "
+    "heuristic agents on the environment of a later task..a later task"
 )
-"""Reason attached to every `@pytest.mark.skip` below. The bodies are supplied by WO-002; until
+"""Reason attached to every `@pytest.mark.skip` below. The bodies are supplied by a later task; until
 then each test raises `NotImplementedError` and is skipped, so a skeleton checkout is green."""
 
 TB1_CONFIG_OVERRIDES: dict[str, dict[str, object]] = {
@@ -88,7 +88,7 @@ TB1_AGENT = "TruthfulMyopic"
 """The policy named by PLAN section 11's T-B1 clause: `gosplan.agents.heuristic.TruthfulMyopic`."""
 
 TB1_SEEDS: tuple[int, ...] = tuple(range(30))
-"""Environment seeds rolled out, one episode each. A WO-002 test-design constant, not a PLAN
+"""Environment seeds rolled out, one episode each. A a later task test-design constant, not a PLAN
 number: PLAN section 11 fixes the configuration, the policy and the clauses, not the sample size.
 Thirty geometric episodes at `N = 20` give of the order of 6,000 REPORT rows, enough for clause
 2's histogram; changing it changes the precision of the clauses, never what they assert."""
@@ -106,7 +106,7 @@ neighbours (PLAN section 11, verbatim)."""
 
 HIST_BIN_WIDTH = 0.005
 """Histogram bin width for clause 2, taken from the pre-registered bunching settings of PLAN
-section 4.5 so that this file and `phenomenon_bunching` (WO-016) bin identically."""
+section 4.5 so that this file and `phenomenon_bunching` bin identically."""
 
 HIST_RANGE: tuple[float, float] = (0.6, 1.4)
 """Histogram support for clause 2, also from PLAN section 4.5. Reports outside it - including any
@@ -195,8 +195,8 @@ def test_truthful_report_equals_stock() -> None:
     satisfy the identity only by coincidence, and the clip would be doing the work.
 
     A failure means the environment rewrote a report: padding implemented in `gosplan/env/`, which
-    is exactly what CONTRACT rule 7 forbids. Owning WO: **WO-002**; binds **WO-007**
-    (`process_reports`) and **WO-010**.
+    is exactly what CONTRACT rule 7 forbids. Owning WO: a later task; binds a later task
+    (`process_reports`) and a later task.
     """
     cfg = _cfg(**TB1_CONFIG_OVERRIDES)
     for seed in TB1_SEEDS[:5]:
@@ -223,15 +223,15 @@ def test_report_histogram_has_no_spike() -> None:
     of reports that fell outside `HIST_RANGE` or at `rho_max`: those are counted and displayed
     (CONTRACT rule 8), never discarded.
 
-    The restriction to bins with two non-empty neighbours is WO-002's reading of PLAN section 11's
+    The restriction to bins with two non-empty neighbours is a later task's reading of PLAN section 11's
     clause - an isolated bin in the tail of a smooth density carries no information about bunching,
     while a spike inside the support is exactly what a hard-coded notch would produce. An
-    implementer who finds that reading under-determined for a configuration it must run files an
-    AMBIGUITY REPORT (CONTRACT rule 3); it never re-bins to get a pass.
+    contributor who finds that reading under-determined for a configuration it must run files an
+    OPEN QUESTION (CONTRACT rule 3); it never re-bins to get a pass.
 
     Under `w = 0.25` and `rho_cap = inf` the bonus is smooth with a continuous derivative everywhere
     (PLAN section 2.8), so a truthful policy has nothing to bunch at: a spike means the environment
-    manufactured one. Owning WO: **WO-002**.
+    manufactured one. Owning WO: a later task.
     """
     cfg = _cfg(**TB1_CONFIG_OVERRIDES)
     ratios = []
@@ -272,7 +272,7 @@ def test_effort_gini_equals_yield_noise_implied_value() -> None:
     HELD-OUT DISCIPLINE (PLAN section 4.1 row 2): this is an equality against a mechanically
     implied value. No baseline ledger is subtracted, no excess is formed, no direction is asserted
     and nothing is written to a report. The storming phenomenon itself is computed for the first
-    time by `phenomenon_storming` in the Phase-2 acceptance run (WO-030). Owning WO: **WO-002**.
+    time by `phenomenon_storming` in the Phase-2 acceptance run. Owning WO: a later task.
     """
     cfg = _cfg(**TB1_CONFIG_OVERRIDES)
     for seed in TB1_SEEDS[:5]:
@@ -300,7 +300,7 @@ def test_no_trade_occurs() -> None:
     environment acting against its own configuration.
 
     HELD-OUT DISCIPLINE (PLAN section 4.1 row 6): this asserts absence; it does not *measure* trade
-    volume as the blat statistic, which is `phenomenon_blat` in WO-030. Owning WO: **WO-002**.
+    volume as the blat statistic, which is `phenomenon_blat` in a later task. Owning WO: a later task.
     """
     cfg = _cfg(**TB1_CONFIG_OVERRIDES)
     for seed in TB1_SEEDS[:5]:
@@ -323,8 +323,7 @@ def test_requests_equal_need() -> None:
 
     HELD-OUT DISCIPLINE (PLAN section 4.1 row 5): this is an identity on one truthful policy's
     action. Request inflation `q_ij / need_ij` as a *statistic*, and any correlation between held
-    inputs and downstream fill, belong to `phenomenon_hoarding` in the Phase-2 acceptance run
-    (WO-030) and appear nowhere in this file. Owning WO: **WO-002**.
+    inputs and downstream fill, belong to `phenomenon_hoarding` in the Phase-2 acceptance run and appear nowhere in this file. Owning WO: a later task.
     """
     cfg = _cfg(**TB1_CONFIG_OVERRIDES)
     for seed in TB1_SEEDS[:5]:

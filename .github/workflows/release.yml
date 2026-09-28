@@ -10,9 +10,9 @@
 # earn a tag:
 #
 #   v0.1.0  the interface-complete skeleton (spec v0, provisional)
-#   v0.2.0  the spec v1 freeze of WO-013 at gate G1 -- after this tag only the lead may
+#   v0.2.0  the spec v1 freeze of a later task at gate G1 -- after this tag only the lead may
 #           change spec/spec.py, and only with a spec/CHANGELOG.md entry naming the
-#           version, the reason and the affected work orders (CONTRACT rule 1)
+#           version, the reason and the affected tasks (CONTRACT rule 1)
 #   later   one tag per gate whose artefacts are cited in a report (G2, G3, G4)
 #
 # Cut a tag only on a commit that CI has already passed on `main`; this workflow rebuilds
@@ -40,13 +40,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # Full history so generated release notes can diff against the previous tag.
           fetch-depth: 0
 
       - name: Set up uv and Python 3.12
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.12"
           enable-cache: true
@@ -59,7 +59,7 @@ jobs:
         run: ls -l dist
 
       - name: Upload dist as a workflow artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dist-${{ github.ref_name }}
           path: dist/
@@ -71,7 +71,7 @@ jobs:
       # skipped.
       - name: Attach artefacts to the GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: dist/*
           generate_release_notes: true
@@ -82,4 +82,4 @@ jobs:
 
             Not published to PyPI. This tag marks a spec or gate boundary; see
             `CONTRACT.md` rule 1 (frozen spec) and `spec/CHANGELOG.md` for what changed
-            and which work orders it affects.
+            and which tasks it affects.
