@@ -10,8 +10,9 @@ owner runs S5. Written on 2026-09-28.
 
 ## Limitations carried into every Phase-3 number
 
-- **L1 and L2** (`runs/G2_record.md`): the learner does not reach the DP optimum, and the stated
-  learner configuration.
+- **L1 and L2** (`runs/G2_record.md`, `spec/P2_REVISION.md`): the PPO learner does not recover
+  the DP's mixed under-reporting strategy, and the pre-registered bunching estimator is undefined on
+  degenerate distributions and over-confident on sharply peaked ones.
 - **L3** (`runs/G3_record.md`, D1): all Phase-3 runs used spec 2.0.x, where no learner could post
   a trade offer. Every contrast therefore describes an economy **without horizontal trade**. No
   contrast lever is a trade parameter (owner decision 3 at G3).
