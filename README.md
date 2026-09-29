@@ -42,6 +42,7 @@ studies, and that is how they must be cited.
 | G2 | `runs/G2_record.md` | **not passed**: PPO did not recover the single-enterprise DP optimum in three attempts. Criteria 2-4 were run afterwards as a labelled study |
 | G3 | `runs/G3_record.md` | **not passed**: rows 2 and 5 appear; row 7 fails its null test; row 3 and hygiene fail; row 6 was not evaluable because of a trade defect (D1); the exploitability audit was inconclusive (D2) |
 | G3b | `runs/G3b_record.md` | labelled study after the D1 fix (R15) and the revised audit (R16): row 6 **fails behaviourally** (learners post only buy offers, so nothing trades), and the revised audit finds the populations **non-converged** (median exploitability 0.80) |
+| LC | `runs/LC_record.md` | labelled study (R17): tripling the training budget lowers exploitability (median 0.80 to 0.00) but the populations do not converge, and the C0 economy **collapses to near-zero output** (effort 0.02, welfare 0 on every seed) |
 | P3 | `runs/P3_record.md` | contrasts, estimator bias and price sensitivity complete as a labelled study; the LLM study is NOT RUN (it needs model credentials) |
 | G4 | `runs/final_report/report.md` | not met until the LLM study runs; human sign-off pending |
 
@@ -54,6 +55,9 @@ Three limitations travel with every learned-agent number:
   could post a trade offer (G3 D1).
 - **L4.** Under the revised audit (R16) the learned C0 populations are not approximate equilibria:
   a warm-started best responder gains on 9 of 10 seeds (G3b).
+- **L5.** Learned-economy outcomes depend on the training budget: at 3M agent-steps the C0
+  economy collapses to near-zero output (LC). Every learned-agent number here comes from
+  1M-step populations and describes a point on a learning trajectory, not a steady state.
 
 The learned Phase-2 economy is heavily degraded: `welfare_ratio` is about 0.03, where the
 truthful-myopic baseline reaches about 0.53. Every contrast is a movement within that economy.

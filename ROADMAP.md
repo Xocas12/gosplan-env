@@ -292,7 +292,7 @@ The Phase-2 spec revision is `spec/P2_REVISION.md` (R1-R16).
 | Exploitability harness | **done** - `gosplan/experiments/exploitability.py`; revised by R16 after G3 found the audit inconclusive (D2) |
 | JAX port | **done** - `gosplan/jax/`, NumPy parity about 1e-13 |
 | Held-out phenomena metrics (rows 2, 3, 5, 6, 7) and the Phase-2 heuristic agents | **done** - first computed in the acceptance run |
-| Phase-2 acceptance experiment | **run** - `runs/phase2_acceptance/report.md`; the labelled G3b study (R15, R16) is `runs/G3b_record.md`: row 6 fails behaviourally, populations non-converged |
+| Phase-2 acceptance experiment | **run** - `runs/phase2_acceptance/report.md`; the labelled G3b study (R15, R16) is `runs/G3b_record.md`: row 6 fails behaviourally, populations non-converged; the learner-convergence study LC (R17) is `runs/LC_record.md` |
 
 The four held-out phenomena were measured for the first time in the acceptance run only.
 `scripts/contract_guard.py` still fails CI if a Phase-1 module so much as calls one.
