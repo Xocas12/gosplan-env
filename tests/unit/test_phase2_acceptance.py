@@ -97,3 +97,17 @@ def test_price_table_reports_sign_change() -> None:
     out = price_table(rows, w_oracle=1.0, val_oracle_by_vector=[1.0, 1.0, 1.0, 1.0])
     np.testing.assert_allclose(out["specification_gap"], [0.1, -0.1, 0.2, 0.0], atol=1e-12)
     assert out["sign_change"] and out["welfare_ratio"] == 1.0
+
+
+def test_rows_without_their_arm_are_not_evaluated() -> None:
+    from gosplan.experiments.phase2_acceptance import _row7_verdict, heldout_verdicts
+
+    c0 = [_seed() for _ in range(10)]
+    v = heldout_verdicts({"C0": c0, "R7_NULL": [], "R3_QW": []})
+    assert not v["row7_hidden_reserves"]["evaluated"]
+    assert not v["row3_quality"]["evaluated"]
+    assert not v["row7_hidden_reserves"]["appears"]  # never a pass
+    assert _row7_verdict(v["row7_hidden_reserves"]).startswith("NOT EVALUATED")
+    v = heldout_verdicts({"C0": c0, "R7_NULL": [_seed(hidden=0.0)] * 5, "R3_QW": [_seed()] * 5})
+    assert v["row7_hidden_reserves"]["evaluated"] and v["row3_quality"]["evaluated"]
+    assert not _row7_verdict(v["row7_hidden_reserves"]).startswith("NOT EVALUATED")
