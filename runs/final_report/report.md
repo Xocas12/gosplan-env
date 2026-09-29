@@ -701,6 +701,181 @@ Sizing: `{'n_envs': 8, 'rollout_steps': 125, 'total_agent_steps': 1000000, 'eval
 
 ---
 
+## Labelled study LC - record
+
+_Source: `runs/LC_record.md`_
+
+### Labelled study LC - record (LEAD)
+
+**Status: complete. LC is a labelled study and re-evaluates no gate.** G3 (NOT PASSED) and G3b stand
+as recorded. Written on 2026-09-29; the human sign-off is pending.
+
+- Pre-registration: `spec/P2_REVISION.md` R17, committed in cfba026 before any LC run.
+- Driver: `gosplan/experiments/learner_convergence.py`. Report: `runs/learner_convergence/report.md`.
+- Design: C0, seeds 0-9, population budget 3M agent-steps against G3b's 1M. Everything else is
+  unchanged, including the R16 audit.
+- The run started at 09:15 UTC. A container reboot at about 15:25 UTC killed it with 8 of 10 runs
+  complete.
+  - It was relaunched at 15:30 UTC. The 8 completed runs were read back.
+  - The 2 interrupted runs (seeds with hashes `3f0dee0b`, `cc06e97e`) were retrained from scratch
+    with identical configuration.
+  - It finished at 20:04 UTC.
+
+#### Pre-registered outcome (R17)
+
+| Rule | Result |
+|---|---|
+| Exploitability falls with budget (CI upper bound of the median paired difference < 0) | **YES**: median difference -0.857 [95% CI -1.793, -0.130] |
+| Converged at 3M (max over seeds <= 5%) | **NO**: max 0.429; 3 of 10 seeds above the threshold |
+
+Median exploitability went from 0.797 (1M) to -0.003 (3M). Per-seed values are in the report.
+
+#### What the 3M populations are doing: the economy has collapsed to near-zero output
+
+Read the primary result against this before citing it.
+
+| C0, seeds 0-9 | Mean effort | Mean return | Fictitious padding | Welfare (mean W) | welfare_ratio |
+|---|---|---|---|---|---|
+| 1M (G3b) | 0.195 | -16.0 | 0.040 | 0.087 | 0.0335 |
+| 3M (LC) | 0.019 | +0.27 | 0.000 | 0.000 on every seed | 0.0000 |
+
+- With three times the training, the learned enterprises stop producing: mean effort 0.005-0.036
+  on every seed. They also stop padding.
+- Their returns rise from about -16 to about 0. The large losses the 1M populations carried are
+  gone.
+- Welfare is exactly 0 on all 10 seeds. The oracle and the truthful-myopic baseline, on the same
+  configuration, reach W of 1.98 and 1.06, so the environment supports production. The collapse is
+  in what the learners converge to.
+- Every posted trade offer is still a buy order. The mean offer is -1.000, and none of the 3M
+  populations' offers is a sell. Row 6 stays at zero.
+
+**Reading of the primary result.** The fall in exploitability is real by R17's rule, but it is not
+convergence to a functioning equilibrium.
+- The 3M populations sit where returns are near 0 and, with the ratio floor of 1 reward unit, a
+  best responder has little to gain.
+- On two seeds (1003 and 1005) the warm-started best responder ended far *below* the population it
+  started from (ratios -2.7 and -2.2). R16's audit therefore also measures the best-responder
+  learner's own instability, which bounds how much the audit can certify.
+- A plausible mechanism is a no-production coordination trap. Production needs other
+  enterprises' outputs as inputs (near-Leontief, `theta = 8`), so when every supplier produces
+  nothing, effort is wasted. **LC does not test this. It is an interpretation, not a finding.**
+
+#### Consequences
+
+- **L4 stands.** The populations are non-converged at both budgets.
+- **New limitation L5.** Learned-economy outcomes depend on the training budget. At 1M the C0
+  economy is heavily degraded (welfare_ratio 0.034), and at 3M it has collapsed (0.000). Every
+  learned-agent number in this repository comes from 1M-step populations: G3, G3b and the Phase-3
+  contrasts. Each describes a point on a learning trajectory, not a limit, and none may be read as
+  the institution's steady state.
+- The Phase-3 contrasts are not re-run. Whether their deltas hold at 3M is unknown.
+- Any follow-up is the owner's decision and needs a new pre-registration (R17: "no further budget,
+  learner or configuration change follows from it without a new pre-registration"). Candidates:
+  - a learner with a different exploration or population scheme;
+  - contrasts at a fixed longer budget;
+  - a direct test of the coordination-trap reading, for example a population seeded with producers.
+
+---
+
+## Labelled study LC - learner convergence (R17)
+
+_Source: `runs/learner_convergence/report.md`_
+
+### Labelled study LC - learner convergence (spec/P2_REVISION.md R17)
+
+C0, seeds 0-9, population budget 3M agent-steps against G3b's 1M; R16 audit unchanged (warm-started best responder, 1M steps, ratio floor 1). Pre-registered before any LC run. LC re-evaluates no gate; G3 and G3b stand as recorded.
+
+#### Primary: exploitability, seed-paired (3M - 1M)
+
+| seed_env | 1M (G3b) | 3M (LC) | difference |
+|---|---|---|---|
+| 1000 | 0.125 | -0.005 | -0.130 |
+| 1001 | 0.990 | -0.027 | -1.017 |
+| 1002 | 0.341 | 0.429 | 0.088 |
+| 1003 | 0.899 | -2.713 | -3.612 |
+| 1004 | 0.972 | -0.001 | -0.973 |
+| 1005 | 0.364 | -2.249 | -2.613 |
+| 1006 | 0.929 | 0.074 | -0.855 |
+| 1007 | -1.244 | 0.000 | 1.244 |
+| 1008 | 0.983 | 0.125 | -0.859 |
+| 1009 | 0.694 | -0.100 | -0.794 |
+
+- Median exploitability: 1M 0.797, 3M -0.003.
+- Median paired difference -0.857 [95% CI -1.793, -0.130].
+- **Exploitability falls with budget (R17 rule: CI upper bound < 0): YES.**
+- **Converged at 3M (R17 rule: max <= 0.05): NO** - max 0.429, 3 of 10 seeds above the threshold.
+
+#### Secondary (descriptive)
+
+- welfare_ratio: 1M 0.0335, 3M 0.0000.
+- Row-6 trade volume share (mean over seeds): 1M 0.000e+00, 3M 0.000e+00.
+- Posted offers at REPORT, 1M (seeds 0-9, 5 episodes each): sell share 0.000, buy share 1.000, mean offer -0.953.
+- Posted offers at REPORT, 3M (seeds 0-9, 5 episodes each): sell share 0.000, buy share 1.000, mean offer -1.000.
+
+---
+
+#### Acceptance-harness output for the 3M populations
+
+_The harness prints its gate-condition lines and a G3 verdict line. For LC they are descriptive only: LC is a labelled study and re-evaluates no gate._
+
+#### Gate G3 - Phase-2 acceptance (WO-031)
+
+Pre-registration: `spec/P2_REVISION.md` R14. Limitations carried from Phase 1: L1 (PPO does not recover the single-enterprise DP's mixed under-reporting strategy) and L2 (the bunching estimator on degenerate and peaked distributions); see `runs/G2_record.md`.
+
+**G3: NOT PASSED**
+
+##### Conditions
+
+- heldout_evaluated: PASS (rows 2, 5, 6, 7 computed on the PLAN section 4.2 values; appearance is reported per row below)
+- exploitability: FAIL
+- oracle_gap_recorded: PASS
+- jax_parity: PASS
+- price_sensitivity: PASS (computed; a sign change is reported below, never suppressed)
+- hygiene: PASS
+
+##### Held-out phenomena (C0, mean over seeds [95% seed-bootstrap CI])
+
+- Row 2 storming: excess Gini 0.2197 [0.1738, 0.2800] - APPEARS
+- Row 5 hoarding: request inflation excess 1.9819 [1.9518, 1.9981]; corr(X, shortfall) excess 1.0736 [1.0298, 1.1078] (0 seeds with an undefined correlation) - APPEARS
+- Row 6 blat: trade volume share 0.000e+00 [0.000e+00, 0.000e+00] - FAILURE (does not appear)
+- Row 7 hidden reserves: C0 0.0975 [0.0720, 0.1217]; R7_NULL nan [nan, nan] (vanishes if upper < 0.01) - NOT EVALUATED (the R7_NULL arm was not run)
+- Row 3 quality (pipeline check): mean qbar C0 - R3_QW nan [nan, nan] - NOT EVALUATED (the R3_QW arm was not run)
+
+##### Oracle (WO-027)
+
+- C0: W_oracle 1.9836, val_oracle 38.1873, status optimal, solver HiGHS (HiGHS via OR-Tools 9.15.6755), optimality gap 0.00e+00, horizon 40
+- R7_NULL: W_oracle 1.9836, val_oracle 38.1873, status optimal, solver HiGHS (HiGHS via OR-Tools 9.15.6755), optimality gap 0.00e+00, horizon 40
+- R3_QW: W_oracle 1.9836, val_oracle 38.1873, status optimal, solver HiGHS (HiGHS via OR-Tools 9.15.6755), optimality gap 0.00e+00, horizon 40
+- Clairvoyant welfare, C0 seeds 0-4 (UPPER BOUND ONLY, never a denominator): 1.9791, 1.9797, 1.9812, 1.9816, 1.9815
+
+##### Headline metrics and price sensitivity (C0)
+
+- welfare_ratio W / W_oracle: 0.0000
+- specification_gap at base prices and under price seeds (11, 12, 13): 0.0055, 0.0055, 0.0055, 0.0055 - sign change: no
+
+##### Exploitability (WO-028)
+
+- C0: max 0.4286, median -0.0028 over 10 seeds (threshold 0.05, provisional; finalised by the lead at G3 (PLAN section 6.3)) NON-CONVERGED
+
+##### JAX parity (WO-029)
+
+- max |NumPy - JAX| over 100 agent-steps: p1 1.07e-14, p2 7.11e-14 (tolerance 1e-05)
+
+##### Hygiene
+
+- BOUND_BINDING runs: 0
+- max training-episode runaway fraction after 20%: 0.0000 (limit 0.05)
+
+##### Arms and seeds
+
+- C0: 10 seeds, overrides none
+- R7_NULL: 0 seeds, overrides {'incentive': {'growth_directive': 0.0, 'penalty_arg': 'absolute'}}
+- R3_QW: 0 seeds, overrides {'incentive': {'objective_metric': 'quality_weighted'}, 'information': {'quality_measurability': 1.0}}
+
+Sizing: `{'n_envs': 8, 'rollout_steps': 125, 'total_agent_steps': 3000000, 'eval_every_updates': 250, 'eval_episodes': 10, 'measure_episodes': 100}`; git `4c53d493b09f32bcc1ef7636a0f3a8edfcc2d5bc`.
+
+---
+
 ## Phase 3 - contrasts (WO-032)
 
 _Source: `runs/contrasts/report.md`_
@@ -974,6 +1149,13 @@ so row 6 still does not appear. That makes it unlikely, though not shown by a re
 changed the contrasts' C0 leg. The revised audit (R16) finds the C0 populations non-converged
 (median exploitability 0.80). This is limitation **L4**, and it applies to every contrast above.
 
+#### Update (2026-09-29): LC complete
+
+See `runs/LC_record.md`. At three times the training budget, the C0 populations stop producing
+(welfare 0 on every seed). Every contrast above comes from 1M-step populations, so it describes a
+point on a learning trajectory, not a steady state. This is limitation **L5**. The contrasts are not
+re-run at 3M.
+
 #### Next (owner decisions at G3, delegated) - as written before G3b
 
 1. Apply R15 (trade offers posted at REPORT; spec 2.1.0) and R16 (the revised exploitability
@@ -986,5 +1168,5 @@ changed the contrasts' C0 leg. The revised audit (R16) finds the C0 populations 
 
 ## Manifest roll-up (CONTRACT rule 10)
 
-495 run manifests; the full table is `runs/final_report/manifests.md`.
+515 run manifests; the full table is `runs/final_report/manifests.md`.
 
