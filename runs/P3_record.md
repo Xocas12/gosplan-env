@@ -87,6 +87,13 @@ so row 6 still does not appear. That makes it unlikely, though not shown by a re
 changed the contrasts' C0 leg. The revised audit (R16) finds the C0 populations non-converged
 (median exploitability 0.80). This is limitation **L4**, and it applies to every contrast above.
 
+## Update (2026-09-29): LC complete
+
+See `runs/LC_record.md`. At three times the training budget, the C0 populations stop producing
+(welfare 0 on every seed). Every contrast above comes from 1M-step populations, so it describes a
+point on a learning trajectory, not a steady state. This is limitation **L5**. The contrasts are not
+re-run at 3M.
+
 ## Next (owner decisions at G3, delegated) - as written before G3b
 
 1. Apply R15 (trade offers posted at REPORT; spec 2.1.0) and R16 (the revised exploitability
