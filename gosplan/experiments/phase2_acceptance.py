@@ -312,13 +312,19 @@ def heldout_verdicts(per_arm: dict[str, list[dict]]) -> dict[str, dict[str, obje
         "present": present,
         "vanishes_under_null": vanishes,
         "appears": bool(present and vanishes),
+        # Row 7's rule needs the null arm; with no R7_NULL seeds it is not evaluated, not failed.
+        "evaluated": bool(null),
     }
 
     qw = per_arm.get("R3_QW", [])
     ci_q = diff_ci(
         [r["quality"]["mean_quality"] for r in c0], [r["quality"]["mean_quality"] for r in qw]
     )
-    out["row3_quality"] = {"diff_c0_minus_qw": ci_q, "appears": bool(ci_q[2] < 0)}
+    out["row3_quality"] = {
+        "diff_c0_minus_qw": ci_q,
+        "appears": bool(ci_q[2] < 0),
+        "evaluated": bool(qw),
+    }
     return out
 
 
@@ -513,6 +519,15 @@ def _jsonable(value: object) -> object:
     return str(value)
 
 
+def _row7_verdict(r: dict) -> str:
+    """Row 7's verdict text; NOT EVALUATED when the null arm was not run (a labelled study)."""
+    if not r.get("evaluated", True):
+        return "NOT EVALUATED (the R7_NULL arm was not run)"
+    if r["appears"]:
+        return "APPEARS"
+    return f"FAILURE (present: {r['present']}, vanishes under null: {r['vanishes_under_null']})"
+
+
 def _ci(t, fmt: str = ".4f") -> str:
     m, lo, hi = t
     return f"{m:{fmt}} [{lo:{fmt}}, {hi:{fmt}}]"
@@ -555,16 +570,14 @@ def render_report(result: dict) -> str:
         f"{'APPEARS' if v['row6_blat']['appears'] else 'FAILURE (does not appear)'}",
         f"- Row 7 hidden reserves: C0 {_ci(v['row7_hidden_reserves']['c0'])}; R7_NULL "
         f"{_ci(v['row7_hidden_reserves']['null'])} (vanishes if upper < {VANISH_TOL}) - "
-        f"{'APPEARS' if v['row7_hidden_reserves']['appears'] else 'FAILURE'}"
-        + (
-            ""
-            if v["row7_hidden_reserves"]["appears"]
-            else f" (present: {v['row7_hidden_reserves']['present']}, vanishes under null: "
-            f"{v['row7_hidden_reserves']['vanishes_under_null']})"
-        ),
+        + _row7_verdict(v["row7_hidden_reserves"]),
         f"- Row 3 quality (pipeline check): mean qbar C0 - R3_QW "
         f"{_ci(v['row3_quality']['diff_c0_minus_qw'])} - "
-        f"{'APPEARS' if v['row3_quality']['appears'] else 'FAILURE'}",
+        + (
+            ("APPEARS" if v["row3_quality"]["appears"] else "FAILURE")
+            if v["row3_quality"].get("evaluated", True)
+            else "NOT EVALUATED (the R3_QW arm was not run)"
+        ),
         "",
         "## Oracle (WO-027)",
         "",
