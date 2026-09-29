@@ -394,3 +394,39 @@ return, so the audit measured the best responder's weakness, not the population'
 
 **Application.** Implemented with R15, and applied only after the in-flight Phase-3 runs finish.
 Those runs' own exploitability numbers come from the old audit and are labelled as such.
+
+## R17. Learner-convergence study LC (labelled) - pre-registered before any LC run
+
+Written on 2026-09-29, after G3b (`runs/G3b_record.md`) and before any LC training.
+
+**Question.** G3b found the C0 populations non-converged under R16 (median exploitability 0.80;
+limitation L4). Does tripling the population's training budget lower that exploitability?
+
+**Design.**
+- C0 under spec 2.1.0, seeds 0-9 (`seed_env = 1000 + s`, the G3b seeds), learner
+  `phase1_gate.study_ppo_config()`.
+- Gate sizing with `total_agent_steps = 3,000,000`; every other sizing field, and every
+  configuration field, is unchanged.
+- Training, measurement and the R16 audit are `phase2_acceptance.run`, unchanged. The best
+  responder keeps R16's 1M-step budget, so the population budget is the only thing that varies.
+- The 1M leg is G3b's seeds 0-9, read back, not re-run.
+- Artefacts: `runs/learner_convergence/`. Driver: `gosplan/experiments/learner_convergence.py`.
+
+**Primary analysis.**
+- Seed-paired difference `d_s = expl_3M(s) - expl_1M(s)`.
+- Its median, with a 95% percentile bootstrap CI over seeds (10,000 resamples, generator seed 0).
+- "Exploitability falls with budget" iff the CI's upper bound is below 0.
+- "Converged at 3M" iff the maximum over the 10 seeds is at most R16's 5% threshold.
+
+**Secondary, descriptive only (no test).**
+- Welfare ratio.
+- Row-6 trade volume share.
+- The sell and buy shares of offers posted at REPORT, from a deterministic rollout of both
+  budgets' populations (5 episodes per seed on the measurement seed block).
+
+**What LC cannot do.**
+- It re-evaluates no gate, and G3 and G3b stand as recorded.
+- Its outcome is reported whichever way it falls.
+- No further budget, learner or configuration change follows from it without a new
+  pre-registration.
+
