@@ -760,6 +760,13 @@ convergence to a functioning equilibrium.
   enterprises' outputs as inputs (near-Leontief, `theta = 8`), so when every supplier produces
   nothing, effort is wasted. **LC does not test this. It is an interpretation, not a finding.**
 
+#### Update (2026-09-30): the coordination-trap reading was tested
+
+See `runs/CT_record.md`. R18 was pre-registered and run as an evaluation-only test. Against the
+truthful-myopic producer, the 3M collapse **is** a coordination trap: producing alone does not pay,
+and everyone producing pays more. The "interpretation, not a finding" caveat above therefore no
+longer applies to that reading. What training does to reach the trap is still untested.
+
 #### Consequences
 
 - **L4 stands.** The populations are non-converged at both budgets.
@@ -873,6 +880,126 @@ Pre-registration: `spec/P2_REVISION.md` R14. Limitations carried from Phase 1: L
 - R3_QW: 0 seeds, overrides {'incentive': {'objective_metric': 'quality_weighted'}, 'information': {'quality_measurability': 1.0}}
 
 Sizing: `{'n_envs': 8, 'rollout_steps': 125, 'total_agent_steps': 3000000, 'eval_every_updates': 250, 'eval_episodes': 10, 'measure_episodes': 100}`; git `4c53d493b09f32bcc1ef7636a0f3a8edfcc2d5bc`.
+
+---
+
+## Labelled study CT - record
+
+_Source: `runs/CT_record.md`_
+
+### Labelled study CT - record (LEAD)
+
+**Status: complete. CT is a labelled study, is evaluation only (no training) and re-evaluates no
+gate.** Written on 2026-09-30; the human sign-off is pending.
+
+- Pre-registration: `spec/P2_REVISION.md` R18, committed in 18864d0 before the CT evaluation. It
+  discloses a 2-episode smoke run on one seed made to check the code.
+- Driver: `gosplan/experiments/coordination_trap.py`. Report and data:
+  `runs/coordination_trap/report.md`, `result.json`.
+- Design:
+  - Populations: LC's 3M C0 populations (primary) and G3b's 1M populations (contrast), seeds 0-9.
+  - 50 episodes per condition, on the measurement seed block, with deterministic policies and
+    common random numbers.
+  - Producer: `TruthfulMyopic`, the project's reference line. It sets effort to meet the target,
+    reports stock truthfully, requests at need and never trades.
+
+#### Pre-registered outcome (R18)
+
+| Populations | (i) Producing alone does not pay (`d1 = R_dev - R_pop` < 0) | (ii) Everyone producing pays more (`d2 = W_tm - W_pop` > 0) | Coordination trap |
+|---|---|---|---|
+| **3M (primary)** | **yes**: median -1.718 [95% CI -2.240, -1.438] | **yes**: median +0.869 [0.494, 1.303] | **YES** |
+| 1M (contrast) | not shown: median +0.336 [-1.208, 34.004] | yes: median +3.632 [1.539, 40.570] | NO |
+
+**Reading.** The collapse LC found at 3M is a coordination trap in the textbook sense, against the
+truthful-myopic producer:
+
+- Every seed's lone producer loses. Seat 0's return when producing alone is between -1.47 and
+  -1.43, against -0.74 to +1.05 when it plays the learned policy.
+- When every seat produces, the mean seat return is 1.26-1.32. Every seat is better off on 9 of
+  10 seeds, and 95% of seats are on the tenth.
+
+The 1M populations are not a trap. Several are so far from equilibrium (seat-0 returns down to
+-39.6) that producing alone would help. This is consistent with L4.
+
+#### Descriptive observations (not tested)
+
+- **The lone producer's return barely depends on the budget.**
+  - The producer in seat 0 earns almost the same return against the 1M and the 3M populations of
+    each seed, for example -1.425 against both for seed 1000.
+  - Against all-producers, the same seat is better off.
+  - Both learned populations therefore leave a producer similarly short. This fits the input
+    starvation that the hoarding result (row 5) and the buy-only trade offers (row 6, G3b) point
+    to. CT did not measure the producer's input receipts, so this is a reading.
+- **The learned policy responds only weakly to available inputs.** Seat 0's learned effort rises
+  when the other seats are producers: at 3M the median rises from about 0.02 to about 0.14, with
+  seed 1007 flat at 0.006. That is still far below what a producer supplies, so the trained policy
+  has partly unlearned production. It is not only waiting for inputs.
+
+#### Limits
+
+- One producer policy was used. A trap against `TruthfulMyopic` does not show that no producing
+  strategy pays alone.
+- CT reuses the 3M populations as trained. Why training reaches the trap is not tested.
+- No gate is re-evaluated. G3 (NOT PASSED), G3b and LC stand as recorded, and so do limitations
+  L1-L5.
+
+#### What this adds to the project's claims
+
+- **This is the first tested mechanism result about the learned C0 economy.** With long enough
+  training, learning enterprises under the C0 planner settle into a Pareto-dominated
+  no-production state that no single enterprise can profitably leave.
+- **It is not Claim A.** It is none of the four held-out phenomena.
+- **It rests on the stated learner (L1, L4, L5).** Whether other learners reach the same trap is
+  open. That question, and any follow-up, is the owner's decision and needs a new
+  pre-registration.
+
+---
+
+## Labelled study CT - coordination-trap test (R18)
+
+_Source: `runs/coordination_trap/report.md`_
+
+### Labelled study CT - coordination-trap test (spec/P2_REVISION.md R18)
+
+Evaluation only (no training): LC's 3M populations (primary) and G3b's 1M populations (contrast), seeds 0-9, 50 episodes per condition on the measurement seed block, deterministic policies, seat 0. Producer = `TruthfulMyopic`. Pre-registered before any CT evaluation. CT re-evaluates no gate.
+
+#### 3M populations (primary)
+
+| seed_env | R_pop (seat 0) | R_dev (seat 0 produces) | W_pop (mean seat) | W_tm (all produce) | seats better off, all produce | seat-0 effort amid learned | amid producers |
+|---|---|---|---|---|---|---|---|
+| 1000 | -0.003 | -1.425 | -0.003 | 1.276 | 1.00 | 0.019 | 0.082 |
+| 1001 | 1.049 | -1.448 | 0.924 | 1.315 | 0.95 | 0.023 | 0.186 |
+| 1002 | -0.736 | -1.446 | -0.628 | 1.306 | 1.00 | 0.039 | 0.142 |
+| 1003 | 0.610 | -1.448 | 0.711 | 1.321 | 1.00 | 0.019 | 0.159 |
+| 1004 | -0.002 | -1.450 | -0.002 | 1.324 | 1.00 | 0.012 | 0.047 |
+| 1005 | 0.758 | -1.448 | 0.810 | 1.304 | 1.00 | 0.018 | 0.209 |
+| 1006 | 0.274 | -1.440 | 0.381 | 1.260 | 1.00 | 0.025 | 0.147 |
+| 1007 | -0.000 | -1.453 | -0.000 | 1.278 | 1.00 | 0.007 | 0.006 |
+| 1008 | 0.262 | -1.459 | 0.430 | 1.290 | 1.00 | 0.017 | 0.137 |
+| 1009 | 0.951 | -1.470 | 0.823 | 1.311 | 1.00 | 0.019 | 0.102 |
+
+- (i) d1 = R_dev - R_pop, median -1.718 [-2.240, -1.438]: producing alone does NOT pay (R18: CI entirely below 0).
+- (ii) d2 = W_tm - W_pop, median 0.869 [0.494, 1.303]: all-production pays more (R18: CI entirely above 0).
+- **Coordination trap (both): YES.**
+
+#### 1M populations (contrast)
+
+| seed_env | R_pop (seat 0) | R_dev (seat 0 produces) | W_pop (mean seat) | W_tm (all produce) | seats better off, all produce | seat-0 effort amid learned | amid producers |
+|---|---|---|---|---|---|---|---|
+| 1000 | -0.036 | -1.425 | -0.044 | 1.276 | 1.00 | 0.044 | 0.136 |
+| 1001 | -39.590 | -1.448 | -39.255 | 1.315 | 1.00 | 0.201 | 0.515 |
+| 1002 | -0.238 | -1.446 | -0.233 | 1.306 | 1.00 | 0.042 | 0.194 |
+| 1003 | -1.245 | -1.448 | -1.375 | 1.321 | 1.00 | 0.361 | 0.400 |
+| 1004 | -2.330 | -1.454 | -2.838 | 1.324 | 1.00 | 0.488 | 0.513 |
+| 1005 | -0.009 | -1.448 | -0.009 | 1.304 | 1.00 | 0.027 | 0.156 |
+| 1006 | -35.444 | -1.440 | -44.719 | 1.260 | 1.00 | 0.100 | 0.213 |
+| 1007 | -35.641 | -1.453 | -50.873 | 1.278 | 1.00 | 0.074 | 0.159 |
+| 1008 | -12.044 | -1.459 | -10.014 | 1.290 | 1.00 | 0.468 | 0.441 |
+| 1009 | -0.545 | -1.470 | -1.790 | 1.311 | 1.00 | 0.060 | 0.170 |
+
+- (i) d1 = R_dev - R_pop, median 0.336 [-1.208, 34.004]: producing alone is not shown to be unprofitable (R18: CI entirely below 0).
+- (ii) d2 = W_tm - W_pop, median 3.632 [1.539, 40.570]: all-production pays more (R18: CI entirely above 0).
+- **Coordination trap (both): NO.**
 
 ---
 
