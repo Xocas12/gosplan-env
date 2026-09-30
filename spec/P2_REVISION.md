@@ -430,3 +430,48 @@ limitation L4). Does tripling the population's training budget lower that exploi
 - No further budget, learner or configuration change follows from it without a new
   pre-registration.
 
+## R18. Coordination-trap test CT (labelled) - pre-registered before the CT evaluation
+
+Written on 2026-09-30, after LC (`runs/LC_record.md`). LC read its 3M collapse, without testing it,
+as a no-production coordination trap. CT tests that reading directly. It is **evaluation only**:
+no training, and no population is changed.
+
+**Disclosure.** Before this text was written, a 2-episode smoke run of the CT code was executed on
+the 3M population for seed 0 (`seed_env` 1000), to check that it runs. It gave seat-0 returns of
+-0.003 (learned) and -1.350 (producing alone), and mean per-seat returns of -0.005 (learned) and
+1.265 (all producing). The rules below were not chosen with reference to those values. They are
+the textbook definition of a coordination trap.
+
+**Design.**
+- Primary populations: LC's 3M C0 populations, seeds 0-9.
+- Contrast: G3b's 1M C0 populations, seeds 0-9, under the same rules.
+- Producer: `TruthfulMyopic`, the project's reference line. It sets effort to meet the target,
+  reports stock truthfully, requests at need and never trades.
+- Each population is evaluated under four conditions, with 50 episodes each, on the measurement
+  seed block and in the measurement window of the exploitability audit. Policies are
+  deterministic, and random numbers are common across conditions.
+  1. All seats learned.
+  2. Seat 0 producer, the others learned.
+  3. All seats producers.
+  4. Seat 0 learned, the others producers.
+- Driver: `gosplan/experiments/coordination_trap.py`. Artefacts: `runs/coordination_trap/`.
+
+**Tests.**
+- (i) Producing alone does not pay: `d1 = R_dev - R_pop`, seat 0's return in condition 2 minus
+  condition 1. It holds iff the 95% CI of the median of `d1` over seeds lies entirely below 0.
+- (ii) Everyone producing pays more: `d2 = W_tm - W_pop`, the mean per-seat return in condition 3
+  minus condition 1. It holds iff the 95% CI of the median of `d2` lies entirely above 0.
+- "Coordination trap" iff both (i) and (ii) hold.
+- CIs are percentile bootstrap over seeds, 10,000 resamples, generator seed 0.
+
+**Secondary, descriptive only (no test).**
+- The share of seats better off when all produce.
+- Seat 0's learned effort in condition 4 against condition 1: does the learned policy produce when
+  its inputs exist?
+
+**What CT cannot do.**
+- It re-evaluates no gate.
+- It uses one producer policy. A trap against `TruthfulMyopic` does not show that no producing
+  strategy pays.
+- Its outcome is reported whichever way it falls.
+
