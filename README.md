@@ -43,6 +43,7 @@ studies, and that is how they must be cited.
 | G3 | `runs/G3_record.md` | **not passed**: rows 2 and 5 appear; row 7 fails its null test; row 3 and hygiene fail; row 6 was not evaluable because of a trade defect (D1); the exploitability audit was inconclusive (D2) |
 | G3b | `runs/G3b_record.md` | labelled study after the D1 fix (R15) and the revised audit (R16): row 6 **fails behaviourally** (learners post only buy offers, so nothing trades), and the revised audit finds the populations **non-converged** (median exploitability 0.80) |
 | LC | `runs/LC_record.md` | labelled study (R17): tripling the training budget lowers exploitability (median 0.80 to 0.00) but the populations do not converge, and the C0 economy **collapses to near-zero output** (effort 0.02, welfare 0 on every seed) |
+| CT | `runs/CT_record.md` | labelled study (R18, evaluation only): the 3M collapse **is a coordination trap**. A lone producer loses (median -1.72 [-2.24, -1.44]), and everyone producing leaves every seat better off (median +0.87 [+0.49, +1.30]). The 1M populations are not a trap: they are too far from equilibrium |
 | P3 | `runs/P3_record.md` | contrasts, estimator bias and price sensitivity complete as a labelled study; the LLM study is NOT RUN (it needs model credentials) |
 | G4 | `runs/final_report/report.md` | not met until the LLM study runs; human sign-off pending |
 

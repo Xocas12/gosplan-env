@@ -53,6 +53,13 @@ convergence to a functioning equilibrium.
   enterprises' outputs as inputs (near-Leontief, `theta = 8`), so when every supplier produces
   nothing, effort is wasted. **LC does not test this. It is an interpretation, not a finding.**
 
+## Update (2026-09-30): the coordination-trap reading was tested
+
+See `runs/CT_record.md`. R18 was pre-registered and run as an evaluation-only test. Against the
+truthful-myopic producer, the 3M collapse **is** a coordination trap: producing alone does not pay,
+and everyone producing pays more. The "interpretation, not a finding" caveat above therefore no
+longer applies to that reading. What training does to reach the trap is still untested.
+
 ## Consequences
 
 - **L4 stands.** The populations are non-converged at both budgets.
