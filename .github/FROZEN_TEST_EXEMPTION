@@ -24,3 +24,4 @@ tests/unit/test_llm_study.py
 tests/unit/test_price_sensitivity.py
 tests/unit/test_final_report.py
 tests/unit/test_learner_convergence.py
+tests/unit/test_coordination_trap.py
