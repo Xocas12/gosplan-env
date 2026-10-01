@@ -172,7 +172,83 @@ def render(lc: dict, g3b: dict, paired: dict, offers: dict, harness_report: str)
     return "\n".join(lines) + "\n"
 
 
+def trajectory_table(runs: dict[str, list[list[dict]]]) -> dict[str, dict[str, list]]:
+    """Per budget, the median over seeds of the periodic evaluation's effort and return at each
+    evaluation point. `runs[budget]` holds one list of `train_log.jsonl` rows per seed. Pure.
+    Post-hoc and descriptive (LC record addendum); no test is attached to it."""
+    out = {}
+    for budget, seeds in runs.items():
+        evals = [[r for r in rows if r.get("eval_mean_effort") is not None] for rows in seeds]
+        n = min(len(e) for e in evals)
+        out[budget] = {
+            "k_steps": [int(evals[0][i]["agent_steps_total"]) // 1000 for i in range(n)],
+            "entropy_coef": [float(evals[0][i]["entropy_coef"]) for i in range(n)],
+            "median_effort": [
+                float(np.median([e[i]["eval_mean_effort"] for e in evals])) for i in range(n)
+            ],
+            "median_return": [
+                float(np.median([e[i]["eval_mean_return"] for e in evals])) for i in range(n)
+            ],
+        }
+    return out
+
+
+def trajectories() -> int:
+    """`--trajectories`: the descriptive training-trajectory table of the LC record's addendum,
+    written to `runs/learner_convergence/trajectories.md` from the runs' `train_log.jsonl`."""
+    from gosplan.experiments import phase2_acceptance as pa
+
+    roots = {"1M": G3B_RUN_ROOT, "3M": LC_DIR / "runs"}
+    runs = {}
+    for budget, root in roots.items():
+        runs[budget] = [
+            [
+                json.loads(line)
+                for line in (root / pa.arm_config("C0", s).hash() / "train_log.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
+                if line.strip()
+            ]
+            for s in range(LC_SEEDS)
+        ]
+    table = trajectory_table(runs)
+    lines = [
+        "# LC - training trajectories (descriptive, post hoc)",
+        "",
+        "Median over seeds 0-9 of the periodic evaluation (deterministic policy) during training; "
+        "C0, the G3b 1M runs and the LC 3M runs. Not pre-registered; no test is attached.",
+        "",
+    ]
+    for budget, t in table.items():
+        lines += [
+            f"## {budget}",
+            "",
+            "| agent-steps (k) | entropy coef | median effort | median eval return |",
+            "|---|---|---|---|",
+        ]
+        lines += [
+            f"| {k} | {c:.4f} | {e:.3f} | {r:.2f} |"
+            for k, c, e, r in zip(
+                t["k_steps"],
+                t["entropy_coef"],
+                t["median_effort"],
+                t["median_return"],
+                strict=True,
+            )
+        ]
+        lines.append("")
+    (LC_DIR / "trajectories.md").write_text("\n".join(lines), encoding="utf-8")
+    (LC_DIR / "trajectories.json").write_text(json.dumps(table, indent=1), encoding="utf-8")
+    print("\n".join(lines))
+    return 0
+
+
 def main() -> int:
+    import sys
+
+    if "--trajectories" in sys.argv:
+        return trajectories()
+
     from gosplan.experiments import phase2_acceptance as pa
     from gosplan.experiments.phase1_gate import GATE_SIZING, study_ppo_config
 

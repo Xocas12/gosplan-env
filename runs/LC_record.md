@@ -60,6 +60,35 @@ truthful-myopic producer, the 3M collapse **is** a coordination trap: producing 
 and everyone producing pays more. The "interpretation, not a finding" caveat above therefore no
 longer applies to that reading. What training does to reach the trap is still untested.
 
+## Addendum (2026-10-01): training trajectories and a design caveat (descriptive, post hoc)
+
+Not pre-registered and no test is attached. Source: `runs/learner_convergence/trajectories.md`,
+from the runs' `train_log.jsonl` (`python -m gosplan.experiments.learner_convergence --trajectories`).
+
+| agent-steps (k) | 250 | 500 | 750 | 1000 | 1250 | 1500 | 2000 | 3000 |
+|---|---|---|---|---|---|---|---|---|
+| median effort, 1M runs | 0.66 | 0.62 | 0.27 | 0.09 | | | | |
+| median effort, 3M runs | 0.66 | 0.60 | 0.35 | 0.12 | 0.03 | 0.02 | 0.02 | 0.02 |
+| median eval return, 3M runs | -191 | -43 | -20 | -6 | -1.3 | -0.01 | 0.49 | 0.71 |
+
+- **The collapse is a steady slide, not a late event.**
+  - Effort falls from about 0.66 to the trap level of about 0.02 by roughly 1.25-1.5M steps, then
+    stays there.
+  - Each enterprise's own evaluation return rises along the whole path. The learners improve
+    their own payoff while welfare falls.
+- **The 1M populations were mid-slide.** Their median effort at 1M steps was already 0.09. G3, G3b
+  and the Phase-3 contrasts therefore describe an economy partway into the trap, which sharpens L5.
+- **Design caveat.**
+  - The entropy bonus anneals from 0.01 to 0.001 over the whole run, so LC's budget manipulation
+    also stretches the exploration schedule. At the 1M-step mark a 3M run's coefficient is 0.0070,
+    against 0.0010 for a 1M run.
+  - The learning rate is constant, so the entropy schedule is the only part of the setup that
+    scales with the budget.
+  - Through the first 1M steps the two budgets' trajectories nearly coincide despite the different
+    schedules. That suggests the schedule is not what drives the collapse, but LC cannot separate
+    budget from schedule. R17's "everything else unchanged" holds for the configuration, not for
+    the effective schedule.
+
 ## Consequences
 
 - **L4 stands.** The populations are non-converged at both budgets.
