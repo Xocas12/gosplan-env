@@ -27,6 +27,7 @@ SECTIONS: tuple[tuple[str, str], ...] = (
     ("Labelled study G3b - acceptance re-run (R15, R16)", "runs/phase2_acceptance_g3b/report.md"),
     ("Labelled study LC - record", "runs/LC_record.md"),
     ("Labelled study LC - learner convergence (R17)", "runs/learner_convergence/report.md"),
+    ("Labelled study LC - training trajectories (descriptive)", "runs/learner_convergence/trajectories.md"),
     ("Labelled study CT - record", "runs/CT_record.md"),
     ("Labelled study CT - coordination-trap test (R18)", "runs/coordination_trap/report.md"),
     ("Phase 3 - contrasts (WO-032)", "runs/contrasts/report.md"),

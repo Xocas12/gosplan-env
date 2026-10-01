@@ -767,6 +767,35 @@ truthful-myopic producer, the 3M collapse **is** a coordination trap: producing 
 and everyone producing pays more. The "interpretation, not a finding" caveat above therefore no
 longer applies to that reading. What training does to reach the trap is still untested.
 
+#### Addendum (2026-10-01): training trajectories and a design caveat (descriptive, post hoc)
+
+Not pre-registered and no test is attached. Source: `runs/learner_convergence/trajectories.md`,
+from the runs' `train_log.jsonl` (`python -m gosplan.experiments.learner_convergence --trajectories`).
+
+| agent-steps (k) | 250 | 500 | 750 | 1000 | 1250 | 1500 | 2000 | 3000 |
+|---|---|---|---|---|---|---|---|---|
+| median effort, 1M runs | 0.66 | 0.62 | 0.27 | 0.09 | | | | |
+| median effort, 3M runs | 0.66 | 0.60 | 0.35 | 0.12 | 0.03 | 0.02 | 0.02 | 0.02 |
+| median eval return, 3M runs | -191 | -43 | -20 | -6 | -1.3 | -0.01 | 0.49 | 0.71 |
+
+- **The collapse is a steady slide, not a late event.**
+  - Effort falls from about 0.66 to the trap level of about 0.02 by roughly 1.25-1.5M steps, then
+    stays there.
+  - Each enterprise's own evaluation return rises along the whole path. The learners improve
+    their own payoff while welfare falls.
+- **The 1M populations were mid-slide.** Their median effort at 1M steps was already 0.09. G3, G3b
+  and the Phase-3 contrasts therefore describe an economy partway into the trap, which sharpens L5.
+- **Design caveat.**
+  - The entropy bonus anneals from 0.01 to 0.001 over the whole run, so LC's budget manipulation
+    also stretches the exploration schedule. At the 1M-step mark a 3M run's coefficient is 0.0070,
+    against 0.0010 for a 1M run.
+  - The learning rate is constant, so the entropy schedule is the only part of the setup that
+    scales with the budget.
+  - Through the first 1M steps the two budgets' trajectories nearly coincide despite the different
+    schedules. That suggests the schedule is not what drives the collapse, but LC cannot separate
+    budget from schedule. R17's "everything else unchanged" holds for the configuration, not for
+    the effective schedule.
+
 #### Consequences
 
 - **L4 stands.** The populations are non-converged at both budgets.
@@ -880,6 +909,42 @@ Pre-registration: `spec/P2_REVISION.md` R14. Limitations carried from Phase 1: L
 - R3_QW: 0 seeds, overrides {'incentive': {'objective_metric': 'quality_weighted'}, 'information': {'quality_measurability': 1.0}}
 
 Sizing: `{'n_envs': 8, 'rollout_steps': 125, 'total_agent_steps': 3000000, 'eval_every_updates': 250, 'eval_episodes': 10, 'measure_episodes': 100}`; git `4c53d493b09f32bcc1ef7636a0f3a8edfcc2d5bc`.
+
+---
+
+## Labelled study LC - training trajectories (descriptive)
+
+_Source: `runs/learner_convergence/trajectories.md`_
+
+### LC - training trajectories (descriptive, post hoc)
+
+Median over seeds 0-9 of the periodic evaluation (deterministic policy) during training; C0, the G3b 1M runs and the LC 3M runs. Not pre-registered; no test is attached.
+
+#### 1M
+
+| agent-steps (k) | entropy coef | median effort | median eval return |
+|---|---|---|---|
+| 250 | 0.0078 | 0.662 | -206.67 |
+| 500 | 0.0055 | 0.615 | -68.71 |
+| 750 | 0.0033 | 0.267 | -56.57 |
+| 1000 | 0.0010 | 0.089 | -4.59 |
+
+#### 3M
+
+| agent-steps (k) | entropy coef | median effort | median eval return |
+|---|---|---|---|
+| 250 | 0.0093 | 0.663 | -190.82 |
+| 500 | 0.0085 | 0.603 | -42.93 |
+| 750 | 0.0078 | 0.348 | -20.40 |
+| 1000 | 0.0070 | 0.116 | -5.93 |
+| 1250 | 0.0063 | 0.033 | -1.31 |
+| 1500 | 0.0055 | 0.023 | -0.01 |
+| 1750 | 0.0048 | 0.022 | -0.01 |
+| 2000 | 0.0040 | 0.022 | 0.49 |
+| 2250 | 0.0033 | 0.024 | 0.69 |
+| 2500 | 0.0025 | 0.025 | 0.69 |
+| 2750 | 0.0018 | 0.022 | 0.85 |
+| 3000 | 0.0010 | 0.020 | 0.71 |
 
 ---
 
