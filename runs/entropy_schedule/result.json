@@ -1,0 +1,1272 @@
+{
+ "conditions": {
+  "heldout_evaluated": true,
+  "exploitability": false,
+  "oracle_gap_recorded": true,
+  "jax_parity": true,
+  "price_sensitivity": true,
+  "hygiene": true
+ },
+ "passed": false,
+ "verdicts": {
+  "row2_storming": {
+   "excess": [
+    0.22188511866307842,
+    0.17113947772989993,
+    0.27434611201947556
+   ],
+   "appears": true
+  },
+  "row5_hoarding": {
+   "inflation_excess": [
+    1.7899072055532232,
+    1.648606036399663,
+    1.9173871249197973
+   ],
+   "corr_excess": [
+    1.032925735544766,
+    0.9269721594065786,
+    1.1168915537578454
+   ],
+   "n_seeds_corr_nan": 0,
+   "appears": true
+  },
+  "row6_blat": {
+   "trade_volume_share": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "appears": false
+  },
+  "row7_hidden_reserves": {
+   "c0": [
+    0.08415212656646351,
+    0.06217014112812798,
+    0.11079942164678819
+   ],
+   "null": [
+    NaN,
+    NaN,
+    NaN
+   ],
+   "present": true,
+   "vanishes_under_null": false,
+   "appears": false,
+   "evaluated": false
+  },
+  "row3_quality": {
+   "diff_c0_minus_qw": [
+    NaN,
+    NaN,
+    NaN
+   ],
+   "appears": false,
+   "evaluated": false
+  }
+ },
+ "oracle": {
+  "C0": {
+   "welfare": 1.983552631578947,
+   "val": 38.18726503758132,
+   "optimality_gap": 0.0,
+   "solver": "HiGHS",
+   "solver_version": "HiGHS via OR-Tools 9.15.6755",
+   "status": "optimal",
+   "upper_bound": 1.9835526315789458,
+   "horizon": 40,
+   "clairvoyant": false,
+   "formulation": "F1 welfare-only objective: effort and setup costs are not in the CES welfare of PLAN 2.9.3, so the programme is an LP (no binaries; setup cost is irrelevant to welfare and irs is out of Phase-2 scope, P2 revision R1). F2 Leontief coverage replaces CES input coverage (theta = 8 is near-Leontief; Leontief is the conservative side). F3 the CES welfare index is concave and homogeneous of degree 1, so it is represented exactly in the limit by tangent planes through the origin, refined by cutting planes until planned and true welfare agree to 1e-7; optimality_gap is (LP bound - true welfare) / true welfare. F4 timing as the environment: output made in period t is stored, shipped at t+1's DELIVER, a share phi_j to consumers and the rest routed freely to buyers' input stocks; holding losses h (output, after shipping) and h_X (inputs) apply; stock capped at S_max with free disposal; opening inputs a * T_0, no opening stock. F5 expected value: period yield multiplier 1; clairvoyant: the realised mean of the environment's own per-step yield draws.",
+   "output_mean": [
+    0.9671052631578947,
+    0.9736842105263158,
+    0.9736842105263158,
+    0.9736842105263158,
+    0.9671052631578947,
+    0.9736842105263158,
+    0.9736842105263158,
+    0.9736842105263158,
+    0.9736842105263158,
+    0.9736842105263158,
+    0.9671052631578947,
+    0.9736842105263158,
+    0.9736842105263158,
+    0.9671052631578947,
+    0.9736842105263158,
+    0.9736842105263158,
+    0.9736842105263158,
+    0.9736842105263158,
+    0.9671052631578947,
+    0.9736842105263158
+   ]
+  },
+  "R7_NULL": {
+   "welfare": 1.983552631578947,
+   "val": 38.18726503758132,
+   "optimality_gap": 0.0,
+   "solver": "HiGHS",
+   "solver_version": "HiGHS via OR-Tools 9.15.6755",
+   "status": "optimal",
+   "upper_bound": 1.9835526315789458,
+   "horizon": 40,
+   "clairvoyant": false,
+   "formulation": "F1 welfare-only objective: effort and setup costs are not in the CES welfare of PLAN 2.9.3, so the programme is an LP (no binaries; setup cost is irrelevant to welfare and irs is out of Phase-2 scope, P2 revision R1). F2 Leontief coverage replaces CES input coverage (theta = 8 is near-Leontief; Leontief is the conservative side). F3 the CES welfare index is concave and homogeneous of degree 1, so it is represented exactly in the limit by tangent planes through the origin, refined by cutting planes until planned and true welfare agree to 1e-7; optimality_gap is (LP bound - true welfare) / true welfare. F4 timing as the environment: output made in period t is stored, shipped at t+1's DELIVER, a share phi_j to consumers and the rest routed freely to buyers' input stocks; holding losses h (output, after shipping) and h_X (inputs) apply; stock capped at S_max with free disposal; opening inputs a * T_0, no opening stock. F5 expected value: period yield multiplier 1; clairvoyant: the realised mean of the environment's own per-step yield draws.",
+   "output_mean": [
+    0.9671052631578947,
+    0.9736842105263158,
+    0.9736842105263158,
+    0.9736842105263158,
+    0.9671052631578947,
+    0.9736842105263158,
+    0.9736842105263158,
+    0.9736842105263158,
+    0.9736842105263158,
+    0.9736842105263158,
+    0.9671052631578947,
+    0.9736842105263158,
+    0.9736842105263158,
+    0.9671052631578947,
+    0.9736842105263158,
+    0.9736842105263158,
+    0.9736842105263158,
+    0.9736842105263158,
+    0.9671052631578947,
+    0.9736842105263158
+   ]
+  },
+  "R3_QW": {
+   "welfare": 1.983552631578947,
+   "val": 38.18726503758132,
+   "optimality_gap": 0.0,
+   "solver": "HiGHS",
+   "solver_version": "HiGHS via OR-Tools 9.15.6755",
+   "status": "optimal",
+   "upper_bound": 1.9835526315789458,
+   "horizon": 40,
+   "clairvoyant": false,
+   "formulation": "F1 welfare-only objective: effort and setup costs are not in the CES welfare of PLAN 2.9.3, so the programme is an LP (no binaries; setup cost is irrelevant to welfare and irs is out of Phase-2 scope, P2 revision R1). F2 Leontief coverage replaces CES input coverage (theta = 8 is near-Leontief; Leontief is the conservative side). F3 the CES welfare index is concave and homogeneous of degree 1, so it is represented exactly in the limit by tangent planes through the origin, refined by cutting planes until planned and true welfare agree to 1e-7; optimality_gap is (LP bound - true welfare) / true welfare. F4 timing as the environment: output made in period t is stored, shipped at t+1's DELIVER, a share phi_j to consumers and the rest routed freely to buyers' input stocks; holding losses h (output, after shipping) and h_X (inputs) apply; stock capped at S_max with free disposal; opening inputs a * T_0, no opening stock. F5 expected value: period yield multiplier 1; clairvoyant: the realised mean of the environment's own per-step yield draws.",
+   "output_mean": [
+    0.9671052631578947,
+    0.9736842105263158,
+    0.9736842105263158,
+    0.9736842105263158,
+    0.9671052631578947,
+    0.9736842105263158,
+    0.9736842105263158,
+    0.9736842105263158,
+    0.9736842105263158,
+    0.9736842105263158,
+    0.9671052631578947,
+    0.9736842105263158,
+    0.9736842105263158,
+    0.9671052631578947,
+    0.9736842105263158,
+    0.9736842105263158,
+    0.9736842105263158,
+    0.9736842105263158,
+    0.9671052631578947,
+    0.9736842105263158
+   ]
+  }
+ },
+ "clairvoyant": [
+  1.9790617848638317,
+  1.9797119063755428,
+  1.9812284065482861,
+  1.9816272215253916,
+  1.9814540990353289
+ ],
+ "prices": {
+  "specification_gap": [
+   0.005854191637881789,
+   0.0058672772975430585,
+   0.005917676885772763,
+   0.005782361454849944
+  ],
+  "welfare_ratio": 7.980529312858953e-06,
+  "sign_change": false
+ },
+ "exploitability": {
+  "C0": {
+   "arm": "C0",
+   "threshold": 0.05,
+   "threshold_status": "provisional; finalised by the lead at G3 (PLAN section 6.3)",
+   "max_exploitability": 0.17261121658940237,
+   "median_exploitability": -0.008180306908484957,
+   "non_converged": true,
+   "label": "NON-CONVERGED",
+   "ppo_version": "cleanrl ppo_continuous_action (algorithm), JAX re-expression in gosplan.agents.ppo @ cleanrl v1.0.0 algorithm; gosplan-ppo 1",
+   "artefacts": {
+    "report": "runs/entropy_schedule/exploitability/C0_report.md",
+    "table": "runs/entropy_schedule/exploitability/C0_table.parquet"
+   },
+   "per_seed": [
+    {
+     "seed_env": 1000,
+     "population_run": "runs/entropy_schedule/exploit_subset/C0/1581df7cb156f5248d0180a821b82139c389e18564f167378435e734bb84689d",
+     "return_best_responder": -0.0038742762864642168,
+     "return_population": -0.004132781755533835,
+     "exploitability_ratio": 0.0002585054690696178,
+     "wall_clock_s": 18.86434652600002
+    },
+    {
+     "seed_env": 1009,
+     "population_run": "runs/entropy_schedule/exploit_subset/C0/3f0dee0b9e77223e9f60ef69124268e9f48eb5236753ce91a0487c70a0e66c81",
+     "return_best_responder": -0.0008800520177842683,
+     "return_population": -0.00118975827739623,
+     "exploitability_ratio": 0.0003097062596119618,
+     "wall_clock_s": 19.317797986000016
+    },
+    {
+     "seed_env": 1001,
+     "population_run": "runs/entropy_schedule/exploit_subset/C0/5acf5da217731f6457443d8dfaf2a1b30ced7d2b4db325190ef6146106e5729e",
+     "return_best_responder": 0.2334701677319124,
+     "return_population": 0.31753238083618546,
+     "exploitability_ratio": -0.08406221310427306,
+     "wall_clock_s": 19.468391329000013
+    },
+    {
+     "seed_env": 1005,
+     "population_run": "runs/entropy_schedule/exploit_subset/C0/6ed1224b26ea0fe4bed6c955abbf59474dc4a8df30a269c4087f63bad1d5f61e",
+     "return_best_responder": 0.2007498342519013,
+     "return_population": 0.5977714647462385,
+     "exploitability_ratio": -0.39702163049433725,
+     "wall_clock_s": 19.346745800000008
+    },
+    {
+     "seed_env": 1007,
+     "population_run": "runs/entropy_schedule/exploit_subset/C0/9ebcba6c331eb82dc95988a0cff96962779570e8ab214aaac834f824cbaf1186",
+     "return_best_responder": -0.006052120253963746,
+     "return_population": -0.004028736829293337,
+     "exploitability_ratio": -0.002023383424670409,
+     "wall_clock_s": 18.92560329700001
+    },
+    {
+     "seed_env": 1003,
+     "population_run": "runs/entropy_schedule/exploit_subset/C0/bda65adb8e9bec450ce978ba02f601c2ca353fc7ebb1185a1a7efc7193da3d1e",
+     "return_best_responder": 0.4537380130632272,
+     "return_population": 0.4680752434555267,
+     "exploitability_ratio": -0.014337230392299505,
+     "wall_clock_s": 905.2336672230001
+    },
+    {
+     "seed_env": 1008,
+     "population_run": "runs/entropy_schedule/exploit_subset/C0/cc06e97e56cbd60afcad1aab231f6bc9581d7a7f2cd8986df32bc989b3e060a7",
+     "return_best_responder": 0.5328231159453236,
+     "return_population": 0.36021189935592124,
+     "exploitability_ratio": 0.17261121658940237,
+     "wall_clock_s": 922.2438003990003
+    },
+    {
+     "seed_env": 1002,
+     "population_run": "runs/entropy_schedule/exploit_subset/C0/d77583d1c0f980a635aa23005252f5725c05b574ad88706d24aa775674c80c00",
+     "return_best_responder": 0.4320125195038375,
+     "return_population": 0.5933106466606476,
+     "exploitability_ratio": -0.16129812715681008,
+     "wall_clock_s": 888.5737609380003
+    },
+    {
+     "seed_env": 1006,
+     "population_run": "runs/entropy_schedule/exploit_subset/C0/f389d679207964d51422efea25c966308270eb1ff9d9a059300a580a6a8997dd",
+     "return_best_responder": -0.47083561280501024,
+     "return_population": 0.22412633973039572,
+     "exploitability_ratio": -0.6949619525354059,
+     "wall_clock_s": 915.6726482280001
+    },
+    {
+     "seed_env": 1004,
+     "population_run": "runs/entropy_schedule/exploit_subset/C0/fd8990ac1ed1f0688f90beba0e443d27e465b1583d32317f8024317ba3eee97d",
+     "return_best_responder": -0.0023828591241324922,
+     "return_population": -0.001859736932416711,
+     "exploitability_ratio": -0.0005231221917157813,
+     "wall_clock_s": 924.3151401149998
+    }
+   ]
+  }
+ },
+ "parity": {
+  "status": "run",
+  "max_deviation": {
+   "p1": 1.0658141036401503e-14,
+   "p2": 7.112904014645998e-14
+  },
+  "passed": true
+ },
+ "bound_binding_runs": [],
+ "max_runaway_frac": 0.0,
+ "per_arm": {
+  "C0": [
+   {
+    "arm": "C0",
+    "blat": {
+     "mean_surplus": NaN,
+     "n_matched_pairs": 0.0,
+     "trade_volume": 0.0,
+     "trade_volume_share": 0.0
+    },
+    "blat_baseline": {
+     "mean_surplus": NaN,
+     "n_matched_pairs": 0.0,
+     "trade_volume": 0.0,
+     "trade_volume_share": 0.0
+    },
+    "bound_binding": false,
+    "config_hash": "1581df7cb156f5248d0180a821b82139c389e18564f167378435e734bb84689d",
+    "hidden_reserves": {
+     "hidden_reserves": 0.05749485104101732,
+     "n_obs": 17840.0,
+     "p_value": 1.0,
+     "reconciliation_stat": -83.82104161856934
+    },
+    "hoarding": {
+     "corr_stock_shortfall": 0.43644980831243396,
+     "corr_stock_shortfall_baseline": -0.22740005325375381,
+     "dispersion_p": 0.0010960554788645457,
+     "dispersion_stat": 18.263414634146358,
+     "request_inflation": 2.9989355470556083,
+     "request_inflation_baseline": 1.0
+    },
+    "metrics": {
+     "b_hat": NaN,
+     "b_hat_se": NaN,
+     "fictitious_padding": 0.0,
+     "frac_at_bound": 0.0,
+     "frac_target_over_3T0": 0.0,
+     "hole": NaN,
+     "mean_effort": 0.011949357222769314,
+     "mean_return": -0.0016690276236436578
+    },
+    "quality": {
+     "mean_quality": 3.2560337821042903e-06,
+     "mean_quality_weighted": 0.5000016280168912,
+     "n_obs": 17840.0
+    },
+    "seed_env": 1000,
+    "seed_index": 0,
+    "sizing": {
+     "eval_episodes": 10,
+     "eval_every_updates": 250,
+     "measure_episodes": 100,
+     "n_envs": 8,
+     "rollout_steps": 125,
+     "total_agent_steps": 3000000
+    },
+    "storming": {
+     "excess": 0.14241684429861162,
+     "gini": 0.14241684429861162,
+     "gini_baseline": 0.0,
+     "n_zero_effort_periods": 0.0,
+     "n_zero_effort_periods_baseline": 0.0
+    },
+    "val_measured_mean": 0.09639740575511271,
+    "val_reprice_check": 2.7755575615628914e-17,
+    "val_repriced_mean": [
+     0.09639740575511271,
+     0.1258767847513515,
+     0.10295008273342263,
+     0.08880739529011171
+    ],
+    "welfare_mean": 3.206190570727678e-08,
+    "welfare_mean_baseline": 1.0636271701594358,
+    "runaway_frac": 0.0,
+    "manifest_flags": [
+     "bailed_out:0",
+     "bailed_out:1",
+     "bailed_out:10",
+     "bailed_out:11",
+     "bailed_out:12",
+     "bailed_out:13",
+     "bailed_out:14",
+     "bailed_out:15",
+     "bailed_out:16",
+     "bailed_out:17",
+     "bailed_out:18",
+     "bailed_out:19",
+     "bailed_out:2",
+     "bailed_out:3",
+     "bailed_out:4",
+     "bailed_out:5",
+     "bailed_out:6",
+     "bailed_out:7",
+     "bailed_out:8",
+     "bailed_out:9"
+    ]
+   },
+   {
+    "arm": "C0",
+    "blat": {
+     "mean_surplus": NaN,
+     "n_matched_pairs": 0.0,
+     "trade_volume": 0.0,
+     "trade_volume_share": 0.0
+    },
+    "blat_baseline": {
+     "mean_surplus": NaN,
+     "n_matched_pairs": 0.0,
+     "trade_volume": 0.0,
+     "trade_volume_share": 0.0
+    },
+    "bound_binding": false,
+    "config_hash": "5acf5da217731f6457443d8dfaf2a1b30ced7d2b4db325190ef6146106e5729e",
+    "hidden_reserves": {
+     "hidden_reserves": 0.07003790540313085,
+     "n_obs": 18020.0,
+     "p_value": 1.0,
+     "reconciliation_stat": -36.32656503028485
+    },
+    "hoarding": {
+     "corr_stock_shortfall": 0.636999182729227,
+     "corr_stock_shortfall_baseline": -0.22830149269578734,
+     "dispersion_p": 0.22942228670232248,
+     "dispersion_stat": 5.619512195121956,
+     "request_inflation": 2.9791314529987893,
+     "request_inflation_baseline": 1.0
+    },
+    "metrics": {
+     "b_hat": 13.506205994157787,
+     "b_hat_se": 138.2382557421226,
+     "fictitious_padding": 2.0845280538792295e-05,
+     "frac_at_bound": 0.0,
+     "frac_target_over_3T0": 0.0,
+     "hole": -9.137193259568551,
+     "mean_effort": 0.013985468704078415,
+     "mean_return": 0.1655601895543713
+    },
+    "quality": {
+     "mean_quality": 0.000847138162686984,
+     "mean_quality_weighted": 0.5004235690813436,
+     "n_obs": 18020.0
+    },
+    "seed_env": 1001,
+    "seed_index": 1,
+    "sizing": {
+     "eval_episodes": 10,
+     "eval_every_updates": 250,
+     "measure_episodes": 100,
+     "n_envs": 8,
+     "rollout_steps": 125,
+     "total_agent_steps": 3000000
+    },
+    "storming": {
+     "excess": 0.18097081559183417,
+     "gini": 0.18097081559183417,
+     "gini_baseline": 0.0,
+     "n_zero_effort_periods": 0.0,
+     "n_zero_effort_periods_baseline": 0.0
+    },
+    "val_measured_mean": 0.15231892426350005,
+    "val_reprice_check": 2.220446049250313e-16,
+    "val_repriced_mean": [
+     0.15231892426350005,
+     0.1950084536327199,
+     0.17853981051858758,
+     0.13096319964486755
+    ],
+    "welfare_mean": 8.120567146262874e-06,
+    "welfare_mean_baseline": 1.0639726152183664,
+    "runaway_frac": 0.0,
+    "manifest_flags": [
+     "bailed_out:0",
+     "bailed_out:1",
+     "bailed_out:10",
+     "bailed_out:11",
+     "bailed_out:12",
+     "bailed_out:13",
+     "bailed_out:14",
+     "bailed_out:15",
+     "bailed_out:16",
+     "bailed_out:17",
+     "bailed_out:18",
+     "bailed_out:19",
+     "bailed_out:2",
+     "bailed_out:3",
+     "bailed_out:4",
+     "bailed_out:5",
+     "bailed_out:6",
+     "bailed_out:7",
+     "bailed_out:8",
+     "bailed_out:9"
+    ]
+   },
+   {
+    "arm": "C0",
+    "blat": {
+     "mean_surplus": NaN,
+     "n_matched_pairs": 0.0,
+     "trade_volume": 0.0,
+     "trade_volume_share": 0.0
+    },
+    "blat_baseline": {
+     "mean_surplus": NaN,
+     "n_matched_pairs": 0.0,
+     "trade_volume": 0.0,
+     "trade_volume_share": 0.0
+    },
+    "bound_binding": false,
+    "config_hash": "d77583d1c0f980a635aa23005252f5725c05b574ad88706d24aa775674c80c00",
+    "hidden_reserves": {
+     "hidden_reserves": 0.09703762886362319,
+     "n_obs": 17840.0,
+     "p_value": 1.0,
+     "reconciliation_stat": -127.62708000034276
+    },
+    "hoarding": {
+     "corr_stock_shortfall": 0.9381643184080337,
+     "corr_stock_shortfall_baseline": -0.22638997243860887,
+     "dispersion_p": 0.13518101928853768,
+     "dispersion_stat": 7.013414634146358,
+     "request_inflation": 2.9180817333181963,
+     "request_inflation_baseline": 1.0
+    },
+    "metrics": {
+     "b_hat": 59.03686675975705,
+     "b_hat_se": 1648.21505115879,
+     "fictitious_padding": 7.629666751747856e-05,
+     "frac_at_bound": 0.0,
+     "frac_target_over_3T0": 0.0,
+     "hole": 35.797863864978964,
+     "mean_effort": 0.02163894368704888,
+     "mean_return": 0.5442648584470935
+    },
+    "quality": {
+     "mean_quality": 0.0007778662529521607,
+     "mean_quality_weighted": 0.500388933126476,
+     "n_obs": 17840.0
+    },
+    "seed_env": 1002,
+    "seed_index": 2,
+    "sizing": {
+     "eval_episodes": 10,
+     "eval_every_updates": 250,
+     "measure_episodes": 100,
+     "n_envs": 8,
+     "rollout_steps": 125,
+     "total_agent_steps": 3000000
+    },
+    "storming": {
+     "excess": 0.3803434338261599,
+     "gini": 0.3803434338261599,
+     "gini_baseline": 0.0,
+     "n_zero_effort_periods": 0.0,
+     "n_zero_effort_periods_baseline": 0.0
+    },
+    "val_measured_mean": 0.3545852564934721,
+    "val_reprice_check": 4.440892098500626e-16,
+    "val_repriced_mean": [
+     0.3545852564934721,
+     0.4468129088185729,
+     0.3753856239402811,
+     0.34191034079389754
+    ],
+    "welfare_mean": 3.4871755111992545e-05,
+    "welfare_mean_baseline": 1.0621368539423977,
+    "runaway_frac": 0.0,
+    "manifest_flags": [
+     "bailed_out:0",
+     "bailed_out:1",
+     "bailed_out:10",
+     "bailed_out:11",
+     "bailed_out:12",
+     "bailed_out:13",
+     "bailed_out:14",
+     "bailed_out:15",
+     "bailed_out:16",
+     "bailed_out:17",
+     "bailed_out:18",
+     "bailed_out:19",
+     "bailed_out:2",
+     "bailed_out:3",
+     "bailed_out:4",
+     "bailed_out:5",
+     "bailed_out:6",
+     "bailed_out:7",
+     "bailed_out:8",
+     "bailed_out:9"
+    ]
+   },
+   {
+    "arm": "C0",
+    "blat": {
+     "mean_surplus": NaN,
+     "n_matched_pairs": 0.0,
+     "trade_volume": 0.0,
+     "trade_volume_share": 0.0
+    },
+    "blat_baseline": {
+     "mean_surplus": NaN,
+     "n_matched_pairs": 0.0,
+     "trade_volume": 0.0,
+     "trade_volume_share": 0.0
+    },
+    "bound_binding": false,
+    "config_hash": "bda65adb8e9bec450ce978ba02f601c2ca353fc7ebb1185a1a7efc7193da3d1e",
+    "hidden_reserves": {
+     "hidden_reserves": 0.07513626793095132,
+     "n_obs": 17720.0,
+     "p_value": 1.0,
+     "reconciliation_stat": -118.29813842163888
+    },
+    "hoarding": {
+     "corr_stock_shortfall": 0.9103587927322804,
+     "corr_stock_shortfall_baseline": -0.2259945925451076,
+     "dispersion_p": 0.6053789325777278,
+     "dispersion_stat": 2.7219512195122064,
+     "request_inflation": 2.6274646414159637,
+     "request_inflation_baseline": 1.0
+    },
+    "metrics": {
+     "b_hat": 0.5854367386113982,
+     "b_hat_se": 1.4606161777749849,
+     "fictitious_padding": 4.727835260625501e-05,
+     "frac_at_bound": 0.0,
+     "frac_target_over_3T0": 0.0,
+     "hole": 0.8420121015970652,
+     "mean_effort": 0.02178143111366761,
+     "mean_return": 0.5043700157691348
+    },
+    "quality": {
+     "mean_quality": 0.001987779886608758,
+     "mean_quality_weighted": 0.5009938899433044,
+     "n_obs": 17720.0
+    },
+    "seed_env": 1003,
+    "seed_index": 3,
+    "sizing": {
+     "eval_episodes": 10,
+     "eval_every_updates": 250,
+     "measure_episodes": 100,
+     "n_envs": 8,
+     "rollout_steps": 125,
+     "total_agent_steps": 3000000
+    },
+    "storming": {
+     "excess": 0.28416680544060563,
+     "gini": 0.28416680544060563,
+     "gini_baseline": 0.0,
+     "n_zero_effort_periods": 0.0,
+     "n_zero_effort_periods_baseline": 0.0
+    },
+    "val_measured_mean": 0.291129786589954,
+    "val_reprice_check": 4.440892098500626e-16,
+    "val_repriced_mean": [
+     0.291129786589954,
+     0.3666602247182887,
+     0.30607064219206936,
+     0.28121787624609806
+    ],
+    "welfare_mean": 7.439981930757882e-05,
+    "welfare_mean_baseline": 1.0612429929919092,
+    "runaway_frac": 0.0,
+    "manifest_flags": [
+     "bailed_out:0",
+     "bailed_out:1",
+     "bailed_out:10",
+     "bailed_out:11",
+     "bailed_out:12",
+     "bailed_out:13",
+     "bailed_out:14",
+     "bailed_out:15",
+     "bailed_out:16",
+     "bailed_out:17",
+     "bailed_out:18",
+     "bailed_out:19",
+     "bailed_out:2",
+     "bailed_out:3",
+     "bailed_out:4",
+     "bailed_out:5",
+     "bailed_out:6",
+     "bailed_out:7",
+     "bailed_out:8",
+     "bailed_out:9"
+    ]
+   },
+   {
+    "arm": "C0",
+    "blat": {
+     "mean_surplus": NaN,
+     "n_matched_pairs": 0.0,
+     "trade_volume": 0.0,
+     "trade_volume_share": 0.0
+    },
+    "blat_baseline": {
+     "mean_surplus": NaN,
+     "n_matched_pairs": 0.0,
+     "trade_volume": 0.0,
+     "trade_volume_share": 0.0
+    },
+    "bound_binding": false,
+    "config_hash": "fd8990ac1ed1f0688f90beba0e443d27e465b1583d32317f8024317ba3eee97d",
+    "hidden_reserves": {
+     "hidden_reserves": 0.042762529146679364,
+     "n_obs": 17780.0,
+     "p_value": 1.0,
+     "reconciliation_stat": -91.61433622770973
+    },
+    "hoarding": {
+     "corr_stock_shortfall": 0.7295225260356516,
+     "corr_stock_shortfall_baseline": -0.225831739328878,
+     "dispersion_p": 0.005815147183236435,
+     "dispersion_stat": 14.51707317073172,
+     "request_inflation": 2.714889932426188,
+     "request_inflation_baseline": 1.0
+    },
+    "metrics": {
+     "b_hat": NaN,
+     "b_hat_se": NaN,
+     "fictitious_padding": 0.0,
+     "frac_at_bound": 0.0,
+     "frac_target_over_3T0": 0.0,
+     "hole": NaN,
+     "mean_effort": 0.011096417407078223,
+     "mean_return": -0.001150190138217162
+    },
+    "quality": {
+     "mean_quality": 8.74798080820702e-07,
+     "mean_quality_weighted": 0.5000004373990404,
+     "n_obs": 17780.0
+    },
+    "seed_env": 1004,
+    "seed_index": 4,
+    "sizing": {
+     "eval_episodes": 10,
+     "eval_every_updates": 250,
+     "measure_episodes": 100,
+     "n_envs": 8,
+     "rollout_steps": 125,
+     "total_agent_steps": 3000000
+    },
+    "storming": {
+     "excess": 0.09114061885249096,
+     "gini": 0.09114061885249096,
+     "gini_baseline": 0.0,
+     "n_zero_effort_periods": 0.0,
+     "n_zero_effort_periods_baseline": 0.0
+    },
+    "val_measured_mean": 0.13318136731060093,
+    "val_reprice_check": 5.551115123125783e-17,
+    "val_repriced_mean": [
+     0.13318136731060093,
+     0.1708370250262756,
+     0.14360725097413674,
+     0.12651919999545488
+    ],
+    "welfare_mean": 1.4577607271272562e-08,
+    "welfare_mean_baseline": 1.061653804139713,
+    "runaway_frac": 0.0,
+    "manifest_flags": [
+     "bailed_out:0",
+     "bailed_out:1",
+     "bailed_out:10",
+     "bailed_out:11",
+     "bailed_out:12",
+     "bailed_out:13",
+     "bailed_out:14",
+     "bailed_out:15",
+     "bailed_out:16",
+     "bailed_out:17",
+     "bailed_out:18",
+     "bailed_out:19",
+     "bailed_out:2",
+     "bailed_out:3",
+     "bailed_out:4",
+     "bailed_out:5",
+     "bailed_out:6",
+     "bailed_out:7",
+     "bailed_out:8",
+     "bailed_out:9"
+    ]
+   },
+   {
+    "arm": "C0",
+    "blat": {
+     "mean_surplus": NaN,
+     "n_matched_pairs": 0.0,
+     "trade_volume": 0.0,
+     "trade_volume_share": 0.0
+    },
+    "blat_baseline": {
+     "mean_surplus": NaN,
+     "n_matched_pairs": 0.0,
+     "trade_volume": 0.0,
+     "trade_volume_share": 0.0
+    },
+    "bound_binding": false,
+    "config_hash": "6ed1224b26ea0fe4bed6c955abbf59474dc4a8df30a269c4087f63bad1d5f61e",
+    "hidden_reserves": {
+     "hidden_reserves": 0.06558437168343914,
+     "n_obs": 17780.0,
+     "p_value": 1.0,
+     "reconciliation_stat": -91.08332307910115
+    },
+    "hoarding": {
+     "corr_stock_shortfall": 0.9352771236669505,
+     "corr_stock_shortfall_baseline": -0.22509664797714404,
+     "dispersion_p": 0.04331608473873771,
+     "dispersion_stat": 9.834146341463423,
+     "request_inflation": 2.4125422662437566,
+     "request_inflation_baseline": 1.0
+    },
+    "metrics": {
+     "b_hat": -2.4258850414321427,
+     "b_hat_se": 1.5905521528114002,
+     "fictitious_padding": 0.00011640645327414199,
+     "frac_at_bound": 0.0,
+     "frac_target_over_3T0": 0.0,
+     "hole": -5.552144817705657,
+     "mean_effort": 0.018861114449113262,
+     "mean_return": 0.4837244774227505
+    },
+    "quality": {
+     "mean_quality": 1.3081278988747562e-07,
+     "mean_quality_weighted": 0.500000065406395,
+     "n_obs": 17780.0
+    },
+    "seed_env": 1005,
+    "seed_index": 5,
+    "sizing": {
+     "eval_episodes": 10,
+     "eval_every_updates": 250,
+     "measure_episodes": 100,
+     "n_envs": 8,
+     "rollout_steps": 125,
+     "total_agent_steps": 3000000
+    },
+    "storming": {
+     "excess": 0.22450993359152158,
+     "gini": 0.22450993359152158,
+     "gini_baseline": 0.0,
+     "n_zero_effort_periods": 0.0,
+     "n_zero_effort_periods_baseline": 0.0
+    },
+    "val_measured_mean": 0.3236131388372516,
+    "val_reprice_check": 4.440892098500626e-16,
+    "val_repriced_mean": [
+     0.32361313883725157,
+     0.4134597178467435,
+     0.3338187112654811,
+     0.31203241198807996
+    ],
+    "welfare_mean": 2.503549364443341e-09,
+    "welfare_mean_baseline": 1.062091604433775,
+    "runaway_frac": 0.0,
+    "manifest_flags": [
+     "bailed_out:0",
+     "bailed_out:1",
+     "bailed_out:10",
+     "bailed_out:11",
+     "bailed_out:12",
+     "bailed_out:13",
+     "bailed_out:14",
+     "bailed_out:15",
+     "bailed_out:16",
+     "bailed_out:17",
+     "bailed_out:18",
+     "bailed_out:19",
+     "bailed_out:2",
+     "bailed_out:3",
+     "bailed_out:4",
+     "bailed_out:5",
+     "bailed_out:6",
+     "bailed_out:7",
+     "bailed_out:8",
+     "bailed_out:9"
+    ]
+   },
+   {
+    "arm": "C0",
+    "blat": {
+     "mean_surplus": NaN,
+     "n_matched_pairs": 0.0,
+     "trade_volume": 0.0,
+     "trade_volume_share": 0.0
+    },
+    "blat_baseline": {
+     "mean_surplus": NaN,
+     "n_matched_pairs": 0.0,
+     "trade_volume": 0.0,
+     "trade_volume_share": 0.0
+    },
+    "bound_binding": false,
+    "config_hash": "f389d679207964d51422efea25c966308270eb1ff9d9a059300a580a6a8997dd",
+    "hidden_reserves": {
+     "hidden_reserves": 0.12346591866903754,
+     "n_obs": 17780.0,
+     "p_value": 1.0,
+     "reconciliation_stat": -104.06143897624912
+    },
+    "hoarding": {
+     "corr_stock_shortfall": 0.7929386404623455,
+     "corr_stock_shortfall_baseline": -0.22627703377823136,
+     "dispersion_p": 0.0008872918881687856,
+     "dispersion_stat": 18.731707317073187,
+     "request_inflation": 2.986776679884505,
+     "request_inflation_baseline": 1.0
+    },
+    "metrics": {
+     "b_hat": 0.887148040255087,
+     "b_hat_se": 5.582518929780994,
+     "fictitious_padding": 0.00011133541997141404,
+     "frac_at_bound": 0.0,
+     "frac_target_over_3T0": 0.0,
+     "hole": 1.4582592139104749,
+     "mean_effort": 0.02513277877204955,
+     "mean_return": 0.11197470656332065
+    },
+    "quality": {
+     "mean_quality": 0.00312030558219769,
+     "mean_quality_weighted": 0.5015601527910989,
+     "n_obs": 17780.0
+    },
+    "seed_env": 1006,
+    "seed_index": 6,
+    "sizing": {
+     "eval_episodes": 10,
+     "eval_every_updates": 250,
+     "measure_episodes": 100,
+     "n_envs": 8,
+     "rollout_steps": 125,
+     "total_agent_steps": 3000000
+    },
+    "storming": {
+     "excess": 0.18658742369364045,
+     "gini": 0.18658742369364045,
+     "gini_baseline": 0.0,
+     "n_zero_effort_periods": 0.0,
+     "n_zero_effort_periods_baseline": 0.0
+    },
+    "val_measured_mean": 0.18256311789013735,
+    "val_reprice_check": 4.440892098500626e-16,
+    "val_repriced_mean": [
+     0.18256311789013735,
+     0.2288947575078651,
+     0.20187621944367592,
+     0.16478818597086917
+    ],
+    "welfare_mean": 3.4023373290036885e-05,
+    "welfare_mean_baseline": 1.0621555335556874,
+    "runaway_frac": 0.0,
+    "manifest_flags": [
+     "bailed_out:0",
+     "bailed_out:1",
+     "bailed_out:10",
+     "bailed_out:11",
+     "bailed_out:12",
+     "bailed_out:13",
+     "bailed_out:14",
+     "bailed_out:15",
+     "bailed_out:16",
+     "bailed_out:17",
+     "bailed_out:18",
+     "bailed_out:19",
+     "bailed_out:2",
+     "bailed_out:3",
+     "bailed_out:4",
+     "bailed_out:5",
+     "bailed_out:6",
+     "bailed_out:7",
+     "bailed_out:8",
+     "bailed_out:9"
+    ]
+   },
+   {
+    "arm": "C0",
+    "blat": {
+     "mean_surplus": NaN,
+     "n_matched_pairs": 0.0,
+     "trade_volume": 0.0,
+     "trade_volume_share": 0.0
+    },
+    "blat_baseline": {
+     "mean_surplus": NaN,
+     "n_matched_pairs": 0.0,
+     "trade_volume": 0.0,
+     "trade_volume_share": 0.0
+    },
+    "bound_binding": false,
+    "config_hash": "9ebcba6c331eb82dc95988a0cff96962779570e8ab214aaac834f824cbaf1186",
+    "hidden_reserves": {
+     "hidden_reserves": 0.18173428978518255,
+     "n_obs": 17920.0,
+     "p_value": 1.0,
+     "reconciliation_stat": -166.84624885173704
+    },
+    "hoarding": {
+     "corr_stock_shortfall": 0.9154518683263363,
+     "corr_stock_shortfall_baseline": -0.22609512833928366,
+     "dispersion_p": 0.01315340830805514,
+     "dispersion_stat": 12.643902439024401,
+     "request_inflation": 2.8582463411872108,
+     "request_inflation_baseline": 1.0
+    },
+    "metrics": {
+     "b_hat": NaN,
+     "b_hat_se": NaN,
+     "fictitious_padding": 1.3122283346393542e-07,
+     "frac_at_bound": 0.0,
+     "frac_target_over_3T0": 0.0,
+     "hole": NaN,
+     "mean_effort": 0.024400750665958235,
+     "mean_return": -0.00560528029376654
+    },
+    "quality": {
+     "mean_quality": 4.077593578736173e-06,
+     "mean_quality_weighted": 0.5000020387967894,
+     "n_obs": 17920.0
+    },
+    "seed_env": 1007,
+    "seed_index": 7,
+    "sizing": {
+     "eval_episodes": 10,
+     "eval_every_updates": 250,
+     "measure_episodes": 100,
+     "n_envs": 8,
+     "rollout_steps": 125,
+     "total_agent_steps": 3000000
+    },
+    "storming": {
+     "excess": 0.14290535636881782,
+     "gini": 0.14290535636881782,
+     "gini_baseline": 0.0,
+     "n_zero_effort_periods": 0.0,
+     "n_zero_effort_periods_baseline": 0.0
+    },
+    "val_measured_mean": 0.2745993542284965,
+    "val_reprice_check": 1.1102230246251565e-16,
+    "val_repriced_mean": [
+     0.2745993542284965,
+     0.34049023809202383,
+     0.2842987317349132,
+     0.27208458606128705
+    ],
+    "welfare_mean": 1.8250157930107162e-07,
+    "welfare_mean_baseline": 1.0631167819863938,
+    "runaway_frac": 0.0,
+    "manifest_flags": [
+     "bailed_out:0",
+     "bailed_out:1",
+     "bailed_out:10",
+     "bailed_out:11",
+     "bailed_out:12",
+     "bailed_out:13",
+     "bailed_out:14",
+     "bailed_out:15",
+     "bailed_out:16",
+     "bailed_out:17",
+     "bailed_out:18",
+     "bailed_out:19",
+     "bailed_out:2",
+     "bailed_out:3",
+     "bailed_out:4",
+     "bailed_out:5",
+     "bailed_out:6",
+     "bailed_out:7",
+     "bailed_out:8",
+     "bailed_out:9"
+    ]
+   },
+   {
+    "arm": "C0",
+    "blat": {
+     "mean_surplus": NaN,
+     "n_matched_pairs": 0.0,
+     "trade_volume": 0.0,
+     "trade_volume_share": 0.0
+    },
+    "blat_baseline": {
+     "mean_surplus": NaN,
+     "n_matched_pairs": 0.0,
+     "trade_volume": 0.0,
+     "trade_volume_share": 0.0
+    },
+    "bound_binding": false,
+    "config_hash": "cc06e97e56cbd60afcad1aab231f6bc9581d7a7f2cd8986df32bc989b3e060a7",
+    "hidden_reserves": {
+     "hidden_reserves": 0.08358112691639837,
+     "n_obs": 17900.0,
+     "p_value": 1.0,
+     "reconciliation_stat": -85.52373174263009
+    },
+    "hoarding": {
+     "corr_stock_shortfall": 0.9130902378220447,
+     "corr_stock_shortfall_baseline": -0.22651598610224855,
+     "dispersion_p": 0.010740402652341512,
+     "dispersion_stat": 13.112195121951231,
+     "request_inflation": 2.9801129129023884,
+     "request_inflation_baseline": 1.0
+    },
+    "metrics": {
+     "b_hat": 2.078415322875035,
+     "b_hat_se": 1.4360032028721108,
+     "fictitious_padding": 4.6093930441909846e-05,
+     "frac_at_bound": 0.0,
+     "frac_target_over_3T0": 0.0,
+     "hole": 0.9796100846675845,
+     "mean_effort": 0.01905641329851924,
+     "mean_return": 0.4140826177107304
+    },
+    "quality": {
+     "mean_quality": 0.00018608915501088462,
+     "mean_quality_weighted": 0.5000930445775055,
+     "n_obs": 17900.0
+    },
+    "seed_env": 1008,
+    "seed_index": 8,
+    "sizing": {
+     "eval_episodes": 10,
+     "eval_every_updates": 250,
+     "measure_episodes": 100,
+     "n_envs": 8,
+     "rollout_steps": 125,
+     "total_agent_steps": 3000000
+    },
+    "storming": {
+     "excess": 0.295663071330416,
+     "gini": 0.295663071330416,
+     "gini_baseline": 0.0,
+     "n_zero_effort_periods": 0.0,
+     "n_zero_effort_periods_baseline": 0.0
+    },
+    "val_measured_mean": 0.30635043549726426,
+    "val_reprice_check": 4.440892098500626e-16,
+    "val_repriced_mean": [
+     0.30635043549726426,
+     0.38417130184098625,
+     0.32187580472992083,
+     0.29850019112499193
+    ],
+    "welfare_mean": 6.647306599487778e-06,
+    "welfare_mean_baseline": 1.0630785213773237,
+    "runaway_frac": 0.0,
+    "manifest_flags": [
+     "bailed_out:0",
+     "bailed_out:1",
+     "bailed_out:10",
+     "bailed_out:11",
+     "bailed_out:12",
+     "bailed_out:13",
+     "bailed_out:14",
+     "bailed_out:15",
+     "bailed_out:16",
+     "bailed_out:17",
+     "bailed_out:18",
+     "bailed_out:19",
+     "bailed_out:2",
+     "bailed_out:3",
+     "bailed_out:4",
+     "bailed_out:5",
+     "bailed_out:6",
+     "bailed_out:7",
+     "bailed_out:8",
+     "bailed_out:9"
+    ]
+   },
+   {
+    "arm": "C0",
+    "blat": {
+     "mean_surplus": NaN,
+     "n_matched_pairs": 0.0,
+     "trade_volume": 0.0,
+     "trade_volume_share": 0.0
+    },
+    "blat_baseline": {
+     "mean_surplus": NaN,
+     "n_matched_pairs": 0.0,
+     "trade_volume": 0.0,
+     "trade_volume_share": 0.0
+    },
+    "bound_binding": false,
+    "config_hash": "3f0dee0b9e77223e9f60ef69124268e9f48eb5236753ce91a0487c70a0e66c81",
+    "hidden_reserves": {
+     "hidden_reserves": 0.04468637622517531,
+     "n_obs": 18160.0,
+     "p_value": 1.0,
+     "reconciliation_stat": -120.14068215845086
+    },
+    "hoarding": {
+     "corr_stock_shortfall": 0.8565035452289617,
+     "corr_stock_shortfall_baseline": -0.22659866526435135,
+     "dispersion_p": 0.02926517410830138,
+     "dispersion_stat": 10.770731707317083,
+     "request_inflation": 2.422890548099627,
+     "request_inflation_baseline": 1.0
+    },
+    "metrics": {
+     "b_hat": NaN,
+     "b_hat_se": NaN,
+     "fictitious_padding": 0.0,
+     "frac_at_bound": 0.0,
+     "frac_target_over_3T0": 0.0,
+     "hole": NaN,
+     "mean_effort": 0.01025344940892066,
+     "mean_return": -0.0013343099828327662
+    },
+    "quality": {
+     "mean_quality": 4.3503748858381815e-07,
+     "mean_quality_weighted": 0.5000002175187442,
+     "n_obs": 18160.0
+    },
+    "seed_env": 1009,
+    "seed_index": 9,
+    "sizing": {
+     "eval_episodes": 10,
+     "eval_every_updates": 250,
+     "measure_episodes": 100,
+     "n_envs": 8,
+     "rollout_steps": 125,
+     "total_agent_steps": 3000000
+    },
+    "storming": {
+     "excess": 0.29014688363668567,
+     "gini": 0.29014688363668567,
+     "gini_baseline": 0.0,
+     "n_zero_effort_periods": 0.0,
+     "n_zero_effort_periods_baseline": 0.0
+    },
+    "val_measured_mean": 0.12386443558015638,
+    "val_reprice_check": 5.551115123125783e-17,
+    "val_repriced_mean": [
+     0.12386443558015638,
+     0.15839944351080912,
+     0.12418229783927968,
+     0.12184411543608281
+    ],
+    "welfare_mean": 3.533102140083195e-09,
+    "welfare_mean_baseline": 1.06518833777793,
+    "runaway_frac": 0.0,
+    "manifest_flags": [
+     "bailed_out:0",
+     "bailed_out:1",
+     "bailed_out:10",
+     "bailed_out:11",
+     "bailed_out:12",
+     "bailed_out:13",
+     "bailed_out:14",
+     "bailed_out:15",
+     "bailed_out:16",
+     "bailed_out:17",
+     "bailed_out:18",
+     "bailed_out:19",
+     "bailed_out:2",
+     "bailed_out:3",
+     "bailed_out:4",
+     "bailed_out:5",
+     "bailed_out:6",
+     "bailed_out:7",
+     "bailed_out:8",
+     "bailed_out:9"
+    ]
+   }
+  ],
+  "R7_NULL": [],
+  "R3_QW": []
+ },
+ "sizing": {
+  "n_envs": 8,
+  "rollout_steps": 125,
+  "total_agent_steps": 3000000,
+  "eval_every_updates": 250,
+  "eval_episodes": 10,
+  "measure_episodes": 100
+ },
+ "git": "451fd86718257e516baefc1046464b1f63718f53"
+}
