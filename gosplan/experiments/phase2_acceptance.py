@@ -393,9 +393,12 @@ def run(
     sizing=None,
     seeds: dict[str, int] | None = None,
     exploit_seeds: dict[str, int] | None = None,
+    ppo_cfg=None,
 ) -> dict[str, object]:
     """Train, measure, audit and report the R14 acceptance set. `sizing`, `seeds` and
-    `exploit_seeds` default to R14's values; other values are for a smoke run only."""
+    `exploit_seeds` default to R14's values; other values are for a smoke run or a labelled study.
+    `ppo_cfg` defaults to `study_ppo_config()`; the R19 study passes its own entropy schedule. The
+    exploitability audit's best responder always keeps R16's learner."""
     from gosplan.experiments import _g2
     from gosplan.experiments.phase1_gate import GATE_SIZING, study_ppo_config
     from gosplan.oracle.kantorovich import solve_oracle
@@ -406,7 +409,7 @@ def run(
     out_dir = Path(out_dir)
     run_root = out_dir / "runs"
     run_root.mkdir(parents=True, exist_ok=True)
-    ppo = study_ppo_config()
+    ppo = study_ppo_config() if ppo_cfg is None else ppo_cfg
 
     jobs = [(arm, s) for arm in ARMS for s in range(seeds[arm])]
     train_summ = _g2.run_many([(arm_config(a, s), sizing, run_root, ppo) for a, s in jobs])

@@ -475,3 +475,47 @@ the textbook definition of a coordination trap.
   strategy pays.
 - Its outcome is reported whichever way it falls.
 
+## R19. Budget versus exploration schedule, study ES (labelled) - pre-registered before any ES run
+
+Written on 2026-10-03, after the LC trajectory addendum (`runs/LC_record.md`). LC's budget
+manipulation also stretched the entropy anneal, which runs over the whole run. At the 1M-step mark
+a 3M run's entropy coefficient was 0.0070, against 0.0010 for a 1M run. ES separates the two.
+
+**Design.**
+- C0 under spec 2.1.0, seeds 0-9, the study learner, 3M agent-steps.
+- The entropy bonus is annealed 0.01 -> 0.001 over the first 1,000 updates (1M agent-steps,
+  exactly the 1M runs' schedule) and held at 0.001 afterwards. This is new `PPOConfig` field
+  `entropy_anneal_updates = 1000`.
+- Everything else is LC's, including the R16 audit. Its best responder keeps the unchanged study
+  learner.
+- Driver: `gosplan/experiments/entropy_schedule.py`. Artefacts: `runs/entropy_schedule/`.
+
+**Supporting code change.** Checkpoint matching now ignores schedule-only `PPOConfig` fields
+(`SCHEDULE_ONLY_PPO_FIELDS`).
+- Pre-R19 checkpoints still load.
+- An ES population can be warm-started by the R16 best responder.
+- Every other `PPOConfig` field still has to match exactly.
+- Stored run records omit the new field when it is unset, so earlier runs are still read back
+  rather than retrained.
+
+**Primary.**
+- Statistic: the median over seeds of the final measured mean effort, with a 95% percentile
+  bootstrap CI over seeds (10,000 resamples, generator seed 0).
+- "The collapse is reproduced under the matched schedule" iff the CI's upper bound is below 0.05.
+  For reference, LC's 3M median was 0.019, and the 1M runs' measured efforts were 0.09-0.2.
+- A reproduced collapse means that more training, not the stretched schedule, drives it.
+- A non-reproduced collapse means the stretched schedule is implicated.
+
+**Secondary, descriptive only.**
+- Welfare ratio.
+- R16 exploitability against LC's 3M populations.
+- The R18 coordination-trap test, with its rules unchanged, on the ES populations.
+- The training trajectories of all three schedules side by side.
+
+**What ES cannot do.**
+- It re-evaluates no gate.
+- One alternative schedule does not exhaust the learner's design space.
+- Its outcome is reported whichever way it falls.
+- The ES analysis code was smoke-tested on LC's existing data before this text was written. That
+  run read LC's populations as a stand-in, and no ES population existed.
+
