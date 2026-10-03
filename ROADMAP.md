@@ -63,7 +63,8 @@ From PLAN section 1.1, unchanged:
 - **Transfer of any absolute number to archival data.** No quantity produced here is an estimate of
   anything that happened.
 
-The coupling to `forensic-stats` / `forensics_core` is scoped to **estimator robustness**
+The coupling to [`forensics-core`](https://github.com/Xocas12/forensics-core) and the `gosplan` project in
+[`forensic-economy`](https://github.com/Xocas12/forensic-economy) is scoped to **estimator robustness**
 (PLAN section 7.3) and to nothing else.
 
 ### 1.4 Standing warning: nothing has been run
