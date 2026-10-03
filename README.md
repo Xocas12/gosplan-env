@@ -44,6 +44,7 @@ studies, and that is how they must be cited.
 | G3b | `runs/G3b_record.md` | labelled study after the D1 fix (R15) and the revised audit (R16): row 6 **fails behaviourally** (learners post only buy offers, so nothing trades), and the revised audit finds the populations **non-converged** (median exploitability 0.80) |
 | LC | `runs/LC_record.md` | labelled study (R17): tripling the training budget lowers exploitability (median 0.80 to 0.00) but the populations do not converge, and the C0 economy **collapses to near-zero output** (effort 0.02, welfare 0 on every seed) |
 | CT | `runs/CT_record.md` | labelled study (R18, evaluation only): the 3M collapse **is a coordination trap**. A lone producer loses (median -1.72 [-2.24, -1.44]), and everyone producing leaves every seat better off (median +0.87 [+0.49, +1.30]). The 1M populations are not a trap: they are too far from equilibrium |
+| ES | `runs/ES_record.md` | labelled study (R19): with the 1M runs' exact entropy schedule, 3M-step training **still collapses** (median effort 0.019 [0.012, 0.023]) into the same coordination trap. The collapse is driven by training length, not the stretched schedule |
 | P3 | `runs/P3_record.md` | contrasts, estimator bias and price sensitivity complete as a labelled study; the LLM study is NOT RUN (it needs model credentials) |
 | G4 | `runs/final_report/report.md` | not met until the LLM study runs; human sign-off pending |
 
@@ -57,8 +58,9 @@ Three limitations travel with every learned-agent number:
 - **L4.** Under the revised audit (R16) the learned C0 populations are not approximate equilibria:
   a warm-started best responder gains on 9 of 10 seeds (G3b).
 - **L5.** Learned-economy outcomes depend on the training budget: at 3M agent-steps the C0
-  economy collapses to near-zero output (LC). Every learned-agent number here comes from
-  1M-step populations and describes a point on a learning trajectory, not a steady state.
+  economy collapses to near-zero output (LC), under either entropy schedule (ES). Every
+  learned-agent number here comes from 1M-step populations and describes a point on a learning
+  trajectory, not a steady state.
 
 The learned Phase-2 economy is heavily degraded: `welfare_ratio` is about 0.03, where the
 truthful-myopic baseline reaches about 0.53. Every contrast is a movement within that economy.

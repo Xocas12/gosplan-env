@@ -796,6 +796,13 @@ from the runs' `train_log.jsonl` (`python -m gosplan.experiments.learner_converg
     budget from schedule. R17's "everything else unchanged" holds for the configuration, not for
     the effective schedule.
 
+#### Update (2026-10-03): the design caveat was tested
+
+See `runs/ES_record.md`. R19 was pre-registered and run: 3M-step populations with the 1M runs'
+exact entropy schedule. They collapse just the same, with median effort 0.019 [95% CI 0.012,
+0.023], and land in the same coordination trap. The collapse is a training-length effect for this
+learner, not an artefact of the stretched schedule.
+
 #### Consequences
 
 - **L4 stands.** The populations are non-converged at both budgets.
@@ -1065,6 +1072,228 @@ Evaluation only (no training): LC's 3M populations (primary) and G3b's 1M popula
 - (i) d1 = R_dev - R_pop, median 0.336 [-1.208, 34.004]: producing alone is not shown to be unprofitable (R18: CI entirely below 0).
 - (ii) d2 = W_tm - W_pop, median 3.632 [1.539, 40.570]: all-production pays more (R18: CI entirely above 0).
 - **Coordination trap (both): NO.**
+
+---
+
+## Labelled study ES - record
+
+_Source: `runs/ES_record.md`_
+
+### Labelled study ES - record (LEAD)
+
+**Status: complete. ES is a labelled study and re-evaluates no gate.** G3 (NOT PASSED), G3b, LC and
+CT stand as recorded. Written on 2026-10-03; the human sign-off is pending.
+
+- Pre-registration: `spec/P2_REVISION.md` R19, committed in 3db46a9 before any ES run.
+- Driver: `gosplan/experiments/entropy_schedule.py`. Report and data:
+  `runs/entropy_schedule/report.md`, `comparison.json`, `result.json`.
+- Design: C0, seeds 0-9, 3M agent-steps, as in LC. The difference from LC is the entropy bonus,
+  which anneals 0.01 -> 0.001 over the first 1,000 updates (1M agent-steps, the 1M runs' exact
+  schedule) and is then held at 0.001. Everything else is LC's, including the R16 audit.
+- Run history:
+  - Launched on 2026-10-03 at 09:58 UTC; finished at 20:58 UTC.
+  - Two container reboots killed the first training batch at about 1,450 and 360 of 3,000
+    updates. Those runs were retrained from scratch with identical configuration.
+  - Exact resume snapshots were then added to the training harness (R19 note 1). Later restarts
+    resumed from the last snapshot. `tests/unit/test_train_resume.py` shows a resumed run is
+    bitwise equal to an uninterrupted one.
+  - A restart interrupted the R16 audit with 5 of 10 best responders done. The completed ones
+    were reused (R19 note 2, `tests/unit/test_best_responder_reuse.py`).
+  - Neither change touches the design, the rules or any result.
+
+#### Pre-registered outcome (R19)
+
+| Rule | Result |
+|---|---|
+| Collapse reproduced under the matched schedule (CI upper bound of the median final mean effort < 0.05) | **YES**: median 0.019 [95% CI 0.012, 0.023] |
+
+Per-seed final mean effort is between 0.010 and 0.025, which is the range LC found (0.005-0.036).
+
+**Reading (R19's own reading of the rule).** More training, not the stretched exploration
+schedule, drives the collapse. LC's design caveat (`runs/LC_record.md`, addendum) is resolved for
+this learner: with the 1M runs' exact schedule, a 3M-step run still collapses.
+
+#### Descriptive results (not tested)
+
+**Trajectories.** Median over seeds of the periodic evaluation:
+
+| agent-steps (k) | 250 | 500 | 750 | 1000 | 1250 | 1500 | 1750 | 2000 | 3000 |
+|---|---|---|---|---|---|---|---|---|---|
+| entropy coef, ES | 0.0078 | 0.0055 | 0.0033 | 0.0010 | 0.0010 | 0.0010 | 0.0010 | 0.0010 | 0.0010 |
+| median effort, 1M runs (G3b) | 0.662 | 0.615 | 0.267 | 0.089 | | | | | |
+| median effort, ES | 0.662 | 0.615 | 0.267 | 0.089 | 0.043 | 0.028 | 0.021 | 0.019 | 0.022 |
+| median effort, LC (stretched) | 0.663 | 0.603 | 0.348 | 0.116 | 0.033 | 0.023 | 0.022 | 0.022 | 0.020 |
+| median eval return, ES | -207 | -69 | -57 | -4.6 | -0.80 | -0.75 | -0.01 | 0.00 | 0.35 |
+
+- **Through 1M steps ES reproduces the 1M runs exactly.** Same seeds, same configuration and the
+  same schedule make it the same computation, so this is a consistency check rather than a
+  finding.
+- **After 1M steps the slide continues with the entropy coefficient fixed.** Effort halves again
+  by 1.25M and reaches the trap level of about 0.02 by 1.75M, where it stays. Each enterprise's
+  own evaluation return keeps rising along the way, as in LC.
+- **Both 3M schedules end in the same place.** LC's longer exploration delays nothing visible
+  after 1.25M.
+
+**Outcomes at 3M.**
+- Welfare: `welfare_ratio` 0.0000, as in LC.
+- Held-out rows in the harness output (descriptive only):
+  - row 2 (storming) and row 5 (hoarding) appear: excess Gini 0.222 (LC 0.220), request-inflation
+    excess 1.79 (LC 1.98);
+  - row 6 (trade volume) stays at 0.
+- R16 exploitability:
+  - Median -0.008 and max 0.173, with 1 of 10 seeds above 5%. LC 3M had median -0.003 and 3 of
+    10 above.
+  - The paired difference from LC is median +0.003 [95% CI -0.296, +0.950], so no difference is
+    shown.
+  - By R17's convergence rule (max <= 5%) the ES populations are **not converged** either.
+
+**R18 coordination-trap test on the ES populations (R18's rules unchanged; trap: YES).**
+
+| Test | Result |
+|---|---|
+| (i) Producing alone does not pay | `d1` median -1.785 [-2.056, -1.449] |
+| (ii) Everyone producing pays more | `d2` median +1.111 [+0.678, +1.295] |
+
+- A lone truthful-myopic producer in seat 0 earns between -1.47 and -1.43 on every seed. The same
+  narrow band appeared against the LC and G3b populations (CT).
+- When everyone produces, **every seat is better off on all 10 seeds**.
+- Seat 0's learned effort rises from about 0.02 to between 0.03 and 0.45 (median about 0.15)
+  when the other seats are producers. This matches CT's finding that the learned policy has
+  partly unlearned production.
+
+#### Limits
+
+- One alternative schedule was tested. ES separates budget from *this* schedule; it does not
+  exhaust the learner's exploration design.
+- The learning rate is constant in every study, so no learning-rate schedule was tested.
+- The study learner is the only learner (L1, L4). Whether other learners reach the same trap is
+  open.
+- The trap test uses one producer policy, `TruthfulMyopic`, as in CT.
+- No gate is re-evaluated. Limitations L1-L5 stand.
+
+#### Consequences
+
+- **L5 is sharpened, not changed.** The budget dependence of learned-economy outcomes is a
+  training-length effect for this learner. It is not an artefact of the annealing schedule.
+- The project's mechanism result now holds under both 3M schedules. Given enough training, C0
+  learners settle into a Pareto-dominated no-production coordination trap.
+- Any follow-up is the owner's decision and needs a new pre-registration (#97).
+
+---
+
+## Labelled study ES - budget versus exploration schedule (R19)
+
+_Source: `runs/entropy_schedule/report.md`_
+
+### Labelled study ES - budget versus exploration schedule (spec/P2_REVISION.md R19)
+
+C0, seeds 0-9, 3M agent-steps with the entropy bonus annealed over the first 1M steps (the 1M runs' schedule) and held at 0.001 after; R16 audit unchanged. Pre-registered before any ES run. ES re-evaluates no gate.
+
+#### Primary: does the collapse reproduce under the matched schedule?
+
+| seed | final mean effort |
+|---|---|
+| 0 | 0.012 |
+| 1 | 0.014 |
+| 2 | 0.022 |
+| 3 | 0.022 |
+| 4 | 0.011 |
+| 5 | 0.019 |
+| 6 | 0.025 |
+| 7 | 0.024 |
+| 8 | 0.019 |
+| 9 | 0.010 |
+
+- Median final effort 0.019 [95% CI 0.012, 0.023].
+- **Collapse reproduced (R19 rule: CI upper bound < 0.05): YES.**
+
+#### Secondary (descriptive)
+
+- welfare_ratio: ES 0.0000; LC 3M 0.0000.
+- R16 exploitability, ES: median -0.008, max 0.173 (1 of 10 above 5%); LC 3M median -0.003.
+- R18 coordination-trap test on the ES populations: (i) median d1 -1.785 [-2.056, -1.449]; (ii) median d2 1.111 [0.678, 1.295]; trap: YES.
+
+##### Training trajectories (median over seeds of the periodic evaluation)
+
+**1M (G3b)** - k-steps [250, 500, 750, 1000]
+
+- entropy coef: [0.0078, 0.0055, 0.0033, 0.001]
+- median effort: [0.662, 0.615, 0.267, 0.089]
+- median eval return: [-206.67, -68.71, -56.57, -4.59]
+
+**3M, stretched schedule (LC)** - k-steps [250, 500, 750, 1000, 1250, 1500, 1750, 2000, 2250, 2500, 2750, 3000]
+
+- entropy coef: [0.0093, 0.0085, 0.0078, 0.007, 0.0063, 0.0055, 0.0048, 0.004, 0.0033, 0.0025, 0.0018, 0.001]
+- median effort: [0.663, 0.603, 0.348, 0.116, 0.033, 0.023, 0.022, 0.022, 0.024, 0.025, 0.022, 0.02]
+- median eval return: [-190.82, -42.93, -20.4, -5.93, -1.31, -0.01, -0.01, 0.49, 0.69, 0.69, 0.85, 0.71]
+
+**3M, matched schedule (ES)** - k-steps [250, 500, 750, 1000, 1250, 1500, 1750, 2000, 2250, 2500, 2750, 3000]
+
+- entropy coef: [0.0078, 0.0055, 0.0033, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001]
+- median effort: [0.662, 0.615, 0.267, 0.089, 0.043, 0.028, 0.021, 0.019, 0.022, 0.023, 0.023, 0.022]
+- median eval return: [-206.67, -68.71, -56.57, -4.59, -0.8, -0.75, -0.01, -0.0, 0.03, 0.29, 0.36, 0.35]
+
+---
+
+#### Acceptance-harness output for the ES populations
+
+_The harness prints its gate-condition lines and a G3 verdict line. For ES they are descriptive only._
+
+#### Gate G3 - Phase-2 acceptance (WO-031)
+
+Pre-registration: `spec/P2_REVISION.md` R14. Limitations carried from Phase 1: L1 (PPO does not recover the single-enterprise DP's mixed under-reporting strategy) and L2 (the bunching estimator on degenerate and peaked distributions); see `runs/G2_record.md`.
+
+**G3: NOT PASSED**
+
+##### Conditions
+
+- heldout_evaluated: PASS (rows 2, 5, 6, 7 computed on the PLAN section 4.2 values; appearance is reported per row below)
+- exploitability: FAIL
+- oracle_gap_recorded: PASS
+- jax_parity: PASS
+- price_sensitivity: PASS (computed; a sign change is reported below, never suppressed)
+- hygiene: PASS
+
+##### Held-out phenomena (C0, mean over seeds [95% seed-bootstrap CI])
+
+- Row 2 storming: excess Gini 0.2219 [0.1711, 0.2743] - APPEARS
+- Row 5 hoarding: request inflation excess 1.7899 [1.6486, 1.9174]; corr(X, shortfall) excess 1.0329 [0.9270, 1.1169] (0 seeds with an undefined correlation) - APPEARS
+- Row 6 blat: trade volume share 0.000e+00 [0.000e+00, 0.000e+00] - FAILURE (does not appear)
+- Row 7 hidden reserves: C0 0.0842 [0.0622, 0.1108]; R7_NULL nan [nan, nan] (vanishes if upper < 0.01) - NOT EVALUATED (the R7_NULL arm was not run)
+- Row 3 quality (pipeline check): mean qbar C0 - R3_QW nan [nan, nan] - NOT EVALUATED (the R3_QW arm was not run)
+
+##### Oracle (WO-027)
+
+- C0: W_oracle 1.9836, val_oracle 38.1873, status optimal, solver HiGHS (HiGHS via OR-Tools 9.15.6755), optimality gap 0.00e+00, horizon 40
+- R7_NULL: W_oracle 1.9836, val_oracle 38.1873, status optimal, solver HiGHS (HiGHS via OR-Tools 9.15.6755), optimality gap 0.00e+00, horizon 40
+- R3_QW: W_oracle 1.9836, val_oracle 38.1873, status optimal, solver HiGHS (HiGHS via OR-Tools 9.15.6755), optimality gap 0.00e+00, horizon 40
+- Clairvoyant welfare, C0 seeds 0-4 (UPPER BOUND ONLY, never a denominator): 1.9791, 1.9797, 1.9812, 1.9816, 1.9815
+
+##### Headline metrics and price sensitivity (C0)
+
+- welfare_ratio W / W_oracle: 0.0000
+- specification_gap at base prices and under price seeds (11, 12, 13): 0.0059, 0.0059, 0.0059, 0.0058 - sign change: no
+
+##### Exploitability (WO-028)
+
+- C0: max 0.1726, median -0.0082 over 10 seeds (threshold 0.05, provisional; finalised by the lead at G3 (PLAN section 6.3)) NON-CONVERGED
+
+##### JAX parity (WO-029)
+
+- max |NumPy - JAX| over 100 agent-steps: p1 1.07e-14, p2 7.11e-14 (tolerance 1e-05)
+
+##### Hygiene
+
+- BOUND_BINDING runs: 0
+- max training-episode runaway fraction after 20%: 0.0000 (limit 0.05)
+
+##### Arms and seeds
+
+- C0: 10 seeds, overrides none
+- R7_NULL: 0 seeds, overrides {'incentive': {'growth_directive': 0.0, 'penalty_arg': 'absolute'}}
+- R3_QW: 0 seeds, overrides {'incentive': {'objective_metric': 'quality_weighted'}, 'information': {'quality_measurability': 1.0}}
+
+Sizing: `{'n_envs': 8, 'rollout_steps': 125, 'total_agent_steps': 3000000, 'eval_every_updates': 250, 'eval_episodes': 10, 'measure_episodes': 100}`; git `451fd86718257e516baefc1046464b1f63718f53`.
 
 ---
 
@@ -1360,5 +1589,5 @@ re-run at 3M.
 
 ## Manifest roll-up (CONTRACT rule 10)
 
-515 run manifests; the full table is `runs/final_report/manifests.md`.
+535 run manifests; the full table is `runs/final_report/manifests.md`.
 
