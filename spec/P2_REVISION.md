@@ -530,3 +530,12 @@ optimiser state, the generator state, the pickled environments and the loop coun
 bit for bit, in its final parameters and in every logged training row. No ES run had completed when
 this was added. The design, the rules and every result are unaffected.
 
+**R19 note (2026-10-03, infrastructure, no design change).** A container restart interrupted the
+R16 audit after 5 of 10 best responders had finished. `train_best_responder` now reuses a best
+responder whose run directory already holds its manifest and final checkpoint. The manifest is
+written after the final checkpoint, so it marks completion.
+
+Training is deterministic and checkpoints restore exactly, so reuse equals retraining
+(`tests/unit/test_best_responder_reuse.py`). The audit therefore resumes at the first unfinished
+seed. The best responder's learner and budget are unchanged (R16).
+
