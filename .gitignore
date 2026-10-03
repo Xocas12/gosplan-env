@@ -43,3 +43,8 @@ runs/**/g2_measure.json
 #     (PLAN section 11), not hand-written ---
 tests/golden/*.json
 !tests/golden/.gitkeep
+
+# Transient training resume snapshots (gosplan/agents/ppo/train.py); deleted when a run completes.
+runs/**/resume.pkl
+runs/**/resume.ckpt
+runs/**/resume.*.tmp
