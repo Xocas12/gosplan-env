@@ -189,9 +189,13 @@ def entropy_coefficient(update: int, n_updates: int, ppo_cfg: PPOConfig) -> floa
     Owning WO: **WO-018**.
     """
     start, end = float(ppo_cfg.entropy_coef_start), float(ppo_cfg.entropy_coef_end)
-    if n_updates <= 1:
-        return start
-    frac = min(max(update, 0), n_updates - 1) / (n_updates - 1)
+    horizon = n_updates
+    anneal = getattr(ppo_cfg, "entropy_anneal_updates", None)
+    if anneal is not None:  # R19: anneal over the first `anneal` updates, then hold the end value
+        horizon = min(n_updates, int(anneal))
+    if horizon <= 1:
+        return start if n_updates <= 1 else end
+    frac = min(max(update, 0), horizon - 1) / (horizon - 1)
     return start + frac * (end - start)
 
 

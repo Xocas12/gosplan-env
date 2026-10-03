@@ -239,6 +239,12 @@ class PPOConfig:
     entropy_coef_end: float = 0.001
     """Entropy bonus at the end of training (same source)."""
 
+    entropy_anneal_updates: int | None = None
+    """Anneal horizon in updates. `None` (the default, and every run before spec/P2_REVISION.md
+    R19) anneals over the whole run; an integer anneals over the first that many updates and holds
+    `entropy_coef_end` afterwards. Added for the R19 study, which separates the training budget
+    from the stretch of the exploration schedule that a longer budget otherwise brings."""
+
     report_head_init_ratio: float = 1.0
     """Report-head initialisation in *ratio* units: the initial squashed mean of `report_ratio`
     (PLAN section 6.1, "report head initialised with mean at `rho = 1`"). Pushed through the tanh
@@ -599,7 +605,7 @@ class IPPO:
             arrays = {key: np.asarray(data[key]) for key in data.files}
         if str(arrays.pop("meta_config_hash")) != self.cfg.hash():
             raise ValueError(f"checkpoint {path}: configuration hash differs from this adapter's")
-        if str(arrays.pop("meta_ppo_config")) != _ppo_json(self.ppo):
+        if _ppo_identity(str(arrays.pop("meta_ppo_config"))) != _ppo_identity(_ppo_json(self.ppo)):
             raise ValueError(f"checkpoint {path}: PPOConfig differs from this adapter's")
         if json.loads(str(arrays.pop("meta_head_names"))) != list(self.head_names):
             raise ValueError(f"checkpoint {path}: head_names differ from this adapter's")
@@ -908,6 +914,21 @@ class _CleanRLContinuousPPO:
 
 def _ppo_json(ppo: PPOConfig) -> str:
     return json.dumps(dataclasses.asdict(ppo), sort_keys=True)
+
+
+SCHEDULE_ONLY_PPO_FIELDS = ("entropy_anneal_updates",)
+"""`PPOConfig` fields that shape only the training schedule, never the parameters or optimiser
+state a checkpoint holds. A checkpoint is matched to an adapter without them, so checkpoints saved
+before a field existed still load, and a population trained under the R19 anneal horizon can be
+warm-started by the R16 best responder, whose own learner is unchanged (spec/P2_REVISION.md R19)."""
+
+
+def _ppo_identity(ppo_json: str) -> dict:
+    """The parts of a stored `PPOConfig` that a checkpoint must match exactly."""
+    record = json.loads(ppo_json)
+    for name in SCHEDULE_ONLY_PPO_FIELDS:
+        record.pop(name, None)
+    return record
 
 
 def _acting_phase_is_report(obs: np.ndarray, m: int) -> np.ndarray:
