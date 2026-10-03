@@ -33,9 +33,18 @@ runs/**/*.parquet
 runs/**/*.png
 runs/**/*.pkl
 runs/**/*.npz
+runs/**/run.log
+runs/**/train_log.jsonl
+runs/**/checkpoints/
+runs/**/g2_measure.json
 !runs/.gitkeep
 
 # --- golden files are generated from the reference dynamics by ref/gen_golden.py
 #     (PLAN section 11), not hand-written ---
 tests/golden/*.json
 !tests/golden/.gitkeep
+
+# Transient training resume snapshots (gosplan/agents/ppo/train.py); deleted when a run completes.
+runs/**/resume.pkl
+runs/**/resume.ckpt
+runs/**/resume.*.tmp

@@ -2,9 +2,9 @@
 
 Realises: PLAN sections 2.2 (state), 2.3 (actions), 2.5 (period schedule bookkeeping and the
 per-step diagnostic payload), 2.11 (inventory), 2.12 (the `alive` flag) and 2.15 (the two seed
-fields). Owning task: step function and env wrapper; maintainer.
+fields). Owning work order: **WO-009** (step function and env wrapper; LEAD).
 
-Struct-of-arrays with leading dimension `N` throughout, so the Phase-2 JAX port is a
+Struct-of-arrays with leading dimension `N` throughout, so the Phase-2 JAX port (WO-029) is a
 mechanical translation and its parity test is meaningful. Shapes are stated in a comment on every
 field. Dimensions used below: `N = cfg.supply.n_enterprises`, `J = cfg.supply.n_sectors`,
 `L = cfg.supply.invest_lag`, `M = cfg.incentive.steps_per_period`.
@@ -13,10 +13,10 @@ field. Dimensions used below: `N = cfg.supply.n_enterprises`, `J = cfg.supply.n_
 `EnterpriseAction` and `StepInfo`. `spec/` is a document directory, not an importable package, so
 this module declares the runtime dataclasses instead of importing them, and they MUST stay
 field-for-field identical to the frozen declarations: same field names, same order, same
-annotations. `tests/unit/test_spec_imports.py` and `tests/unit/test_env_api.py`
+annotations. `tests/unit/test_spec_imports.py` (WO-001) and `tests/unit/test_env_api.py` (WO-009)
 enforce the agreement; any divergence is a spec change and needs a `spec/CHANGELOG.md` entry
 (CONTRACT rule 1). The cross-module types this module names - `EnvConfig` and the literal alias
-`Phase` from `gosplan/config.py`, `StepRecord` from `gosplan/metrics/ledger.py` -
+`Phase` from `gosplan/config.py` (WO-003), `StepRecord` from `gosplan/metrics/ledger.py` (WO-011) -
 are imported under `TYPE_CHECKING`, so this module stays importable while its siblings are still
 skeletons.
 
@@ -36,12 +36,12 @@ Exactly two functions may read it on someone's behalf - `make_planner_view` in
   * Holding loss `h = cfg.supply.holding_loss` (Phase 1: 0.02) is charged once per period at the
     REPORT step, on the stock carried *in*, before this period's output is added:
     `S_i <- (1 - h) * S_i + y_i` (PLAN section 2.8). The order matters and is tested. The update
-    itself belongs to `process_reports` in `gosplan/env/reporting.py`, not to this
+    itself belongs to `process_reports` in `gosplan/env/reporting.py` (WO-007), not to this
     module; this module owns only the field it writes into.
   * Cap `S_max = cfg.tech.inventory_cap_mult * cap_i`, i.e. `3 * cap_i` at the Phase-1 defaults.
     Stock above the cap is lost, and the lost amount (the "cap overflow") is logged per enterprise
     per period so that it stays visible in the conservation identity instead of silently
-    vanishing. The cap is applied by `process_reports` immediately after the line above.
+    vanishing. The cap is applied by `process_reports` immediately after the line above (WO-007).
   * Input stocks `inv_inputs` (`X_ij`) carry **no** holding loss in Phase 1:
     `cfg.supply.input_holding_loss = 0.0`, so holding inputs has no direct carrying cost. That is
     a design decision, not an oversight - it is what leaves the hoarding phenomenon free to be
@@ -79,14 +79,14 @@ It is a normalisation rather than a configuration field - `cfg.supply.productivi
 1.0 against it, which is what makes the TECH row `T_0 = 0.6 * A * cap` read as `T_0 = 0.6` - so it
 is named here instead of appearing as a bare literal in `initial_state`, `initial_targets` and in
 the `S_max` cap of PLAN section 2.11. Capital moves only in Phase 2, when `cfg.supply.capital_dep`
-and the investment action are switched on (a later task onward)."""
+and the investment action are switched on (WO-021 onward)."""
 
 
 @dataclass
 class State:
     """The full environment state (PLAN section 2.2), struct-of-arrays with leading dimension `N`.
 
-    Mutable by design: `gosplan/env/step.py` threads one `State` through the period
+    Mutable by design: `gosplan/env/step.py` (WO-009) threads one `State` through the period
     schedule of PLAN section 2.5. Field-for-field identical to `spec.State`; see the module
     docstring for the enforcement and for the inventory rules of PLAN section 2.11.
     """
@@ -117,6 +117,15 @@ class State:
     seed_env: int  # root environment seed; every draw is keyed from it (section 2.15)
     seed_policy: int  # root policy seed, kept separate from seed_env (CONTRACT rule 9)
 
+    # Phase-2 fields (P2 revision, spec 2.0.0). They default to `None` so a `State` built by hand
+    # for a Phase-1 test stays valid; `gosplan.env.state.ensure_p2_fields` fills them with their
+    # opening values (those of `initial_state`) the first time the step machine sees the state.
+    claim_history: Array | None = None  # (N, 2) claims forwarded to the planner 1, 2 periods ago
+    pending_deliv: Array | None = None  # (N, J, M) deliveries waiting for a later step
+    trade_surplus_acc: Array | None = None  # (N,) trade surplus accrued this period
+    ministry_prev: Array | None = None  # (N,) each ministry's previous forward for i
+    trade_offer_posted: Array | None = None  # (N, J) offers posted at the last REPORT (R15)
+
 
 @dataclass
 class EnterpriseAction:
@@ -124,14 +133,14 @@ class EnterpriseAction:
 
     The dimension set is fixed across phases; configuration flags decide which dimensions the
     environment reads, and the PPO adapter builds heads only for `active_action_dims(cfg)` (PLAN
-    section 6.1, a later task). Inactive dimensions are ignored by the environment rather than rejected,
+    section 6.1, WO-017). Inactive dimensions are ignored by the environment rather than rejected,
     so a Phase-1 policy and a Phase-2 policy share one action type. Dimensions irrelevant to the
     current phase are likewise ignored: `effort`, `quality` and `invest` are read only at PRODUCE
     steps, `report_ratio` and `input_request` only at the REPORT step.
 
-    Bounds are those of `action_spec(cfg)`. Field-for-field identical to
+    Bounds are those of `action_spec(cfg)` (WO-009). Field-for-field identical to
     `spec.EnterpriseAction`; declared here because `spec/` is not importable and because
-    `gosplan/env/production.py` and `gosplan/env/reporting.py` both need the type. If a later task's
+    `gosplan/env/production.py` and `gosplan/env/reporting.py` both need the type. If WO-009's
     `step.py` or a later spec revision gives this record another home, the duplicate must be
     removed and the move recorded in `spec/CHANGELOG.md`.
     """
@@ -149,9 +158,9 @@ class StepInfo:
     """Per-agent-step diagnostic payload: true quantities for the ledger, never for agents.
 
     Carries the `StepRecord`s produced by one agent-step - one per enterprise, in enterprise-index
-    order - plus the period-level scalars. CONTRACT rule 6 and its task specification make the boundary
+    order - plus the period-level scalars. CONTRACT rule 6 and the WO-009 card make the boundary
     explicit: `StepInfo` is written by the environment and read by `gosplan/metrics/ledger.py` and
-    by lead-run experiments; no agent, no policy and no reward term may read it (the corresponding task
+    by lead-run experiments; no agent, no policy and no reward term may read it (the WO-010
     forbidden list is "any agent reading `StepInfo`"), which is why `GosplanEnv.step` returns it
     beside the observation rather than inside it.
 
@@ -159,7 +168,7 @@ class StepInfo:
     sections 2.5, 2.9.3) and are zero at every other agent-step: `val_measured` and `val_true` at
     the REPORT step, `welfare` after DELIVER, when `consumer` is known. Field-for-field identical
     to `spec.StepInfo`; declared here because `gosplan/env/step.py` and `gosplan/env/env.py` both
-    bind it to this module. Owning WO: a later task.
+    bind it to this module. Owning WO: **WO-009**.
     """
 
     records: tuple[StepRecord, ...]  # one per enterprise, in enterprise-index order
@@ -194,9 +203,11 @@ def initial_targets(cfg: EnvConfig) -> Array:
     T_0` (PLAN section 2.7.1). `T_0` never changes within an episode - only `State.target` moves.
 
     Binds: `tests/unit/test_obs.py` (observation field 2 is 0 at reset), test T-U4 (the target
-    floor is respected). Owning WO: a later task.
+    floor is respected). Owning WO: **WO-009**.
     """
-    raise NotImplementedError("PLAN sections 2.7.1, 3")
+    sector = np.asarray(cfg.supply.sector_of, dtype=int)
+    productivity = np.asarray(cfg.supply.productivity, dtype=float)[sector]
+    return cfg.tech.initial_target_frac * productivity * INITIAL_CAPACITY
 
 
 def initial_state(cfg: EnvConfig) -> State:
@@ -220,6 +231,10 @@ def initial_state(cfg: EnvConfig) -> State:
                            `fill = 1` when the claim is zero, so 1 is the consistent opening value
         request            zeros                                             (N, J)
         pending_invest     zeros                                             (N, L)
+        claim_history      T_0 in both columns (P2 revision R2)                (N, 2)
+        pending_deliv      zeros (P2 revision R6)                              (N, J, M)
+        trade_surplus_acc  zeros (P2 revision R9)                              (N,)
+        ministry_prev      T_0 (P2 revision R10)                               (N,)
         t_period           0
         k_step             0
         phase              "produce"
@@ -242,9 +257,68 @@ def initial_state(cfg: EnvConfig) -> State:
 
     Binds: `tests/unit/test_env_api.py` (reset returns this state; shapes and dtypes as declared)
     and `tests/golden/*` (T-B7 - the opening state must match `ref/ref_step.py` to 1e-9). Owning
-    WO: a later task.
+    WO: **WO-009**.
     """
-    raise NotImplementedError("PLAN section 2.2")
+    from gosplan.env.prices import initial_prices
+
+    n, j = cfg.supply.n_enterprises, cfg.supply.n_sectors
+    lag = cfg.supply.invest_lag
+    target = initial_targets(cfg)
+    a_rows = np.asarray(cfg.supply.io_matrix, dtype=float)[np.asarray(cfg.supply.sector_of)]
+    return State(
+        target=target,
+        capital=np.full(n, INITIAL_CAPACITY),
+        inv_output=np.zeros(n),
+        # Opening input endowment X_ij = a_{s(i)j} * T_0_i (ambiguity #62, CHANGELOG 0.1.4).
+        inv_inputs=a_rows * target[:, None],
+        cum_output=np.zeros(n),
+        cum_cost=np.zeros(n),
+        quality_acc=np.zeros(n),
+        last_report_ratio=np.zeros(n),
+        last_report=np.zeros(n),
+        last_audited=np.zeros(n, dtype=bool),
+        last_penalty=np.zeros(n),
+        last_fill=np.ones(n),
+        request=np.zeros((n, j)),
+        pending_invest=np.zeros((n, lag)),
+        claim_history=np.repeat(target[:, None], 2, axis=1),  # P2 R2: lagged claims start on plan
+        pending_deliv=np.zeros((n, j, cfg.incentive.steps_per_period)),
+        trade_surplus_acc=np.zeros(n),
+        ministry_prev=target.copy(),  # P2 R10: a ministry's first "previous forward" is T_0
+        trade_offer_posted=np.zeros((n, j)),  # P2 R15: nothing posted before the first REPORT
+        t_period=0,
+        k_step=0,
+        phase="produce",
+        plan_prices=np.array(initial_prices(cfg), dtype=float),
+        planner_io=np.array(cfg.supply.io_matrix, dtype=float),
+        consumer_delivery=np.zeros(j),
+        alive=True,
+        seed_env=int(cfg.tech.seed_env),
+        seed_policy=int(cfg.tech.seed_policy),
+    )
+
+
+def ensure_p2_fields(state: State, cfg: EnvConfig) -> State:
+    """Fill any Phase-2 field left `None` with its opening value (P2 revision, spec 2.0.0).
+
+    Takes: `state` and `cfg`. Returns: the same `state`, mutated in place where needed. The
+    opening values are those `initial_state` uses: `claim_history` and `ministry_prev` start at
+    the current targets (on-plan claims), `pending_deliv` and `trade_surplus_acc` at zero. A state
+    from `initial_state` passes through unchanged.
+    """
+    n, j = cfg.supply.n_enterprises, cfg.supply.n_sectors
+    target = np.asarray(state.target, dtype=float)
+    if state.claim_history is None:
+        state.claim_history = np.repeat(target[:, None], 2, axis=1)
+    if state.pending_deliv is None:
+        state.pending_deliv = np.zeros((n, j, cfg.incentive.steps_per_period))
+    if state.trade_surplus_acc is None:
+        state.trade_surplus_acc = np.zeros(n)
+    if state.ministry_prev is None:
+        state.ministry_prev = target.copy()
+    if state.trade_offer_posted is None:
+        state.trade_offer_posted = np.zeros((n, j))
+    return state
 
 
 def reset_period_accumulators(state: State) -> State:
@@ -264,9 +338,13 @@ def reset_period_accumulators(state: State) -> State:
     in place at the next REPORT and AUDIT steps.
 
     Binds: test T-U1 (`tests/unit/test_conservation.py`) - the conservation identity is stated per
-    period, so an accumulator not zeroed at exactly this boundary breaks it. Owning WO: a later task.
+    period, so an accumulator not zeroed at exactly this boundary breaks it. Owning WO: **WO-009**.
     """
-    raise NotImplementedError("PLAN sections 2.2, 2.5")
+    state.cum_output = np.zeros_like(np.asarray(state.cum_output, dtype=float))
+    state.cum_cost = np.zeros_like(np.asarray(state.cum_cost, dtype=float))
+    state.quality_acc = np.zeros_like(np.asarray(state.quality_acc, dtype=float))
+    state.consumer_delivery = np.zeros_like(np.asarray(state.consumer_delivery, dtype=float))
+    return state
 
 
 def advance_phase(state: State, cfg: EnvConfig) -> State:
@@ -289,6 +367,16 @@ def advance_phase(state: State, cfg: EnvConfig) -> State:
 
     Binds: `tests/unit/test_env_api.py` (an episode of `P` periods produces exactly `P * (M + 1)`
     agent-steps, and the phase sequence within a period is `M` times "produce" then "report") and
-    `tests/golden/*` (T-B7). Owning WO: a later task.
+    `tests/golden/*` (T-B7). Owning WO: **WO-009**.
     """
-    raise NotImplementedError("PLAN section 2.5")
+    m = cfg.incentive.steps_per_period
+    if state.phase == "report":
+        state.t_period += 1
+        state.k_step = 0
+        state.phase = "produce"
+    elif state.k_step < m - 1:
+        state.k_step += 1
+    else:
+        state.k_step = m
+        state.phase = "report"
+    return state

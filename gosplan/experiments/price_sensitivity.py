@@ -1,7 +1,7 @@
-"""Price-vector sensitivity - PLAN sections 2.9.4, 2.10, 7.5, 12.5, 13 (gate G4) and 14.
+"""Price-vector sensitivity - PLAN sections 2.9.4, 2.10, 7.5, 12.5 (WO-036), 13 (gate G4) and 14.
 
 Realises: the standing robustness check of PLAN section 2.9.4, scoped as PLAN section 7.5. Owning
-task: a later task (contributor, Phase 3). Gate: **G4** - PLAN section 13 requires "price
+work order: **WO-036** (MID-fast, Phase 3). Gate: **G4** - PLAN section 13 requires "price
 sensitivity on every headline table".
 
     THE STANDING RULE (PLAN sections 2.9.4, 7.5). Recompute all three headline metrics under
@@ -27,7 +27,7 @@ with `val_measured = sum_i p_{s(i)} * R_i * q_hat_i` and `val_true = sum_i p_{s(
 2.10) - a modelling choice, not a market outcome - so every price-weighted conclusion must be shown
 to survive a different plausible weighting.
 
-    RECOMPUTATION VERSUS RE-RUN (a distinction a later task must respect). For `objective_metric = "val"`
+    RECOMPUTATION VERSUS RE-RUN (a distinction WO-036 must respect). For `objective_metric = "val"`
     - Phase 1, and C0 in the contrasts - prices enter only the logged aggregates, so a perturbed
     price vector is a pure **post-hoc recomputation** over an existing ledger: no retraining, and
     the environment is untouched. For `objective_metric = "net_output"` - the C_INC and C_BOTH arms
@@ -38,7 +38,7 @@ to survive a different plausible weighting.
     or the reverse.
 
 Inputs
-    The headline table to check, and the ledgers behind it (`runs/<config-hash>/`, a later task). The
+    The headline table to check, and the ledgers behind it (`runs/<config-hash>/`, WO-011). The
     unperturbed plan prices come from `initial_prices(cfg)` (PLAN section 2.10).
 
 Outputs
@@ -48,20 +48,20 @@ Outputs
     `runs/price_sensitivity/report.md`      the sensitivity block for every headline table, with the
                                             sign-change column for `specification_gap` first
 
-    The same block is embedded beneath each headline table by the report generator, which
+    The same block is embedded beneath each headline table by the report generator (WO-037), which
     is what "on every headline table" means in practice. PLAN section 12.5 names no artefact paths
-    for a later task; these follow the `runs/<experiment>/` convention of the Phase-1 tasks.
+    for WO-036; these follow the `runs/<experiment>/` convention of the Phase-1 cards.
 
 Cost (PLAN section 14): no separate line - the recomputation path is CPU minutes over existing
 ledgers. The re-run path described above costs one extra run per affected arm and seed, and is
 budgeted with the arm it audits.
 
-OPEN QUESTION (CONTRACT rule 3; do not silently choose)
+OPEN - AMBIGUITY FOR THE WO-036 SESSION (CONTRACT rule 3; do not silently choose)
     PLAN section 2.10 also assigns the consumer CES parameters `ces_alpha` and `ces_sigma` to this
     check ("swept in the price-sensitivity check, not in the treatment arms"), but neither PLAN
     section 2.9.4 nor PLAN section 3 gives them a sweep grid, and PLAN section 7.5 specifies only
     the price-vector perturbation. The price-vector half of this module is fully determined; the CES
-    half is not. File an OPEN QUESTION and let the maintainer fix the grid; whatever is used is printed
+    half is not. File an AMBIGUITY REPORT and let the lead fix the grid; whatever is used is printed
     in the table beside the indices it moves.
 
 Runtime bindings. `EnvConfig` is `gosplan.config.EnvConfig` (field-for-field identical to
@@ -86,10 +86,11 @@ PRICE_LOG_SIGMA = 0.3
 verbatim). The draw is per good `j`, so relative prices move, not just the overall level - a common
 scale factor would cancel out of every ratio in PLAN section 2.9.4 and check nothing."""
 
-PRICE_PERTURBATION_SEEDS: tuple[int, ...] = (0, 1, 2)
+PRICE_PERTURBATION_SEEDS: tuple[int, ...] = (11, 12, 13)
 """The "fixed seeds" of PLAN section 2.9.4. PLAN fixes that the seeds are *fixed and reused*, not
-which integers they are; these three are this module's registered choice and they are recorded in
-the manifest. The requirement they satisfy is that the same three perturbed price vectors are
+which integers they are. These three are the ones the G3 acceptance run used (spec/P2_REVISION.md
+R14), adopted for every Phase-3 table by spec/P3_REVISION.md S6 so the project has one triple; they
+are recorded in the manifest. The requirement they satisfy is that the same three perturbed price vectors are
 applied to every headline table, so sensitivity is comparable across tables rather than being three
 fresh draws each time."""
 
@@ -116,7 +117,7 @@ metric that reads `plan_prices`) forces the `rerun` path; `val` and `quality_wei
 prices in the fulfilment measure and take the `recomputation` path."""
 
 OUT_DIR = Path("runs/price_sensitivity")
-"""Artefact directory, relative to the repository root; a a later task convention."""
+"""Artefact directory, relative to the repository root; a WO-036 convention."""
 
 TABLE_PATH = OUT_DIR / "table.parquet"
 """One row per (source table, row, price vector, metric)."""
@@ -158,9 +159,10 @@ def run(
     Procedure (PLAN sections 2.9.4, 7.5):
 
       1. Solve the unperturbed plan prices with `initial_prices(cfg)` (PLAN section 2.10).
-      2. For each seed in `seeds`, draw `u ~ N(0, PRICE_LOG_SIGMA**2)` per good with a local
-         generator seeded by that integer, and form `p_j * exp(u_j)`. The draws are analysis-time
-         and never touch the environment's keyed RNG (see the module docstring).
+      2. For each seed in `seeds`, form `p_j * exp(u_j)` with `u ~ N(0, PRICE_LOG_SIGMA**2)` per
+         good, via `gosplan.env.prices.perturbed_price_vectors` (keyed purpose `pricepert`, spec
+         2.0.0 CHANGELOG; this supersedes the local-generator note above). The draws are
+         analysis-time and never enter an episode.
       3. Decide the label from `RERUN_TRIGGER_FIELD`. Under `recomputation`, recompute
          `val_measured`, `val_true` and the three `HEADLINE_METRICS` directly from the existing
          ledgers at the perturbed prices - no retraining, no new episodes. Under `rerun`, rebuild
@@ -179,9 +181,80 @@ def run(
     Binds: gate G4 of PLAN section 13 - "price sensitivity on every headline table" - and the
     standing robustness check of PLAN section 2.9.4.
 
-    Realises: PLAN sections 2.9.4, 2.10, 7.5, 12.5, 13. Owning WO: a later task.
+    Realises: PLAN sections 2.9.4, 2.10, 7.5, 12.5 (WO-036), 13. Owning WO: **WO-036**.
     """
-    raise NotImplementedError("PLAN section 7.5")
+    import json
+
+    import numpy as np
+
+    from gosplan.env.prices import initial_prices, perturbed_price_vectors
+    from gosplan.oracle.kantorovich import solve_oracle
+
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    base = np.asarray(initial_prices(cfg), dtype=float)
+    vectors = (base, *perturbed_price_vectors(base, tuple(seeds)))
+    oracle = solve_oracle(cfg, ORACLE_HORIZON, False, None)
+    sector = np.asarray(cfg.supply.sector_of, dtype=int)
+    val_oracle = [float(np.dot(p[sector], oracle["output_mean"])) for p in vectors]
+    reads_prices = cfg.incentive.objective_metric in PRICE_READING_METRICS
+    label = RECOMPUTATION_LABELS[1] if reads_prices else RECOMPUTATION_LABELS[0]
+    metrics, sign_changed = [], {}
+    rows = []
+    for d in ledger_dirs:
+        path = Path(d) / MEASURE_FILE
+        if not path.exists():
+            raise FileNotFoundError(f"{path}: no measurement for this headline row")
+        rows.append((Path(d).name, json.loads(path.read_text(encoding="utf-8"))))
+    per_vector = {name: [] for name in HEADLINE_METRICS}
+    for row, meas in rows:
+        values = [
+            row_metrics(meas, r, oracle["welfare"], val_oracle[r]) for r in range(len(vectors))
+        ]
+        for r, v in enumerate(values):
+            for name in HEADLINE_METRICS:
+                metrics.append(
+                    {
+                        "table": table_name,
+                        "row": row,
+                        "price_vector": r,
+                        "seed": None if r == 0 else seeds[r - 1],
+                        "metric": name,
+                        "baseline": values[0][name],
+                        "perturbed": v[name],
+                        "relative_change": _rel(values[0][name], v[name]),
+                        "label": label,
+                    }
+                )
+        sign_changed[row] = _sign_change([v[SIGN_CHANGE_METRIC] for v in values])
+        for name in HEADLINE_METRICS:
+            per_vector[name].append([v[name] for v in values])
+    means = {
+        name: np.nanmean(np.asarray(v, dtype=float), axis=0).tolist()
+        for name, v in per_vector.items()
+    }
+    result = {
+        "table_name": table_name,
+        "label": label,
+        "label_note": RERUN_NOTE if reads_prices else "",
+        "base_prices": tuple(float(x) for x in base),
+        "price_vectors": tuple(
+            (int(sd), tuple(float(x) for x in p)) for sd, p in zip(seeds, vectors[1:], strict=True)
+        ),
+        "metrics": tuple(metrics),
+        "sign_changed": sign_changed,
+        "mean_over_rows": means,
+        "mean_sign_changed": _sign_change(means[SIGN_CHANGE_METRIC]),
+        "oracle": {k: oracle[k] for k in ("welfare", "optimality_gap", "solver_version")},
+        "n_rows": len(rows),
+    }
+    import pandas as pd
+
+    safe = table_name.replace("/", "_").replace(" ", "_")
+    table_path = out_dir / f"{safe}.parquet"
+    pd.DataFrame(metrics).to_parquet(table_path, index=False)
+    result["artefacts"] = {"table": str(table_path)}
+    return result
 
 
 def main() -> int:
@@ -199,9 +272,106 @@ def main() -> int:
     gate G4 failure (PLAN section 13), not a silent omission. A sign change in `SIGN_CHANGE_METRIC`
     is *not* an error condition - it is a reported result, and the exit code stays 0.
 
-    Realises: PLAN sections 2.9.4, 7.5, 12.5, 13. Owning WO: a later task.
+    Realises: PLAN sections 2.9.4, 7.5, 12.5 (WO-036), 13. Owning WO: **WO-036**.
     """
-    raise NotImplementedError("PLAN section 7.5")
+    from gosplan.config import p2_default_config
+    from gosplan.experiments import _g2, contrasts
+
+    c0 = p2_default_config()
+    blocks = []
+    try:
+        for name, table in contrasts.CONTRASTS.items():
+            arm_cfg = contrasts.apply_overrides(c0, table)
+            n = contrasts.C0_SEEDS if name == "C0" else contrasts.N_NEW_ARM_SEEDS
+            root = contrasts.C0_RUN_ROOT if name == "C0" else contrasts.OUT_DIR / "runs"
+            dirs = tuple(
+                root / _g2.seeded(arm_cfg, s, contrasts.SEED_ROOT).hash() for s in range(n)
+            )
+            title = "G3 / contrasts: C0" if name == "C0" else f"contrasts: {name}"
+            blocks.append(run(arm_cfg, dirs, title))
+    except FileNotFoundError as exc:
+        print(f"price_sensitivity: {exc}")
+        return 1
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    REPORT_PATH.write_text(render_report(blocks), encoding="utf-8")
+    print(f"price_sensitivity: {len(blocks)} tables; report {REPORT_PATH}")
+    return 0
+
+
+# ---------- implementation (spec/P3_REVISION.md S6) ----------
+
+MEASURE_FILE = "contrast_measure.json"
+"""Per-run window means of `val_measured`, `val_true` (base and the three perturbed vectors) and
+welfare, written by `gosplan.experiments.contrasts.measure_contrast_seed`."""
+
+ORACLE_HORIZON = 40
+PRICE_READING_METRICS = ("net_output",)
+RERUN_NOTE = (
+    "recomputation only; the objective reads prices, a behavioural answer needs a rerun, which is "
+    "not performed for compute reasons (spec/P3_REVISION.md S6)"
+)
+NOT_PRICE_WEIGHTED = (
+    "Phase-1 gate tables (runs/phase1_gate), the DP-vs-PPO tables and the estimator-bias tables carry "
+    "no price-weighted headline metric (report ratios, padding in ratio units, excess mass), so a "
+    "reprice leaves them unchanged; they are listed here so their omission is explicit."
+)
+
+
+def row_metrics(meas: dict, r: int, w_oracle: float, val_oracle: float) -> dict[str, float]:
+    """The three headline metrics of one row under price vector `r` (0 = base). Pure."""
+    wr = meas["welfare_mean"] / w_oracle
+    return {
+        "padding_index": meas["val_measured_mean"][r] / meas["val_true_mean"][r],
+        "welfare_ratio": wr,
+        "specification_gap": meas["val_measured_mean"][r] / val_oracle - wr,
+    }
+
+
+def _rel(base: float, new: float) -> float:
+    return float((new - base) / abs(base)) if base else float("nan")
+
+
+def _sign_change(values) -> bool:
+    import numpy as np
+
+    signs = {float(np.sign(v)) for v in values if np.isfinite(v)}
+    return len(signs) > 1
+
+
+def render_report(blocks: list[dict]) -> str:
+    lines = [
+        "# Price-vector sensitivity (WO-036, PLAN sections 2.9.4, 7.5)",
+        "",
+        f"Perturbation `p_j exp(u_j)`, `u ~ N(0, {PRICE_LOG_SIGMA}**2)`, seeds "
+        f"{PRICE_PERTURBATION_SEEDS} (keyed purpose `pricepert`; spec/P3_REVISION.md S6). Sign "
+        "changes of `specification_gap` are listed first.",
+        "",
+        "## Sign changes",
+        "",
+    ]
+    for b in blocks:
+        rows = [r for r, v in b["sign_changed"].items() if v]
+        lines.append(
+            f"- {b['table_name']}: mean over {b['n_rows']} rows "
+            f"{'CHANGES SIGN' if b['mean_sign_changed'] else 'keeps its sign'}; "
+            f"{len(rows)} of {b['n_rows']} rows change sign"
+        )
+    lines += [
+        "",
+        "## Headline metrics, mean over rows (base, then seeds "
+        f"{', '.join(str(s) for s in PRICE_PERTURBATION_SEEDS)})",
+        "",
+    ]
+    for b in blocks:
+        m = b["mean_over_rows"]
+        lines.append(f"### {b['table_name']} ({b['label']})")
+        if b["label_note"]:
+            lines.append(f"_{b['label_note']}_")
+        for name in HEADLINE_METRICS:
+            lines.append(f"- {name}: " + ", ".join(f"{v:.4f}" for v in m[name]))
+        lines.append("")
+    lines += ["## Tables without a price-weighted metric", "", NOT_PRICE_WEIGHTED, ""]
+    return "\n".join(lines)
 
 
 if __name__ == "__main__":

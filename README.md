@@ -10,56 +10,62 @@ The repository exists to support two claims that are stated, tested and reported
 
 ---
 
-## What is built, and what is not
+## What is built
 
-463 of the 657 functions in this repository are implemented; 194 are still
-`raise NotImplementedError`. The split is not arbitrary, and it is worth stating precisely,
-because "a skeleton" undersells it and "an environment" oversells it.
-
-**Implemented and runnable today:**
+Phases 1 to 3 of the build plan are implemented, and each has been run. The only stubs left are
+the optional Sobol design (`gosplan/experiments/sobol.py`, not run by decision: see
+`spec/P3_REVISION.md` S3) and `spec/spec.py`, which is the frozen interface surface by design.
 
 | Component | What it is |
 |---|---|
-| `ref/ref_step.py` (41 functions, ~2,100 lines) | A complete, readable, pure-Python reference implementation of the environment: production, planner view, allocation, shipping, audit selection and penalties, bonuses, rewards, observations, target updates, conservation residuals, termination, and the period loop |
-| `ref/gen_golden.py` (14 functions) | Rolls the reference forward and writes deterministic trajectories: 5 configurations x 3 seeds x 2 policies = 30 files |
-| `gosplan/config.py`, `gosplan/params.py` | The configuration dataclasses with their cross-field validation and config hashing, and the parameter registry |
-| `scripts/contract_guard.py` | Mechanised enforcement of ten of the thirteen contract rules, run in CI |
-| `tests/` (~300 real tests) | The assertions are written and live. They skip, naming the symbol they wait on, and activate the moment it lands |
+| `ref/` | The pure-Python reference dynamics and the golden-trajectory generator: the executable specification the environment is checked against (golden parity exact on all 30 cells) |
+| `gosplan/env/` | The environment: production, planner, reporting, audits, reward, observation, prices, and the Phase-2 mechanisms (horizontal trade, ministries, quality, storming inputs) |
+| `gosplan/agents/` | Heuristic agents (Random, TruthfulMyopic, Padder, DPGreedy, Berliner, Weitzman, Kornai), the exact single-enterprise DP, the independent-PPO learner and its training harness, and the LLM ministry adapter |
+| `gosplan/metrics/` | The ledger and run manifests, the PLAN section 4.1 phenomenon operationalisations, and the bunching and reconciliation estimators |
+| `gosplan/oracle/`, `gosplan/jax/` | The full-information Kantorovich oracle (HiGHS) and the JAX port of the step function, with a NumPy parity check |
+| `gosplan/experiments/` | Every experiment driver: MC sanity, regime map, DP vs PPO, the Phase-1 gate study, exploitability, the Phase-2 acceptance run, contrasts, estimator bias, price sensitivity, the LLM study and the final report |
 
-`make golden` runs end to end and produces the 30 trajectories. That is a real, deterministic,
-multi-enterprise plan-fulfilment simulation, and it is the executable specification everything
-else is checked against.
+Spec revisions after the v1 freeze are pre-registered in `spec/P2_REVISION.md` (R1-R16) and
+`spec/P3_REVISION.md` (S1-S7) and logged in `spec/CHANGELOG.md`; the spec is at 2.1.0. The lead
+rulings behind them are in `docs/rulings/`.
 
-**Not implemented:** the vectorised environment in `gosplan/env/` (the port target that
-`ref/` exists to be checked against), the learning and heuristic agents in `gosplan/agents/`,
-the metrics in `gosplan/metrics/`, and the experiment drivers. `spec/spec.py` raises
-throughout by design: it is the frozen interface surface, not an implementation.
+## Where the project stands
 
-So the machinery to *run* the model exists, in reference form. What does not exist is a
-learning agent, and therefore any result about learning.
+Every result is in `runs/`, and each gate's record says exactly what it does and does not show.
+Read the records before quoting a number: several results are reported failures or labelled
+studies, and that is how they must be cited.
 
-## NO RESULT EXISTS YET
+| Gate | Record | Status |
+|---|---|---|
+| G0 | `runs/G0_signoff.md` | signed off (lead) |
+| G1 | `runs/G1_decision.md` | Phase-1 values chosen (the owner delegated the decision) |
+| G2 | `runs/G2_record.md` | **not passed**: PPO did not recover the single-enterprise DP optimum in three attempts. Criteria 2-4 were run afterwards as a labelled study |
+| G3 | `runs/G3_record.md` | **not passed**: rows 2 and 5 appear; row 7 fails its null test; row 3 and hygiene fail; row 6 was not evaluable because of a trade defect (D1); the exploitability audit was inconclusive (D2) |
+| G3b | `runs/G3b_record.md` | labelled study after the D1 fix (R15) and the revised audit (R16): row 6 **fails behaviourally** (learners post only buy offers, so nothing trades), and the revised audit finds the populations **non-converged** (median exploitability 0.80) |
+| LC | `runs/LC_record.md` | labelled study (R17): tripling the training budget lowers exploitability (median 0.80 to 0.00) but the populations do not converge, and the C0 economy **collapses to near-zero output** (effort 0.02, welfare 0 on every seed) |
+| CT | `runs/CT_record.md` | labelled study (R18, evaluation only): the 3M collapse **is a coordination trap**. A lone producer loses (median -1.72 [-2.24, -1.44]), and everyone producing leaves every seat better off (median +0.87 [+0.49, +1.30]). The 1M populations are not a trap: they are too far from equilibrium |
+| P3 | `runs/P3_record.md` | contrasts, estimator bias and price sensitivity complete as a labelled study; the LLM study is NOT RUN (it needs model credentials) |
+| G4 | `runs/final_report/report.md` | not met until the LLM study runs; human sign-off pending |
 
-No experiment has been run. There are no trained agents, no figures, no estimates and no
-findings. `runs/` is empty and gates G0-G4 are unsigned. The only things `make golden`
-produces are test fixtures, and `tests/golden/README.md` says in terms that they are a test
-oracle and not evidence about anything.
+Three limitations travel with every learned-agent number:
+- **L1.** The PPO learner does not recover the single-enterprise DP's mixed under-reporting
+  strategy (G2 criterion 1).
+- **L2.** The pre-registered bunching estimator is undefined on degenerate distributions and
+  over-confident on sharply peaked ones (G2 criterion 2).
+- **L3.** Every Phase-2 and Phase-3 number before G3b comes from an economy in which no learner
+  could post a trade offer (G3 D1).
+- **L4.** Under the revised audit (R16) the learned C0 populations are not approximate equilibria:
+  a warm-started best responder gains on 9 of 10 seeds (G3b).
+- **L5.** Learned-economy outcomes depend on the training budget: at 3M agent-steps the C0
+  economy collapses to near-zero output (LC). Every learned-agent number here comes from
+  1M-step populations and describes a point on a learning trajectory, not a steady state.
 
-The two policies that exist are `Random` and `TruthfulMyopic`. Neither learns. The project's
-question is whether reporting pathologies *emerge* from the incentive structure, and nothing
-here can speak to that until agents that optimise against it exist and are trained.
+The learned Phase-2 economy is heavily degraded: `welfare_ratio` is about 0.03, where the
+truthful-myopic baseline reaches about 0.53. Every contrast is a movement within that economy.
 
-This gap is deliberate, not incidental. PLAN section 4 pre-registers the phenomena, their
-operationalisations, the estimator settings and the Phase-1 acceptance criteria **before** any
-learning run, and section 4.2 locks the mechanism parameters behind the held-out phenomena
-now. Four phenomena (storming excess, hoarding to shortage, blat, hidden reserves) are held
-out: no plot, table or test of them is produced before the Phase-2 acceptance run, and
-`scripts/contract_guard.py` fails CI if a Phase-1 module so much as calls one of them.
-
-Consequently: every number visible in this repository today is either a provisional parameter
-default from PLAN section 3 (those marked with a dagger are replaced at gate G1) or a template
-placeholder reading `TBD`. **No number here may be cited as a result, an estimate, or a
-historical fact.**
+The four held-out phenomena (storming excess, hoarding to shortage, blat, hidden reserves) were
+first computed in the Phase-2 acceptance run, as pre-registered, and `scripts/contract_guard.py`
+still fails CI if a Phase-1 module calls one of them.
 
 ---
 
@@ -145,16 +151,18 @@ gosplan-env/
       phenomena.py            # §4.1 operationalisations
       _fallback.py            # vendored estimator signatures (§7.3)
     experiments/
-      mc_sanity.py            # a later task
-      regime_map.py           # a later task
-      dp_vs_ppo.py            # a later task
-      phase1_gate.py          # a later task
-      exploitability.py       # P2
+      mc_sanity.py            # G0 Monte-Carlo sanity sweep
+      regime_map.py           # G1 DP regime map
+      dp_vs_ppo.py            # G2 criterion 1: PPO vs the DP
+      phase1_gate.py          # G2 criteria 2-4
+      exploitability.py       # P2 best-responder audit
+      phase2_acceptance.py    # P2 acceptance run (G3, G3b)
       contrasts.py            # P3
       sobol.py                # P3 optional
       estimator_bias.py       # P3
       llm_study.py            # P3
       price_sensitivity.py    # P3
+      report.py               # P3 final report (G4 artefact)
     jax/                      # maintainer, P2: port + parity
   ref/
     ref_step.py               # maintainer: slow pure-Python reference dynamics — the test oracle
@@ -167,7 +175,7 @@ gosplan-env/
   runs/                       # manifests + results, one directory per run hash
 ```
 
-(PLAN section 8. Directories exist even where every file in them is still a stub.)
+(PLAN section 8.)
 
 ---
 
@@ -192,9 +200,12 @@ section it realises.
 | `CONTRACT.md` | PLAN §9 verbatim: the 13 rules that bind every session, human or model | maintainer |
 | `README.md` | this file | maintainer |
 | `spec/CHANGELOG.md` | every change to `spec/spec.py` after the v1 freeze: version, reason, affected tasks, approver | maintainer |
-| `docs/params_sources.md` | a later task deliverable: sourced range or explicit prior for every provisional parameter | maintainer |
-| `docs/ref_worked_example.md` | a later task deliverable: the hand-checked 2-enterprise, 2-sector validation of `ref/ref_step.py` | maintainer |
+| `docs/params_sources.md` | sourced range or explicit prior for every provisional parameter | maintainer |
+| `docs/ref_worked_example.md` | the hand-checked 2-enterprise, 2-sector validation of `ref/ref_step.py` | maintainer |
 | `ROADMAP.md` | the task list, the gate conditions and the dependency order | maintainer |
+| `spec/P2_REVISION.md`, `spec/P3_REVISION.md` | the pre-registered Phase-2 and Phase-3 designs (R1-R16, S1-S7) | maintainer |
+| `docs/rulings/` | the lead rulings AMBIGUITY-003 to 023 | maintainer |
+| `runs/G*_record.md`, `runs/P3_record.md` | the gate records | maintainer |
 
 ---
 
@@ -217,10 +228,10 @@ and is never collected: not by CI, not by a contributor, not on any task's must-
 list (CONTRACT rule 13). `make gate` exists and deliberately refuses - a gate is run by the maintainer, on
 purpose, and writes its artefacts under `runs/` with the manifest of CONTRACT rule 10.
 
-While the repository is a skeleton, the only tests present are stubs that assert the interface
-surface exists; they make no behavioural claim, and any path into real dynamics stops at
-`NotImplementedError`. A green suite today means the *shape* is right - it is never evidence that
-anything works.
+The golden-parity tests need the generated trajectories: run `make golden` first, or those
+tests skip. A green suite means the implementation matches the reference and the stated
+invariants. It is never evidence about the phenomena, which are measured by the experiments
+under `runs/`.
 
 Lint and line length: `ruff`, `line-length = 100`, `target-version = py312`.
 
@@ -255,8 +266,8 @@ Work proceeds through five gates. A gate is a written sign-off on named artefact
 diagnosis - never a parameter change made in order to pass the gate. Parameter changes after G1
 create a new, labelled study with its own pre-registration. (PLAN §13.)
 
-The build order between gates is the DAG of PLAN §12.2: parameter sourcing and a later task
-(spec v0, contract, registry) and reference dynamics and frozen tests come first; the
+The build order between gates is the DAG of PLAN §12.2: parameter sourcing, the spec v0,
+contract and registry, and the reference dynamics and frozen tests come first; the
 environment modules, step function, heuristics, ledger and MC sanity harness reach G0; the spec
 freeze, DP and regime map reach G1; metrics, the PPO adapter, the training harness and the two
 Phase-1 experiments reach G2.
@@ -272,5 +283,5 @@ welfare blindness, the prohibition on hard-coded pathology, bounds as results, R
 run manifest, parameter-arm classification, task scope, and the separation of tests from
 experiments.
 
-Violations invalidate the session's output. That is the whole point of a skeleton: the shape is
-fixed first, in writing, so that the filling-in cannot quietly redefine the question.
+Violations invalidate the session's output. The shape was fixed first, in writing, so that the filling-in
+could not quietly redefine the question.

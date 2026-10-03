@@ -2,8 +2,8 @@
 
 Realises: PLAN section 4 (pre-registration; the ledger of section 4 and the phenomena of section
 4.1), PLAN section 7.3 (the `forensics_core` coupling and its vendored fallback) and CONTRACT rules
-6, 8 and 10. Owning tasks: a later task (ledger and manifest), a later task (Phase-1 phenomena,
-rows 1 and 4, and `_fallback.py`), a later task (Phase-2 rows 2, 3, 5, 6, 7).
+6, 8 and 10. Owning work orders: **WO-011** (ledger and manifest), **WO-016** (Phase-1 phenomena,
+rows 1 and 4, and `_fallback.py`), **WO-030** (Phase-2 rows 2, 3, 5, 6, 7).
 
 Contents:
   `gosplan.metrics.ledger`      `StepRecord`, `Ledger`, `write_manifest`, the `BOUND_BINDING`
@@ -15,7 +15,7 @@ Contents:
 
 Rows **2, 5, 6 and 7** of PLAN section 4.1 (storming, hoarding, blat, hidden reserves) are **held
 out**: they are re-exported here for interface completeness only, and no plot, table or test of
-them may exist before the Phase-2 acceptance run (PLAN sections 4.1, 12.3). a later task are
+them may exist before the Phase-2 acceptance run (PLAN sections 4.1, 12.3). WO-012 and WO-016 are
 forbidden from implementing them.
 
 Nothing in this package is agent-facing. Its inputs are the true quantities the environment logs -
@@ -26,7 +26,7 @@ of observations, rewards and agent inputs.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 
 from gosplan.metrics._fallback import (
     FALLBACK_ESTIMATOR_VERSION,
@@ -98,6 +98,17 @@ class EstimatorBackend:
     """`forensics_core.dispersion.cross_section` or `gosplan.metrics._fallback.cross_section`.
     Called as `cross_section(values, groups)`; returns a `DispersionResult`-shaped object."""
 
+    def __getitem__(self, key: str) -> object:
+        """Read-only mapping access to the fields (`backend["bunching_estimate"]`), which the frozen
+        WO-016 tests use; the record stays immutable (AMBIGUITY-015)."""
+        if key not in self:
+            raise KeyError(key)
+        return getattr(self, key)
+
+    def __contains__(self, key: object) -> bool:
+        """`name in backend` for each field name."""
+        return isinstance(key, str) and key in {f.name for f in fields(self)}
+
 
 def resolve_estimators() -> EstimatorBackend:
     """Resolve the estimator surface of PLAN section 7.3, preferring `forensics_core`.
@@ -137,11 +148,31 @@ def resolve_estimators() -> EstimatorBackend:
     can never be confused with one computed after it. The import is *not* at module scope, so
     importing `gosplan.metrics` never depends on a package installed from a sibling checkout.
 
-    Binds: `tests/unit/test_phenomena_p1.py` - the fallback and `forensics_core` signatures
+    Binds: `tests/unit/test_phenomena_p1.py` (WO-016) - the fallback and `forensics_core` signatures
     agree, and the resolver returns the fallback with `FALLBACK_ESTIMATOR_VERSION` when
-    `forensics_core` is absent. Owning WO: a later task.
+    `forensics_core` is absent. Owning WO: **WO-016**.
     """
-    raise NotImplementedError("PLAN section 7.3")
+    try:
+        import forensics_core
+
+        backend = EstimatorBackend(
+            name=FORENSICS_CORE_BACKEND,
+            version=forensics_core.__version__,
+            bunching_estimate=forensics_core.bunching.estimate,
+            reconciliation_ledger_test=forensics_core.reconciliation.ledger_test,
+            dispersion_cross_section=forensics_core.dispersion.cross_section,
+        )
+    except ImportError:
+        from gosplan.metrics import _fallback
+
+        backend = EstimatorBackend(
+            name=FALLBACK_BACKEND,
+            version=FALLBACK_ESTIMATOR_VERSION,
+            bunching_estimate=_fallback.estimate,
+            reconciliation_ledger_test=_fallback.ledger_test,
+            dispersion_cross_section=_fallback.cross_section,
+        )
+    return backend
 
 
 __all__ = [

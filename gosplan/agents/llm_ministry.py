@@ -1,12 +1,12 @@
-"""LLM ministry: the Phase-2 study of PLAN section 7.4. **Study stub - interface only.**
+"""LLM ministry: the Phase-2 study of PLAN section 7.4 (adapter implemented at WO-026).
 
 Realises: PLAN section 7.4 (the LLM ministry study) over the ministry layer of PLAN section 2.14,
-with the manifest requirements of CONTRACT rule 10. Owning tasks: a later task (the adapter -
+with the manifest requirements of CONTRACT rule 10. Owning work orders: **WO-026** (the adapter -
 `MinistryView` to text, strict-JSON parsing, retry, fallback, prompt/completion logging, version
-pinning) and a later task (the study harness; the maintainer writes both framing prompts and the
+pinning) and **WO-035** (the study harness; the lead writes both framing prompts and the
 manipulation-check prompt).
 
-What this replaces. `ministry_forward(view, cfg)` (PLAN section 2.14, a later task) is the rule-based
+What this replaces. `ministry_forward(view, cfg)` (PLAN section 2.14, WO-025) is the rule-based
 ministry: `R_tilde_i = pi * R_i + (1 - pi) * [Rbar_i_prev + kappa_m * max(0, T_i - R_i)]`, a
 smoother that pads shortfalls, with `pi = cfg.information.ministry_passthrough`. The study swaps
 that function for a model call that receives *the same* `MinistryView` rendered as text and returns
@@ -48,7 +48,7 @@ fallbacks and manipulation-check exchanges, so the study is auditable after the 
 changes something underneath it.
 
 Import discipline: this module imports no vendor SDK and no `json`; the client is injected as an
-opaque object and the JSON handling lives in the implementation.
+opaque object and the JSON handling lives in the implementation (WO-026).
 """
 
 from __future__ import annotations
@@ -59,7 +59,7 @@ from typing import TYPE_CHECKING, Literal
 
 from gosplan.agents.base import Array
 
-if TYPE_CHECKING:  # runtime homes: config, ministry view; PLAN section 8
+if TYPE_CHECKING:  # runtime homes: WO-003 (config), WO-025 (ministry view); PLAN section 8
     from gosplan.config import EnvConfig
     from gosplan.env.ministry import MinistryView
 
@@ -116,12 +116,12 @@ class LLMMinistryConfig:
     """Pinned model identity, study cell and logging destination for one LLM ministry (sec. 7.4).
 
     Frozen and hashable; every field is written into the run manifest (CONTRACT rule 10), which
-    names "LLM model ids and versions" explicitly. Owning WO: a later task.
+    names "LLM model ids and versions" explicitly. Owning WO: **WO-026**.
     """
 
     model_id: str
     """Provider-qualified model identifier, pinned to an exact version - not a moving alias. **No
-    default**: the models are chosen by the maintainer when a later task is issued and there is no defensible
+    default**: the models are chosen by the lead when WO-035 is issued and there is no defensible
     placeholder."""
 
     model_version: str
@@ -160,26 +160,31 @@ class LLMMinistry:
     called once per plan period with that ministry's `MinistryView`, returning the values it
     forwards upward. It is *not* an enterprise policy and does not implement `act` - it never
     chooses an `EnterpriseAction`, and the `Agent` protocol's list of implementations names it as
-    part of the agent layer in the broad sense only. Which protocol it satisfies is settled by the
-    Phase-2 spec revision (PLAN section 0, finding F14); until then this class is interface plus
-    documented behaviour and its methods raise.
+    part of the agent layer in the broad sense only. It satisfies the `MinistryPolicy.forward`
+    protocol of the Phase-2 spec revision (`spec/P2_REVISION.md` R10.5).
 
     The class is deliberately thin: build a prompt from the view, call the model, parse strictly,
     retry once, fall back to passthrough, log everything. Any judgement about what a "reasonable"
     forwarded number would be belongs to the model, not to this wrapper - a wrapper that clips,
     smooths or sanity-checks the model's numbers would be measuring itself.
 
-    Owning WO: a later task (adapter), a later task (study harness).
+    Owning WO: **WO-026** (adapter), **WO-035** (study harness).
     """
 
     cfg: LLMMinistryConfig
     """Pinned model identity, study cell and log destination."""
 
-    client: object
+    episode: int = 0
+    """Episode counter for the log; incremented by `reset`."""
+
+    n_fallbacks: int = 0
+    """How many forwards fell back to passthrough (reported: a high rate is a finding)."""
+
+    client: object = None
     """The model client, injected. Typed `object` on purpose: no vendor SDK may appear in this
     interface, so the study can add a model without a signature change, and the skeleton imports
     nothing beyond the standard library and numpy. The implementation calls it behind
-    `_complete`-style glue that one task owns."""
+    `_complete`-style glue that WO-026 owns."""
 
     def forward(self, view: MinistryView, cfg: EnvConfig) -> Array:
         """Forward this ministry's enterprises' claims upward, as the model decides (sec. 7.4).
@@ -202,9 +207,65 @@ class LLMMinistry:
         wrapper does not otherwise bound what the model returns - a wildly padded number is a
         measurement, and the environment's own bounds (CONTRACT rule 8) do the bounding.
 
-        Owning WO: a later task.
+        Owning WO: **WO-026**.
         """
-        raise NotImplementedError("PLAN section 7.4")
+        import numpy as np
+
+        claims = np.asarray(view.claims, dtype=float)
+        n_i = len(view.enterprise_ids)
+        rules = describe_rules(cfg, self.cfg.framing) if cfg is not None else ""
+        prompt = render_ministry_view(view, self.cfg.framing, rules)
+        error = ""
+        for attempt in range(self.cfg.max_retries + 1):
+            completion, usage = _call(self.client, prompt, self.cfg.temperature)
+            record = self._record(view, attempt, prompt, completion, usage)
+            try:
+                forwarded, justification = parse_forward_response(completion, n_i)
+            except ValueError as exc:
+                error = str(exc)
+                log_exchange(self.cfg.log_dir, {**record, "parse_error": error, "fallback": False})
+                continue
+            log_exchange(
+                self.cfg.log_dir,
+                {
+                    **record,
+                    "forwarded": [float(x) for x in forwarded],
+                    "justification": justification,
+                    "fallback": False,
+                },
+            )
+            return forwarded
+        fallback = claims * self.cfg.fallback_passthrough + np.asarray(
+            view.prev_forward, dtype=float
+        ) * (1.0 - self.cfg.fallback_passthrough)
+        self.n_fallbacks += 1
+        log_exchange(
+            self.cfg.log_dir,
+            {
+                **self._record(view, self.cfg.max_retries, prompt, "", {}),
+                "parse_error": error,
+                "fallback": True,
+                "forwarded": [float(x) for x in fallback],
+            },
+        )
+        return fallback
+
+    def _record(self, view, attempt: int, prompt: str, completion: str, usage: dict) -> dict:
+        return {
+            "kind": "forward",
+            "model_id": self.cfg.model_id,
+            "model_version": self.cfg.model_version,
+            "framing": self.cfg.framing,
+            "payoff_arm": self.cfg.payoff_arm,
+            "episode": self.episode,
+            "t_period": int(view.t_period),
+            "ministry_id": int(view.ministry_id),
+            "attempt": int(attempt),
+            "prompt": prompt,
+            "completion": completion,
+            "temperature": self.cfg.temperature,
+            "usage": usage,
+        }
 
     def reset(self) -> None:
         """Clear per-episode state.
@@ -213,19 +274,20 @@ class LLMMinistry:
         is independent and the 20 episodes of a study cell are 20 samples rather than one long
         conversation. It does not clear the log.
 
-        Owning WO: a later task.
+        Owning WO: **WO-026**.
         """
-        raise NotImplementedError("PLAN section 7.4")
+        self.episode += 1
 
 
-def render_ministry_view(view: MinistryView, framing: Framing) -> str:
+def render_ministry_view(view: MinistryView, framing: Framing, rules: str = "") -> str:
     """Render a `MinistryView` as the text the model sees (PLAN sections 7.4, 2.14).
 
     Takes: `view`; `framing`, selecting the vocabulary. Returns: a deterministic plain-text
     rendering carrying every field of the record and nothing else - the ministry's index, its
     enterprises, their claims `R_i`, their targets `T_i`, what this ministry forwarded last period
-    (`prev_forward`), its `passthrough` and the period index - plus the response schema the reply
-    must satisfy (see `parse_forward_response`).
+    (`prev_forward`) and the period index - plus the response schema the reply must satisfy (see
+    `parse_forward_response`). `passthrough` is not rendered: it parameterises the rule-based
+    ministry the model replaces, and showing it would suggest an answer.
 
     Requirements. *Deterministic*: the same view and framing render byte-identically, so two runs
     differ only through the model. *Complete and no more*: the rendering may not add a quantity the
@@ -237,12 +299,44 @@ def render_ministry_view(view: MinistryView, framing: Framing) -> str:
 
     The two framings differ in vocabulary only - `neutral` in ordinary business terms, `historical`
     in Soviet planning terms - over an identical numeric payload and an identical schema. The lead
-    writes both prompt texts and they are versioned with the study, so a framing effect is
+    writes both prompt texts (WO-035) and they are versioned with the study, so a framing effect is
     attributable to the words that were actually used.
 
-    Owning WO: a later task (renderer), a later task (the two prompt texts).
+    Owning WO: **WO-026** (renderer), **WO-035** (the two prompt texts).
     """
-    raise NotImplementedError("PLAN section 7.4")
+    import json
+
+    import numpy as np
+
+    words = _FRAMING_WORDS[framing]
+    payload = {
+        words["unit_key"]: [
+            {
+                "index": int(i),
+                words["claim_key"]: round(float(c), 6),
+                words["target_key"]: round(float(t), 6),
+                "previous_forward": round(float(p), 6),
+            }
+            for i, c, t, p in zip(
+                view.enterprise_ids,
+                np.asarray(view.claims, dtype=float),
+                np.asarray(view.targets, dtype=float),
+                np.asarray(view.prev_forward, dtype=float),
+                strict=True,
+            )
+        ],
+        "period": int(view.t_period),
+    }
+    return "\n".join(
+        [
+            words["preamble"].format(ministry=int(view.ministry_id)),
+            *([rules] if rules else []),
+            "",
+            json.dumps(payload, sort_keys=True, indent=1),
+            "",
+            RESPONSE_SCHEMA.format(n=len(view.enterprise_ids)),
+        ]
+    )
 
 
 def parse_forward_response(text: str, n_enterprises: int) -> tuple[Array, str]:
@@ -262,9 +356,33 @@ def parse_forward_response(text: str, n_enterprises: int) -> tuple[Array, str]:
     turn a parse failure into a behavioural datum, which is precisely the confound the strict-JSON
     rule and the logged fallback rate exist to keep visible.
 
-    Owning WO: a later task.
+    Owning WO: **WO-026**.
     """
-    raise NotImplementedError("PLAN section 7.4")
+    import json
+    import math
+
+    import numpy as np
+
+    stripped = text.strip()
+    if not (stripped.startswith("{") and stripped.endswith("}")):
+        raise ValueError("response is not a single JSON object")
+    try:
+        doc = json.loads(stripped)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"invalid JSON: {exc}") from exc
+    if not isinstance(doc, dict) or set(doc) != {"forwarded", "justification"}:
+        raise ValueError("JSON object must have exactly the keys 'forwarded' and 'justification'")
+    values, justification = doc["forwarded"], doc["justification"]
+    if not isinstance(justification, str):
+        raise ValueError("'justification' must be a string")
+    if not isinstance(values, list) or len(values) != n_enterprises:
+        raise ValueError(f"'forwarded' must be a list of exactly {n_enterprises} numbers")
+    for v in values:
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            raise ValueError("'forwarded' entries must be JSON numbers")
+        if not math.isfinite(float(v)) or float(v) < 0:
+            raise ValueError("'forwarded' entries must be finite and non-negative")
+    return np.asarray(values, dtype=float), justification
 
 
 def log_exchange(log_dir: Path, record: dict[str, object]) -> None:
@@ -281,9 +399,15 @@ def log_exchange(log_dir: Path, record: dict[str, object]) -> None:
     returns. "Every prompt and completion logged" is the design's own words; the manipulation-check
     exchanges are logged the same way, tagged as such.
 
-    Owning WO: a later task.
+    Owning WO: **WO-026**.
     """
-    raise NotImplementedError("CONTRACT rule 10")
+    import json
+
+    log_dir = Path(log_dir)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    with open(log_dir / "llm_exchanges.jsonl", "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, sort_keys=True, default=str) + "\n")
+        handle.flush()
 
 
 def manipulation_check_prompt(framing: Framing) -> str:
@@ -299,11 +423,11 @@ def manipulation_check_prompt(framing: Framing) -> str:
     analysis stratifies on whether the free-text answer names Soviet planning, which is the
     covariate that separates retrieval from reasoning in the primary measure.
 
-    The lead writes this text and it is versioned with the study.
+    The lead writes this text (WO-035) and it is versioned with the study.
 
-    Owning WO: a later task (text), a later task (the seam that calls it).
+    Owning WO: **WO-035** (text), **WO-026** (the seam that calls it).
     """
-    raise NotImplementedError("PLAN section 7.4")
+    return _MANIPULATION_CHECK[framing]
 
 
 def run_manipulation_check(client: object, cfg: LLMMinistryConfig, episode: int) -> str:
@@ -315,13 +439,116 @@ def run_manipulation_check(client: object, cfg: LLMMinistryConfig, episode: int)
     free-text answer verbatim, unparsed and unjudged.
 
     Classification of the answer - did it name Soviet planning? - is a separate, documented step in
-    the study harness, applied uniformly and reported with its own rule, so that the
+    the study harness (WO-035), applied uniformly and reported with its own rule, so that the
     stratification of PLAN section 7.4 is reproducible from the logs alone. The exchange is written
     through `log_exchange` tagged as a manipulation check.
 
-    Owning WO: a later task (this seam), a later task (the classification rule).
+    Owning WO: **WO-026** (this seam), **WO-035** (the classification rule).
     """
-    raise NotImplementedError("PLAN section 7.4")
+    prompt = manipulation_check_prompt(cfg.framing)
+    completion, usage = _call(client, prompt, cfg.temperature)
+    log_exchange(
+        cfg.log_dir,
+        {
+            "kind": "manipulation_check",
+            "model_id": cfg.model_id,
+            "model_version": cfg.model_version,
+            "framing": cfg.framing,
+            "payoff_arm": cfg.payoff_arm,
+            "episode": int(episode),
+            "prompt": prompt,
+            "completion": completion,
+            "temperature": cfg.temperature,
+            "usage": usage,
+        },
+    )
+    return completion
+
+
+def describe_rules(cfg: EnvConfig, framing: Framing) -> str:
+    """The rules paragraph of P3 revision S5.2: the payoff structure the ministry faces, with the
+    configuration's public numbers. Identical wording across payoff arms - only the numbers differ -
+    and it never names the arm or says what to do. `passthrough` is not stated."""
+    inc, info = cfg.incentive, cfg.information
+    boss = "Gosplan" if framing == "historical" else "headquarters"
+    unit = "enterprise" if framing == "historical" else "business unit"
+    cap = (
+        "no cap"
+        if inc.overfulfilment_cap == float("inf")
+        else f"capped at {inc.overfulfilment_cap}"
+    )
+    return (
+        f"Rules. Your payoff each period is the sum of your {unit}s' period payoffs, minus audit "
+        f"penalties on the figures you pass up. Each {unit} is paid a bonus of "
+        f"{inc.notch_height} for reaching its goal plus {inc.overfulfilment_slope} per unit of "
+        f"output above it relative to the goal ({cap}); a figure below the goal earns no "
+        f"bonus. {boss.capitalize()} audits each figure you pass up with probability "
+        f"{info.audit_rate}; if the audited figure exceeds the {unit}'s actual stock, you pay "
+        f"{inc.penalty_scale} times the excess relative to the goal. Next period's goal for each "
+        f"{unit} is raised by {inc.ratchet_lambda} times the relative amount by which the figure "
+        f"{boss} received exceeded the goal (and lowered likewise), on top of a growth rate of "
+        f"{inc.growth_directive}."
+    )
+
+
+RESPONSE_SCHEMA = (
+    "Reply with a single JSON object and nothing else, of the form "
+    '{{"forwarded": [<{n} non-negative numbers, one per entry above, in the same order>], '
+    '"justification": "<one or two sentences>"}}.'
+)
+"""The response schema appended to every rendered view (identical under both framings)."""
+
+_FRAMING_WORDS: dict[str, dict[str, str]] = {
+    "neutral": {
+        "preamble": (
+            "You are the regional office (office {ministry}) of a large firm. Each business unit "
+            "below has sent you its reported output for the period, alongside the output goal "
+            "headquarters set for it and the figure your office passed up last period. Decide what "
+            "output figure to pass up to headquarters for each unit."
+        ),
+        "unit_key": "business_units",
+        "claim_key": "reported_output",
+        "target_key": "output_goal",
+    },
+    "historical": {
+        "preamble": (
+            "You are a branch ministry (ministry {ministry}) of a planned economy. Each enterprise "
+            "below has sent you its reported plan fulfilment for the period, alongside the plan "
+            "target Gosplan set for it and the figure your ministry forwarded last period. Decide "
+            "what output figure to forward to Gosplan for each enterprise."
+        ),
+        "unit_key": "enterprises",
+        "claim_key": "reported_output",
+        "target_key": "plan_target",
+    },
+}
+"""The two prompt framings (PLAN section 7.4): identical payload, numbers and schema; vocabulary
+only. LEAD-written at WO-026; WO-035 may revise them, versioned with the study."""
+
+_MANIPULATION_CHECK: dict[str, str] = {
+    "neutral": (
+        "Think of the decision task you were just given: an office passing figures reported by "
+        "the units below it up to a higher level. What real-world situation, organisation or "
+        "historical setting does it most resemble? Answer in one or two sentences."
+    ),
+    "historical": (
+        "Think of the decision task you were just given: a ministry passing figures reported by "
+        "the enterprises below it up to a higher level. What real-world situation, organisation "
+        "or historical setting does it most resemble? Answer in one or two sentences."
+    ),
+}
+"""Manipulation-check prompts (PLAN section 7.4), asked in a fresh context. They name no candidate
+answer; the historical framing's own vocabulary is reused verbatim, nothing more."""
+
+
+def _call(client: object, prompt: str, temperature: float | None) -> tuple[str, dict]:
+    """The one seam to the injected client: `client.complete(prompt, temperature=...)` returning
+    either the completion text or `(text, usage_dict)`. No vendor SDK appears in this module."""
+    out = client.complete(prompt, temperature=temperature)
+    if isinstance(out, tuple):
+        text, usage = out
+        return str(text), dict(usage or {})
+    return str(out), {}
 
 
 __all__ = [
@@ -335,6 +562,7 @@ __all__ = [
     "LLMMinistry",
     "LLMMinistryConfig",
     "PayoffArm",
+    "describe_rules",
     "log_exchange",
     "manipulation_check_prompt",
     "parse_forward_response",
