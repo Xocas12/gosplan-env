@@ -28,3 +28,4 @@ tests/unit/test_coordination_trap.py
 tests/unit/test_entropy_schedule.py
 tests/unit/test_entropy_schedule_study.py
 tests/unit/test_checkpoint_compat.py
+tests/unit/test_train_resume.py

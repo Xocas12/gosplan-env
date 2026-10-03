@@ -519,3 +519,14 @@ a 3M run's entropy coefficient was 0.0070, against 0.0010 for a 1M run. ES separ
 - The ES analysis code was smoke-tested on LC's existing data before this text was written. That
   run read LC's populations as a stand-in, and no ES population existed.
 
+**R19 note (2026-10-03, infrastructure, no design change).** Two container reboots killed the
+first ES batch at about 1,450 and 360 of 3,000 updates. The harness saved checkpoints only at the
+end of a run, so each reboot restarted those runs from scratch.
+
+The training harness now writes an exact resume snapshot every 50 updates
+(`TrainConfig.resume_every_updates`, `_g2.RESUME_EVERY_UPDATES`). The snapshot holds the policy and
+optimiser state, the generator state, the pickled environments and the loop counters.
+`tests/unit/test_train_resume.py` shows that a killed and resumed run equals an uninterrupted one
+bit for bit, in its final parameters and in every logged training row. No ES run had completed when
+this was added. The design, the rules and every result are unaffected.
+
