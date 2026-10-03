@@ -8,21 +8,21 @@ to **native forest**, **wildfire** and **water**, and what alternative forest pl
 
 - **Real-data brief for Galicia (in Galician):** [`docs/galicia_real/informe.md`](docs/galicia_real/informe.md)
 
-> **Read the real-data results with their caveats.** The species maps are trained on
-> OpenStreetMap labels, not the official forest map or inventory (unreachable from the build
-> environment), and 91% of the eucalyptus labels sit in one 100 km square in the north. Outside
-> it, the eucalyptus layer does not validate, and that limits every estimate that uses it.
-> Numbers from the synthetic runs are properties of the methods, not facts about Galicia.
+> **Read the real-data results with their caveats.** The species maps are trained on cleaned
+> OpenStreetMap labels, harvest-history pseudo-labels and the Mapa Forestal de España (MFE50,
+> about 1998), and are checked against the MFE50 and the IFN3 inventory plots. The eucalyptus
+> area is plausible, but plot-level agreement is modest (F1 about 0.5), and map error attenuates
+> every estimate that uses the map. Numbers from the synthetic runs are properties of the methods,
+> not facts about Galicia.
 
-Self-contained subproject: it shares nothing with `gosplan/` at the repository root and has its own
-`pyproject.toml`, tests and virtual environment.
+Originally developed as a subproject of [Xocas12/gosplan-env](https://github.com/Xocas12/gosplan-env)
+(branch `claude/happy-carson-p2zsz9`); this repository carries its full history.
 
 ## Quickstart
 
 ```bash
-cd galicia-eucalyptus
 uv venv && uv pip install -e '.[dev]'          # add '.[geo]' for real-data ingestion
-.venv/bin/pytest                                # 43 tests, ~4 min
+.venv/bin/pytest                                # unit and end-to-end tests
 .venv/bin/euc run --config configs/fast.yaml    # 4 km smoke run, ~1 min  -> outputs/fast/
 .venv/bin/euc run --config configs/default.yaml # 1 km full run, ~6 min   -> outputs/default/
 .venv/bin/euc catalog                           # the real data sources
