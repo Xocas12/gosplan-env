@@ -89,6 +89,13 @@ from the runs' `train_log.jsonl` (`python -m gosplan.experiments.learner_converg
     budget from schedule. R17's "everything else unchanged" holds for the configuration, not for
     the effective schedule.
 
+## Update (2026-10-03): the design caveat was tested
+
+See `runs/ES_record.md`. R19 was pre-registered and run: 3M-step populations with the 1M runs'
+exact entropy schedule. They collapse just the same, with median effort 0.019 [95% CI 0.012,
+0.023], and land in the same coordination trap. The collapse is a training-length effect for this
+learner, not an artefact of the stretched schedule.
+
 ## Consequences
 
 - **L4 stands.** The populations are non-converged at both budgets.
