@@ -184,6 +184,10 @@ def train_and_measure(job: tuple) -> dict[str, object]:
     out_path = run_dir / "g2_measure.json"
     sizing_record = dataclasses.asdict(sizing)
     ppo_record = {k: _jsonable(v) for k, v in dataclasses.asdict(ppo_cfg).items()}
+    if ppo_record.get("entropy_anneal_updates") is None:
+        # Unset means the pre-R19 schedule: keep the record identical to runs made before the
+        # field existed, so they are still read back rather than retrained.
+        ppo_record.pop("entropy_anneal_updates", None)
     if out_path.exists():
         done = json.loads(out_path.read_text(encoding="utf-8"))
         if done.get("sizing") == sizing_record and done.get("ppo", ppo_record) == ppo_record:
