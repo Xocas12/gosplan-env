@@ -130,6 +130,14 @@ class TrainConfig:
     checkpoint_every_updates: int
     """Updates between checkpoints written to `runs/<hash>/checkpoints/`."""
 
+    resume_every_updates: int = 0
+    """Every this many updates, write a resume snapshot (`resume.pkl` and `resume.ckpt` in the run
+    directory) so that a killed run continues where it stopped instead of restarting; `0` (the
+    default) writes none. Resuming is exact: the snapshot holds the policy and optimiser state, the
+    policy generator's state, the pickled environments and every loop counter, so a resumed run is
+    bitwise identical to an uninterrupted one (`tests/unit/test_train_resume.py`). The snapshot is
+    deleted when the run completes. Infrastructure only: it changes no result."""
+
     run_root: Path = Path("runs")
     """Root of the run tree (PLAN section 8: `runs/` holds manifests and results, one directory per
     run hash). The run directory is `run_root / env_cfg.hash()`."""
@@ -454,7 +462,9 @@ def train(train_cfg: TrainConfig) -> Path:
     cfg.validate()
     run_dir = Path(train_cfg.run_root) / cfg.hash()
     (run_dir / "checkpoints").mkdir(parents=True, exist_ok=True)
-    (run_dir / "train_log.jsonl").write_text("", encoding="utf-8")  # one row per update, fresh
+    resume = _load_resume(run_dir, train_cfg)
+    if resume is None:
+        (run_dir / "train_log.jsonl").write_text("", encoding="utf-8")  # one row per update, fresh
     agent = IPPO(cfg, ppo_cfg)
     n_envs, horizon = train_cfg.n_envs, train_cfg.rollout_steps
     n = cfg.supply.n_enterprises
@@ -493,7 +503,20 @@ def train(train_cfg: TrainConfig) -> Path:
     agent_steps = 0
     final_ledger: Ledger | None = None
     final_eval_update = -1
-    for update in range(n_updates):
+    first_update = 0
+    if resume is not None:
+        # Continue exactly where the snapshot was taken; the training log keeps only the rows
+        # of updates the snapshot covers (later rows are recomputed identically).
+        agent.load_checkpoint(run_dir / RESUME_CKPT)
+        rng.bit_generator.state = resume["rng_state"]
+        envs, obs = resume["envs"], resume["obs"]
+        running_return, episode_index = resume["running_return"], resume["episode_index"]
+        episode_blowup, run_flags = resume["episode_blowup"], set(resume["run_flags"])
+        agent_steps, first_update = resume["agent_steps"], resume["next_update"]
+        final_eval_update = resume["final_eval_update"]  # its ledger is recomputed at the end
+        start -= resume["elapsed_s"]
+        _truncate_log(run_dir, first_update)
+    for update in range(first_update, n_updates):
         t_update = time.perf_counter()
         ent_coef = entropy_coefficient(update, n_updates, ppo_cfg)
         finished_returns: list[float] = []
@@ -574,7 +597,28 @@ def train(train_cfg: TrainConfig) -> Path:
         if (update + 1) % train_cfg.checkpoint_every_updates == 0:
             agent.save_checkpoint(checkpoint_path(run_dir, update))
         log_update(run_dir, row)
+        every = int(getattr(train_cfg, "resume_every_updates", 0) or 0)
+        if every > 0 and (update + 1) % every == 0 and update + 1 < n_updates:
+            _save_resume(
+                run_dir,
+                train_cfg,
+                agent,
+                {
+                    "next_update": update + 1,
+                    "rng_state": rng.bit_generator.state,
+                    "envs": envs,
+                    "obs": obs,
+                    "running_return": running_return,
+                    "episode_index": episode_index,
+                    "episode_blowup": episode_blowup,
+                    "run_flags": sorted(run_flags),
+                    "agent_steps": agent_steps,
+                    "final_eval_update": final_eval_update,
+                    "elapsed_s": time.perf_counter() - start,
+                },
+            )
 
+    _clear_resume(run_dir)
     if final_eval_update != n_updates - 1 or final_ledger is None:
         _metrics, final_ledger = evaluate(
             agent, cfg, train_cfg.eval_episodes, root + EVAL_SEED_OFFSET
@@ -590,6 +634,72 @@ def train(train_cfg: TrainConfig) -> Path:
 
 
 # ---------- private helpers ----------
+
+
+RESUME_STATE = "resume.pkl"
+RESUME_CKPT = "resume.ckpt"
+
+
+def _resume_key(train_cfg: TrainConfig) -> str:
+    """What a snapshot must match to be resumed: the configuration hash, the PPO settings and the
+    sizing. A snapshot from any other run is ignored, never loaded."""
+    import json as _json
+
+    return _json.dumps(
+        {
+            "config": train_cfg.env_cfg.hash(),
+            "ppo": _jsonable(dataclasses.asdict(train_cfg.ppo_cfg)),
+            "n_envs": train_cfg.n_envs,
+            "rollout_steps": train_cfg.rollout_steps,
+            "total_agent_steps": train_cfg.total_agent_steps,
+            "eval_every_updates": train_cfg.eval_every_updates,
+            "eval_episodes": train_cfg.eval_episodes,
+        },
+        sort_keys=True,
+        default=str,
+    )
+
+
+def _save_resume(run_dir: Path, train_cfg: TrainConfig, agent: IPPO, state: dict) -> None:
+    import os
+    import pickle
+
+    agent.save_checkpoint(run_dir / (RESUME_CKPT + ".tmp"))
+    with open(run_dir / (RESUME_STATE + ".tmp"), "wb") as handle:
+        pickle.dump({"key": _resume_key(train_cfg), **state}, handle)
+    # Replace both atomically, state last, so a crash mid-save leaves the previous pair usable.
+    os.replace(run_dir / (RESUME_CKPT + ".tmp"), run_dir / RESUME_CKPT)
+    os.replace(run_dir / (RESUME_STATE + ".tmp"), run_dir / RESUME_STATE)
+
+
+def _load_resume(run_dir: Path, train_cfg: TrainConfig) -> dict | None:
+    import pickle
+
+    path = Path(run_dir) / RESUME_STATE
+    if not path.exists() or not (Path(run_dir) / RESUME_CKPT).exists():
+        return None
+    with open(path, "rb") as handle:
+        state = pickle.load(handle)  # written by this harness in this run directory only
+    return state if state.get("key") == _resume_key(train_cfg) else None
+
+
+def _clear_resume(run_dir: Path) -> None:
+    for name in (RESUME_STATE, RESUME_CKPT):
+        (Path(run_dir) / name).unlink(missing_ok=True)
+
+
+def _truncate_log(run_dir: Path, next_update: int) -> None:
+    import json as _json
+
+    path = Path(run_dir) / "train_log.jsonl"
+    if not path.exists():
+        return
+    keep = [
+        line
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip() and int(_json.loads(line)["update"]) < next_update
+    ]
+    path.write_text("".join(line + "\n" for line in keep), encoding="utf-8")
 
 
 def _train_episode_seed(root: int, b: int, e: int, n_envs: int) -> int:

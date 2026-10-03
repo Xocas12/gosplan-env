@@ -141,6 +141,11 @@ def seeded(cfg: EnvConfig, seed_index: int, seed_env: int | None = None) -> EnvC
     return dataclasses.replace(cfg, tech=tech)
 
 
+RESUME_EVERY_UPDATES = 50
+"""Resume-snapshot cadence for every study run (about 2 minutes of training at gate sizing), so a
+container restart costs at most that much; resuming is exact (`tests/unit/test_train_resume.py`)."""
+
+
 def run_many(jobs: list[tuple]) -> list[dict[str, object]]:
     """Train and measure every `(cfg, sizing, run_root[, ppo_cfg])` job (`ppo_cfg` omitted or
     `None`: the default `PPOConfig()`), `MAX_WORKERS` at a time, in a
@@ -204,6 +209,7 @@ def train_and_measure(job: tuple) -> dict[str, object]:
         eval_episodes=sizing.eval_episodes,
         checkpoint_every_updates=n_updates,
         run_root=Path(run_root),
+        resume_every_updates=RESUME_EVERY_UPDATES,
     )
     train(train_cfg)
 
