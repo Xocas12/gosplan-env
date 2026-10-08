@@ -225,7 +225,9 @@ def test_bonus_has_a_continuous_derivative_only_in_the_smooth_configuration(
     grid = np.arange(0.05, 3.0, 1e-3)
     h = 1e-6
     deriv = (np.asarray(bonus(grid + h, smooth)) - np.asarray(bonus(grid - h, smooth))) / (2.0 * h)
-    assert np.max(np.abs(np.diff(deriv))) < 1e-3
+    # LEAD edit (AMBIGUITY-006): the 1e-3 bound was below the logistic notch's own curvature at
+    # w = 0.25 on a 1e-3 grid (~1.5e-3); a kink still steps by ~s/2, far above 1e-2.
+    assert np.max(np.abs(np.diff(deriv))) < 1e-2
 
     kinked = dataclasses.replace(
         p1_cfg,
