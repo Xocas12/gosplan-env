@@ -1,10 +1,10 @@
 """Production: one PRODUCE step of the period schedule.
 
 Realises: PLAN section 2.6 (intended output, the CES input-coverage aggregator, the log-normal
-yield shock, the investment diversion, input consumption and the effort cost). Owning task:
-a later task (Production; contributor, depends on a later task).
+yield shock, the investment diversion, input consumption and the effort cost). Owning work order:
+**WO-005** (Production; MID-strong, depends on WO-003 and WO-004).
 
-Scope, stated as a prohibition (the forbidden list). Nothing in this module may reference a
+Scope, stated as a prohibition (the WO-005 forbidden list). Nothing in this module may reference a
 report, a target, a bonus, a penalty, an audit or a reward - not in code, not in a docstring, not
 in an example. Production is physical: it turns effort and input stocks into output and cost, and
 it knows nothing about what will later be claimed about that output. The separation is what makes
@@ -21,10 +21,10 @@ Dimensions: `N = cfg.supply.n_enterprises`, `J = cfg.supply.n_sectors`,
 in `State.planner_io` and is never read here.
 
 Cross-module bindings. `State` and `EnterpriseAction` are the runtime dataclasses of
-`gosplan/env/state.py` and `EnvConfig` that of `gosplan/config.py`; each must
+`gosplan/env/state.py` (WO-009) and `EnvConfig` that of `gosplan/config.py` (WO-003); each must
 stay field-for-field identical to its `spec/spec.py` declaration, which is not importable as a
 package. They are imported under `TYPE_CHECKING` so this module stays importable while its
-siblings are still skeletons; the contributor promotes the ones it calls at runtime, and
+siblings are still skeletons; the implementer promotes the ones it calls at runtime, and
 `gosplan.rng.draw` is the one it will need.
 """
 
@@ -33,6 +33,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
+
+from gosplan.rng import draw
 
 if TYPE_CHECKING:  # type-only: see the cross-module bindings note in the module docstring
     from gosplan.config import EnvConfig
@@ -71,7 +73,7 @@ def coverage(X: Array, need: Array, weights: Array, theta: float) -> Array:
       * `X_ij / need_ikj == 0` with `theta` finite sends one term to infinity and `H` to 0; the
         implementation must return 0 there rather than a NaN.
 
-    `weights` is the caller's responsibility, not this function's: `GosplanEnv.__init__`
+    `weights` is the caller's responsibility, not this function's: `GosplanEnv.__init__` (WO-009)
     precomputes `omega_j = a_{s(i)j} / sum_j a_{s(i)j}` once per run, because `a` is fixed within a
     run in Phase 1 (`cfg.supply.tech_drift_sigma = 0.0`). The weights of a row of `a` that is
     entirely zero are undefined; that row takes the `H = 1` branch above and its weights are never
@@ -79,9 +81,34 @@ def coverage(X: Array, need: Array, weights: Array, theta: float) -> Array:
 
     Binds: test T-U7 in `tests/unit/test_production.py` (PLAN section 11) - `theta = inf` equals
     `min`; `theta -> 1` equals the weighted harmonic mean `1 / sum_j (omega_j / r_ij)`; `H = 1`
-    when no inputs are needed. Owning WO: a later task.
+    when no inputs are needed. Owning WO: **WO-005**.
     """
-    raise NotImplementedError("PLAN section 2.6")
+    X = np.asarray(X, dtype=float)
+    need = np.asarray(need, dtype=float)
+    weights = np.asarray(weights, dtype=float)
+    needed = need > 0.0
+    # min(1, X_ij / need_ikj); a good with need_ikj == 0 is fully covered (ratio exactly 1).
+    ratio = np.ones_like(need)
+    np.divide(X, need, out=ratio, where=needed)
+    ratio = np.minimum(1.0, ratio)
+    requires_inputs = needed.any(axis=1)
+
+    if np.isinf(theta):
+        # Leontief branch: np.min over the goods with positive need only.
+        masked = np.where(needed, ratio, np.inf)
+        H = np.min(masked, axis=1)
+        return np.where(requires_inputs, H, 1.0)
+
+    # A zero coverage ratio sends its term to infinity and the aggregate to exactly 0; that case
+    # is resolved before the power so that no infinity or warning is produced.
+    zero_ratio = (needed & (ratio == 0.0)).any(axis=1)
+    safe = np.where(needed & (ratio > 0.0), ratio, 1.0)
+    total = np.sum(weights * safe ** (-theta), axis=1)
+    live = requires_inputs & ~zero_ratio
+    H = np.ones(need.shape[0])
+    H[live] = total[live] ** (-1.0 / theta)
+    H[zero_ratio] = 0.0
+    return H
 
 
 def produce_step(
@@ -123,11 +150,11 @@ def produce_step(
     State fields written: `inv_inputs` loses the consumed inputs; `cum_output` accumulates `y_ik`;
     `cum_cost` accumulates `c_ik`. `quality_acc` accumulates the Phase-2 period-average quality
     `qbar_i` and stays untouched in Phase 1, where `q == 1`; its accumulation rule is frozen at the
-    Phase-2 spec revision. `pending_invest` receives `y_tilde_ik * v_ik` in Phase 2; its
-    column convention and its maturing rule are frozen at the Phase-2 spec revision, and
+    Phase-2 spec revision (WO-021). `pending_invest` receives `y_tilde_ik * v_ik` in Phase 2; its
+    column convention and its maturing rule are frozen at the Phase-2 spec revision (WO-021), and
     in Phase 1 `v == 0` leaves the buffer at zero. No other field of `State` may be written here -
     in particular not `inv_output`: own-good stock receives the period's accumulated output only at
-    the close of the period, under PLAN section 2.8 (`gosplan/env/reporting.py`, a later task).
+    the close of the period, under PLAN section 2.8 (`gosplan/env/reporting.py`, WO-007).
 
     Randomness (CONTRACT rule 9, PLAN section 2.15). The yield shock is drawn through
     `gosplan.rng.draw` with purpose `"yield"` and indices `(t, k)`, vectorised over the trailing
@@ -138,7 +165,7 @@ def produce_step(
     `sigma_j` and `mean_log = -sigma_j**2 / 2`, at the same key and `shape=(N,)`, each enterprise
     then taking entry `i` of the array drawn for its own sector. That keeps the key, the mean of 1
     and the order-independence of T-U6 intact. The convention must agree with `ref/ref_step.py` to
-    1e-9 (T-B7), so a later task fixes it in the reference and a later task follows the reference.
+    1e-9 (T-B7), so WO-002 fixes it in the reference and WO-005 follows the reference.
 
     Phase-2 toggles that route through this function, every one of them off at
     `p1_default_config()`:
@@ -163,9 +190,108 @@ def produce_step(
                      behavioural (PLAN section 4.2)
         backloaded   arrival_probs concentrated on late steps
 
-    Binds: `tests/unit/test_production.py` (the corresponding task must-pass list) - T-U7 on `coverage`; the
+    Binds: `tests/unit/test_production.py` (the WO-005 must-pass list) - T-U7 on `coverage`; the
     yield shock has mean 1 to 1e-3 over 1e5 draws; the `v` diversion; the cost formula; inputs
     consumed equal `a * y_tilde` capped at stock; `H = 1` when the enterprise's row of `a` is zero
-    - and test T-U1, the per-period conservation identity, to 1e-9 per good. Owning WO: a later task.
+    - and test T-U1, the per-period conservation identity, to 1e-9 per good. Owning WO: **WO-005**.
     """
-    raise NotImplementedError("PLAN section 2.6")
+    sup = cfg.supply
+    n = sup.n_enterprises
+    m_steps = cfg.incentive.steps_per_period
+    kappa = float(cfg.incentive.effort_cost)
+    setup = float(sup.setup_cost)
+    kappa_q = float(sup.quality_cost)
+    theta = float(sup.input_complementarity)
+
+    sector = np.asarray(sup.sector_of, dtype=int)
+    a_rows = np.asarray(sup.io_matrix, dtype=float)[sector]  # (N, J): a_{s(i)j}
+    totals = a_rows.sum(axis=1, keepdims=True)
+    omega = np.zeros_like(a_rows)
+    np.divide(a_rows, totals, out=omega, where=totals > 0.0)
+
+    e = np.clip(np.asarray(action.effort, dtype=float), 0.0, 1.0)
+    q = np.asarray(action.quality, dtype=float)
+    if sup.quality_matters:
+        # P2 revision R5: the quality action is live, so it is held to its `action_spec` box
+        # [0, 1] exactly as effort is (AMBIGUITY-023 item 6). Phase 1 leaves `q` untouched.
+        q = np.clip(q, 0.0, 1.0)
+    v = np.asarray(action.invest, dtype=float)
+
+    productivity = np.asarray(sup.productivity, dtype=float)[sector]
+    y_hat = (productivity * np.asarray(state.capital, dtype=float) / m_steps) * e
+    need = a_rows * y_hat[:, None]
+    X = np.asarray(state.inv_inputs, dtype=float)
+    H = coverage(X, need, omega, theta)
+
+    # Yield shock: one scalar draw per enterprise at key (seed_env, "yield", t, k, i) with the
+    # enterprise's sector sigma (LEAD ruling AMBIGUITY-003, AR-1; matches ref_produce).
+    eps = np.empty(n)
+    for i in range(n):
+        sigma = float(sup.yield_sigma[sector[i]])
+        eps[i] = draw(
+            state.seed_env,
+            "yield",
+            state.t_period,
+            state.k_step,
+            i,
+            shape=(1,),
+            dist="lognormal",
+            mean_log=-(sigma**2) / 2.0,
+            sigma=sigma,
+        )[0]
+
+    y_tilde = y_hat * H * eps
+    y = y_tilde * (1.0 - v)
+    consumed = np.minimum(X, a_rows * y_tilde[:, None])
+    c = kappa * e**2 + setup * (e > 0.0) + kappa_q * q * e
+
+    state.inv_inputs = X - consumed
+    state.cum_output = np.asarray(state.cum_output, dtype=float) + y
+    state.cum_cost = np.asarray(state.cum_cost, dtype=float) + c
+    state.quality_acc = np.asarray(state.quality_acc, dtype=float) + q
+    pending = np.array(state.pending_invest, dtype=float)
+    if pending.ndim == 2 and pending.shape[1] > 0:
+        pending[:, -1] += y_tilde * v
+    state.pending_invest = pending
+    return state, y, c
+
+
+def period_quality(quality_acc: Array, cfg: EnvConfig) -> Array:
+    """Period-average quality `qbar_i` (PLAN sections 2.1, 2.9.2; P2 revision R5).
+
+    Takes: `quality_acc` `(N,)`, the sum of the `quality` action over the PRODUCE steps of a period
+    (`State.quality_acc`), and `cfg`. Returns: `qbar` `(N,)`.
+
+        qbar_i = quality_acc_i / M          if cfg.supply.quality_matters     (R5)
+        qbar_i = 1                          otherwise (Phase 1)
+
+    `M = cfg.incentive.steps_per_period`. R5 adopts the reference implementation's rule (the plain
+    mean over the `M` PRODUCE steps). Takes an array, never a `State`, so the planner module may
+    call it without breaking CONTRACT rule 5. Owning WO: **WO-021**.
+    """
+    acc = np.asarray(quality_acc, dtype=float)
+    if not cfg.supply.quality_matters:
+        return np.ones(acc.shape[0])
+    return acc / cfg.incentive.steps_per_period
+
+
+def credit_arrivals(state: State, cfg: EnvConfig) -> State:
+    """Credit the deliveries scheduled for this step to `X` (PLAN section 2.6; P2 revision R6).
+
+    Takes: `state` at the start of PRODUCE step `k = state.k_step`, and `cfg`. Returns: the same
+    state with `inv_inputs += pending_deliv[:, :, k]` and that slot of `pending_deliv` zeroed.
+
+    Called by the step machine before `produce_step`, so a unit scheduled for step `k` is usable at
+    step `k` (R6: "credited to X at the start of step k, before PRODUCE"). Units scheduled for step
+    0 never wait: `deliver` credits them at DELIVER, as under `uniform` timing. Under
+    `delivery_timing = "uniform"` nothing is ever pending and the step machine does not call this
+    function, so Phase 1 is untouched. Quantity is conserved exactly: what leaves the buffer is
+    what reaches `X`. Owning WO: **WO-022**.
+    """
+    pending = np.array(state.pending_deliv, dtype=float)
+    k = state.k_step
+    arriving = pending[:, :, k].copy()
+    pending[:, :, k] = 0.0
+    state.inv_inputs = np.asarray(state.inv_inputs, dtype=float) + arriving
+    state.pending_deliv = pending
+    return state

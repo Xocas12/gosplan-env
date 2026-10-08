@@ -5,38 +5,41 @@ single input to every operationalisation of PLAN section 4.1 and to the reconcil
 PLAN section 7.3), PLAN section 4.4 (the measurement window is applied by the readers of this
 ledger, never by the writer - the ledger stores everything), CONTRACT rule 8 (bounds are results:
 the `at_bound` column and the `BOUND_BINDING` flag) and CONTRACT rule 10 (the manifest).
-Owning task: `tests/unit/test_ledger.py`; parquet round-trip, every rule-10
-manifest field present, `BOUND_BINDING` logic - test T-B8.
+Owning work order: **WO-011** (`tests/unit/test_ledger.py`; parquet round-trip, every rule-10
+manifest field present, `BOUND_BINDING` logic - test T-B8).
 
-Direction of information flow. The environment writes `StepInfo` (PLAN section 2.5, a later task), whose
+Direction of information flow. The environment writes `StepInfo` (PLAN section 2.5, WO-009), whose
 `StepRecord`s land here; metrics and lead-run experiments read them. **No agent, no policy and no
 reward term may read a ledger** (CONTRACT rule 6): the rows carry `welfare`, `val_true` and
-`val_measured`, which are logged and never observed. The forbidden list states the same
+`val_measured`, which are logged and never observed. The WO-010 forbidden list states the same
 boundary from the other side ("any agent reading `StepInfo`").
 
 Binding to `spec/spec.py`: `spec/spec.py` is not importable as a package, so `StepRecord`, `Ledger`
 and `write_manifest` are *defined* here and must stay field-for-field and signature-for-signature
-identical to the frozen interface (CONTRACT rule 1). `tests/unit/test_spec_imports.py`
+identical to the frozen interface (CONTRACT rule 1). `tests/unit/test_spec_imports.py` (WO-001)
 enforces the surface; `tests/unit/test_ledger.py` enforces the behaviour.
 
 Dependencies. `pyarrow` is the parquet writer and `pandas` the frame type of `to_dataframe`; both
 are runtime dependencies of *this module only* and are imported **inside** the methods that need
-them, never at module scope, so the skeleton imports in an environment that has neither.
+them (WO-011), never at module scope, so the skeleton imports in an environment that has neither.
 """
 
 from __future__ import annotations
 
+import dataclasses
+import json
+import os
 from dataclasses import dataclass
 from typing import Literal
 
-from gosplan.config import EnvConfig
+from gosplan.config import SPEC_VERSION, EnvConfig
 
 Phase = Literal["produce", "report"]
 """Agent-step phase within a plan period (PLAN section 2.5), restated from `spec/spec.py`.
 
 It is restated rather than imported so that `gosplan/metrics/` imports nothing from `gosplan/env/`:
 the ledger sits strictly downstream of the environment and must not create a cycle between the two
-packages. The runtime definition an environment module uses (`gosplan/env/state.py`, a later task) and
+packages. The runtime definition an environment module uses (`gosplan/env/state.py`, WO-009) and
 this one must be the same two literals; a unit test compares them."""
 
 BOUND_BINDING_FLAG: str = "BOUND_BINDING"
@@ -70,7 +73,7 @@ MANIFEST_FIELDS: tuple[str, ...] = (
 """Every key `runs/<hash>/manifest.json` carries, in this order (CONTRACT rule 10):
 
     config_hash            `cfg.hash()` - the SHA-256 of the canonical JSON encoding, which also
-                           names the run directory (PLAN section 3, a later task)
+                           names the run directory (PLAN section 3, WO-003)
     config                 the full configuration as canonical JSON, so a result can be replayed
                            without the code that produced it
     spec_version           `SPEC_VERSION` of the interface the run was written against, so a result
@@ -79,7 +82,7 @@ MANIFEST_FIELDS: tuple[str, ...] = (
     seed_env               root environment seed (PLAN section 2.15) - shared across arms, which is
                            what makes common random numbers hold by construction
     seed_policy            root policy seed, kept strictly separate (CONTRACT rule 9)
-    reference_ppo_version  pinned version of the reference PPO the adapter wraps
+    reference_ppo_version  pinned version of the reference PPO the adapter wraps (WO-017)
     estimator_version      version of the estimator surface used for PLAN section 4.1 row 1 -
                            `forensics_core.__version__` or `FALLBACK_ESTIMATOR_VERSION`
     estimator_backend      which of the two was resolved, from `gosplan.metrics.resolve_estimators`
@@ -91,7 +94,7 @@ MANIFEST_FIELDS: tuple[str, ...] = (
     solver_version         its version string, verbatim
     solver_optimality_gap  the oracle's relative MIP gap at termination
     bunching_settings      the pre-registered estimator settings of PLAN section 4.5 actually used,
-                           from the constants in `gosplan/metrics/phenomena.py` (a later task notes:
+                           from the constants in `gosplan/metrics/phenomena.py` (WO-016 notes:
                            "settings hard-coded as defaults and recorded in the manifest")
     flags                  every flag raised by the run, notably `BOUND_BINDING`
 
@@ -102,10 +105,10 @@ present."""
 
 @dataclass
 class StepRecord:
-    """One row of the ledger: one enterprise, one agent-step (PLAN sections 2.2, 4; a later task).
+    """One row of the ledger: one enterprise, one agent-step (PLAN sections 2.2, 4; WO-011).
 
     Field-for-field identical to `StepRecord` in `spec/spec.py`; a unit test enforces the identity.
-    Fields are grouped: identifiers, the PLAN section 2.2 state columns, then the corresponding task additions
+    Fields are grouped: identifiers, the PLAN section 2.2 state columns, then the WO-011 additions
     (`y, R, rho, S_pre, S_post, audited, S_hat, f, Pen, fill, deliv, consumer, val_measured,
     val_true, welfare, at_bound`), then the action and conservation columns.
 
@@ -113,7 +116,7 @@ class StepRecord:
     checkable and the reconciliation estimator of PLAN section 7.3 computable - which is exactly why
     no agent may read it (CONTRACT rule 6).
 
-    `J = cfg.supply.n_sectors`; tuple-valued fields have length `J`. Owning WO: a later task.
+    `J = cfg.supply.n_sectors`; tuple-valued fields have length `J`. Owning WO: **WO-011**.
     """
 
     run_hash: str  # EnvConfig.hash() of the run that produced this row
@@ -169,7 +172,7 @@ class StepRecord:
 
 
 class Ledger:
-    """Append-only store of `StepRecord`s for one run, plus the run's flags.
+    """Append-only store of `StepRecord`s for one run, plus the run's flags (WO-011).
 
     One record per enterprise per agent-step, in the order the environment produced them, so the
     period schedule of PLAN section 2.5 is recoverable from the `(episode, t_period, k_step, phase)`
@@ -184,13 +187,20 @@ class Ledger:
     The ledger stores rows unfiltered: the measurement window of PLAN section 4.4 (`t >= 2`, no
     end-of-episode exclusion under geometric termination, at-bound reports included and flagged) is
     applied by the readers in `gosplan/metrics/phenomena.py`, never by the writer. Construction
-    (both attributes start empty) is a later task's and is not part of the frozen surface.
+    (both attributes start empty) is WO-011's and is not part of the frozen surface.
 
-    Owning WO: a later task.
+    Owning WO: **WO-011**.
     """
 
     records: list[StepRecord]
     flags: set[str]
+
+    def __init__(self) -> None:
+        # Construction is WO-011's (class docstring): both attributes start empty.
+        self.records = []
+        self.flags = set()
+        self._n_report = 0
+        self._n_at_bound = 0
 
     def append(self, rec: StepRecord) -> None:
         """Append one record and maintain the run's flag set.
@@ -209,9 +219,18 @@ class Ledger:
 
                 Binds: `tests/unit/test_ledger.py` and test T-B8 (`tests/behavioural/`) - forcing
                 `rho = rho_max` in more than 1% of reports sets `BOUND_BINDING`, and at or below 1% it does
-                not. Owning WO: a later task.
+                not. Owning WO: **WO-011**.
         """
-        raise NotImplementedError("PLAN section 4")
+        self.records.append(rec)
+        # LEAD ruling AMBIGUITY-005: the frozen tests read `flags` after appends alone, so the
+        # BOUND_BINDING membership tracks the same predicate as `bound_binding`, incrementally.
+        if rec.phase == "report":
+            self._n_report += 1
+            self._n_at_bound += int(bool(rec.at_bound))
+            if self._n_at_bound / self._n_report > AT_BOUND_FLAG_THRESHOLD:
+                self.flags.add(BOUND_BINDING_FLAG)
+            else:
+                self.flags.discard(BOUND_BINDING_FLAG)
 
     def to_parquet(self, path: str) -> None:
         """Write the ledger to a columnar file.
@@ -229,9 +248,11 @@ class Ledger:
         numpy-only).
 
         Binds: `tests/unit/test_ledger.py` - a parquet round-trip preserves every column and dtype.
-        Owning WO: a later task.
+        Owning WO: **WO-011**.
         """
-        raise NotImplementedError("PLAN section 4")
+        import pyarrow.parquet as pq
+
+        pq.write_table(_to_arrow_table(self.records), path)
 
     def to_dataframe(self) -> object:
         """Return the ledger as an in-memory frame, with the same columns as `to_parquet`.
@@ -248,9 +269,11 @@ class Ledger:
         section 4.4 is applied by the caller - the frame itself is unfiltered.
 
         Binds: `tests/unit/test_ledger.py` - the frame's columns equal the parquet file's, and a
-        round-trip through either preserves the records. Owning WO: a later task.
+        round-trip through either preserves the records. Owning WO: **WO-011**.
         """
-        raise NotImplementedError("PLAN section 4")
+        import pandas  # noqa: F401 - needed by `Table.to_pandas`; never imported at module scope
+
+        return _to_arrow_table(self.records).to_pandas()
 
 
 def bound_binding(ledger: Ledger) -> bool:
@@ -274,9 +297,13 @@ def bound_binding(ledger: Ledger) -> bool:
     away, and the G2 hygiene criterion of PLAN section 4.5 requires the flag to be absent from all
     Phase-1 gate runs.
 
-    Binds: test T-B8 (`tests/behavioural/`) and `tests/unit/test_ledger.py`. Owning WO: a later task.
+    Binds: test T-B8 (`tests/behavioural/`) and `tests/unit/test_ledger.py`. Owning WO: **WO-011**.
     """
-    raise NotImplementedError("PLAN section 4")
+    reports = [rec for rec in ledger.records if rec.phase == "report"]
+    if not reports:
+        return False
+    n_at_bound = sum(1 for rec in reports if rec.at_bound)
+    return n_at_bound / len(reports) > AT_BOUND_FLAG_THRESHOLD
 
 
 def write_manifest(run_dir: str, cfg: EnvConfig, extra: dict) -> None:
@@ -303,6 +330,95 @@ def write_manifest(run_dir: str, cfg: EnvConfig, extra: dict) -> None:
     `estimatorversion` would claim provenance it does not have.
 
     Binds: `tests/unit/test_ledger.py` - every rule-10 field is present, and `null` appears where a
-    field does not apply. Owning WO: a later task.
+    field does not apply. Owning WO: **WO-011**.
     """
-    raise NotImplementedError("PLAN section 4")
+    unknown = sorted(key for key in extra if key not in _EXTRA_FIELDS)
+    if unknown:
+        raise ValueError(
+            f"write_manifest: unknown key(s) in extra: {unknown}; allowed: {list(_EXTRA_FIELDS)}"
+        )
+    from_config = {
+        "config_hash": cfg.hash(),
+        "config": {
+            name: _canonical(dataclasses.asdict(getattr(cfg, name)))
+            for name in ("supply", "incentive", "information", "tech")
+        },
+        "spec_version": SPEC_VERSION,
+        "seed_env": cfg.tech.seed_env,
+        "seed_policy": cfg.tech.seed_policy,
+    }
+    doc = {
+        name: from_config[name] if name in from_config else extra.get(name)
+        for name in MANIFEST_FIELDS
+    }
+    with open(os.path.join(run_dir, "manifest.json"), "w", encoding="utf-8") as handle:
+        json.dump(doc, handle, indent=2)
+
+
+_EXTRA_FIELDS: tuple[str, ...] = (
+    "git_hash",
+    "reference_ppo_version",
+    "estimator_version",
+    "estimator_backend",
+    "llm_models",
+    "solver",
+    "solver_version",
+    "solver_optimality_gap",
+    "bunching_settings",
+    "flags",
+)
+# The `MANIFEST_FIELDS` entries `extra` supplies, as enumerated in `write_manifest`'s docstring; the
+# other five are determined by `cfg` alone.
+
+_SCALAR_ARROW_TYPES: dict[str, str] = {
+    "str": "string",
+    "Phase": "string",
+    "int": "int64",
+    "float": "float64",
+    "bool": "bool",
+}
+_TUPLE_ANNOTATION = "tuple[float, ...]"
+
+
+def _canonical(value: object) -> object:
+    """`EnvConfig.hash`'s canonical encoding: `inf` -> "inf", tuples -> lists, recursively."""
+    if isinstance(value, float) and value == float("inf"):
+        return "inf"
+    if isinstance(value, tuple):
+        return [_canonical(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _canonical(item) for key, item in value.items()}
+    return value
+
+
+def _to_arrow_table(records: list[StepRecord]) -> object:
+    """Build the columnar table shared by `to_parquet` and `to_dataframe`.
+
+    Columns follow the `StepRecord` field order, each tuple-valued field exploded in place into
+    `name_0 .. name_{J-1}`; every column carries the arrow type of its declared field type.
+    """
+    import pyarrow as pa
+
+    if not records:
+        raise ValueError(
+            "Ledger is empty: the per-good column count J cannot be determined from the records"
+        )
+    names: list[str] = []
+    types: list[object] = []
+    columns: list[list[object]] = []
+    for field in dataclasses.fields(StepRecord):
+        values = [getattr(rec, field.name) for rec in records]
+        if field.type == _TUPLE_ANNOTATION:
+            widths = {len(value) for value in values}
+            if len(widths) != 1:
+                raise ValueError(f"{field.name}: tuple lengths differ across records: {widths}")
+            for k in range(widths.pop()):
+                names.append(f"{field.name}_{k}")
+                types.append(pa.float64())
+                columns.append([value[k] for value in values])
+        else:
+            names.append(field.name)
+            types.append(pa.type_for_alias(_SCALAR_ARROW_TYPES[field.type]))
+            columns.append(values)
+    arrays = [pa.array(col, type=typ) for col, typ in zip(columns, types, strict=True)]
+    return pa.Table.from_arrays(arrays, names=names)

@@ -1,7 +1,7 @@
-"""DP-vs-PPO recovery experiment - PLAN sections 4.5 (criterion 1), 5, 12.3 and 14.
+"""DP-vs-PPO recovery experiment - PLAN sections 4.5 (criterion 1), 5, 12.3 (WO-019) and 14.
 
-Realises: gate G2 criterion 1 of PLAN section 4.5 and its task specification of PLAN section 12.3. Owning
-task: a later task (contributor, difficulty 3; depends on a later task the DP and a later task the training
+Realises: gate G2 criterion 1 of PLAN section 4.5 and the WO-019 card of PLAN section 12.3. Owning
+work order: **WO-019** (MID-strong, difficulty 3; depends on WO-014 the DP and WO-018 the training
 harness). Gate: **G2 criterion 1** - the single-enterprise recovery check. PLAN section 4.5 is
 explicit about its status: *failure of criterion 1 is a training-stack failure and blocks
 everything*. It is not a result about planning, it is the check that the optimiser can find an
@@ -20,15 +20,15 @@ Inputs
     daggered PLAN section 3 rows, the three `a * pen` levels that span the bunching region, and the
     `b_hat_DP` thresholds. This experiment reads those levels; it never chooses them, and it never
     re-derives them from a training result.
-    `gosplan.agents.dp.solve_single_enterprise` on the PLAN section 5 `DPGrid` defaults;
-    `gosplan.agents.ppo.train` with the pinned reference PPO of a later task.
+    `gosplan.agents.dp.solve_single_enterprise` (WO-014) on the PLAN section 5 `DPGrid` defaults;
+    `gosplan.agents.ppo.train` (WO-018) with the pinned reference PPO of WO-017.
 
 Outputs
     `runs/dp_vs_ppo/report.md`      the gate G2 artefact of PLAN section 13: the comparison table,
                                     the Wasserstein-1 distances, and one pass/fail line per
                                     `a * pen` level with the seed count that met the tolerances
     `runs/dp_vs_ppo/table.parquet`  the same comparison, one row per (level, seed), for re-analysis.
-                                    The report name is PLAN's verbatim; this filename is a a later task
+                                    The report name is PLAN's verbatim; this filename is a WO-019
                                     convention
     `runs/<config-hash>/`           per-run directory with `manifest.json` (CONTRACT rule 10,
                                     including the reference-PPO version) and the ledger
@@ -49,7 +49,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
+
 from gosplan.config import EnvConfig
+from gosplan.experiments._g2 import RunSizing
 
 PADDING_TOL = 0.02
 """Gate G2 criterion 1, PLAN section 4.5: PPO's mean fictitious padding must be within 0.02 *ratio
@@ -99,7 +102,20 @@ REPORT_PATH = OUT_DIR / "report.md"
 """The gate G2 artefact named in PLAN section 13."""
 
 TABLE_PATH = OUT_DIR / "table.parquet"
-"""One row per (level, seed) comparison; a a later task convention, not a PLAN-named artefact."""
+"""One row per (level, seed) comparison; a WO-019 convention, not a PLAN-named artefact."""
+
+RECOVERY_SIZING = RunSizing(
+    n_envs=8,
+    rollout_steps=125,
+    total_agent_steps=2_000_000,
+    eval_every_updates=200,
+    eval_episodes=50,
+    measure_episodes=400,
+)
+"""Batch shape and budget of every recovery run, fixed by the lead before any G2 run
+(AMBIGUITY-019): PLAN section 14's 2M environment steps per run at `N = 1`; 8 environments x 125
+agent-steps (25 plan periods) per update, 2,000 updates; the final policy measured on 400 fresh
+episodes (about 3,000 measured REPORT rows)."""
 
 COMPARED_QUANTITIES: tuple[str, ...] = (
     "fictitious_padding",
@@ -140,13 +156,13 @@ def run(
         "flags"              tuple[str, ...], run-level flags, `BOUND_BINDING` included
         "artefacts"          dict[str, str], the paths written
 
-    Procedure (PLAN sections 4.5 criterion 1, 5; task specification):
+    Procedure (PLAN sections 4.5 criterion 1, 5; WO-019 card):
 
       1. For each level in `ap_levels`, build the recovery configuration and solve
-         `solve_single_enterprise(cfg_level, DPGrid())` once. Read off the DP's
+         `solve_single_enterprise(cfg_level, DPGrid())` once (WO-014). Read off the DP's
          `fictitious_padding`, `mean_effort` and `stationary_rho`.
-      2. Train `seeds_per_level` PPO runs on the same configuration with the corresponding task harness at the
-         a later task adapter's fixed hyper-parameters, logging every step to a `Ledger` and writing
+      2. Train `seeds_per_level` PPO runs on the same configuration with the WO-018 harness at the
+         WO-017 adapter's fixed hyper-parameters, logging every step to a `Ledger` and writing
          `runs/<hash>/manifest.json` (CONTRACT rule 10, reference-PPO version included).
       3. Evaluate each trained policy over the measurement window (`t >= 2`) and compute, per seed:
          mean fictitious padding, mean effort, and the Wasserstein-1 distance between the evaluated
@@ -166,9 +182,93 @@ def run(
     `COMPARED_QUANTITIES` at `MIN_PASSING_SEEDS` of `SEEDS_PER_LEVEL` seeds, at each of the
     `N_AP_LEVELS` levels recorded at G1.
 
-    Realises: PLAN sections 4.5, 5, 12.3, 13, 14. Owning WO: a later task.
+    Realises: PLAN sections 4.5, 5, 12.3 (WO-019), 13, 14. Owning WO: **WO-019**.
     """
-    raise NotImplementedError("PLAN section 4.5")
+    from scipy.stats import wasserstein_distance
+
+    from gosplan.agents.dp import DPGrid, solve_single_enterprise
+    from gosplan.experiments import _g2
+
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    run_root = out_dir / "runs"
+    levels = tuple(float(ap) for ap in ap_levels)
+    if len(levels) != N_AP_LEVELS:
+        raise ValueError(f"expected {N_AP_LEVELS} a*pen levels from G1, got {levels}")
+
+    level_cfgs = {ap: _g2.recovery_config(_g2.at_ap_level(cfg, ap)) for ap in levels}
+    dp = {ap: solve_single_enterprise(level_cfgs[ap], DPGrid()) for ap in levels}
+    jobs = [
+        (_g2.seeded(level_cfgs[ap], s, seed_env), RECOVERY_SIZING, run_root)
+        for ap in levels
+        for s in range(seeds_per_level)
+    ]
+    summaries = _g2.run_many(jobs)
+
+    per_seed: list[dict[str, object]] = []
+    for (job_cfg, _sizing, _root), summ in zip(jobs, summaries, strict=True):
+        ap = float(job_cfg.information.audit_rate * job_cfg.incentive.penalty_scale)
+        ap = min(levels, key=lambda level: abs(level - ap))
+        sol = dp[ap]
+        m = summ["metrics"]
+        w1 = float(wasserstein_distance(summ["rho"], np.asarray(sol.stationary_rho).ravel()))
+        row = {
+            "ap_level": ap,
+            "seed_index": int(job_cfg.tech.seed_env) - int(jobs[0][0].tech.seed_env),
+            "seed_env": int(job_cfg.tech.seed_env),
+            "seed_policy": int(job_cfg.tech.seed_policy),
+            "config_hash": summ["config_hash"],
+            "padding_ppo": m["fictitious_padding"],
+            "padding_dp": float(sol.fictitious_padding),
+            "effort_ppo": m["mean_effort"],
+            "effort_dp": float(sol.mean_effort),
+            "wasserstein1": w1,
+            "return_ppo": m["mean_return"],
+            "share_window_ppo": summ["share_window"],
+            "frac_at_bound": m["frac_at_bound"],
+        }
+        row["padding_ok"] = bool(abs(row["padding_ppo"] - row["padding_dp"]) <= PADDING_TOL)
+        row["effort_ok"] = bool(abs(row["effort_ppo"] - row["effort_dp"]) <= EFFORT_TOL)
+        row["wasserstein_ok"] = bool(w1 < WASSERSTEIN_TOL)
+        row["passed"] = row["padding_ok"] and row["effort_ok"] and row["wasserstein_ok"]
+        per_seed.append(row)
+
+    passing = {ap: sum(1 for r in per_seed if r["ap_level"] == ap and r["passed"]) for ap in levels}
+    passed = all(passing[ap] >= MIN_PASSING_SEEDS for ap in levels)
+    flags = sorted(
+        {f for summ in summaries for f in summ["manifest_flags"]}
+        | ({"BOUND_BINDING"} if any(s["measure_bound_binding"] for s in summaries) else set())
+    )
+    dp_rows = {
+        ap: {
+            "config_hash": dp[ap].config_hash,
+            "regime": str(dp[ap].regime),
+            "padding": float(dp[ap].fictitious_padding),
+            "effort": float(dp[ap].mean_effort),
+            "share_window": _share(np.asarray(dp[ap].stationary_rho).ravel()),
+            "converged": bool(dp[ap].converged),
+            "return_in_env": _dp_policy_return(level_cfgs[ap], dp[ap], seed_env),
+        }
+        for ap in levels
+    }
+
+    import pandas as pd
+
+    table_path = out_dir / TABLE_PATH.name
+    pd.DataFrame(per_seed).to_parquet(table_path, index=False)
+    report_path = out_dir / REPORT_PATH.name
+    report_path.write_text(
+        _report(levels, dp_rows, per_seed, passing, passed, flags, summaries), encoding="utf-8"
+    )
+    return {
+        "ap_levels": levels,
+        "per_seed": tuple(per_seed),
+        "passing_seeds": passing,
+        "criterion_1_passed": passed,
+        "flags": tuple(flags),
+        "dp": dp_rows,
+        "artefacts": {"report": str(report_path), "table": str(table_path)},
+    }
 
 
 def main() -> int:
@@ -181,12 +281,130 @@ def main() -> int:
     Returns: a process exit code - 0 when all three levels ran and `runs/dp_vs_ppo/report.md` was
     written, 1 when the run could not complete or `runs/G1_decision.md` is missing. The exit code
     does *not* encode the criterion: whether criterion 1 passed is the `criterion_1_passed` line of
-    the report, and gate G2 is a written sign-off by the human and the maintainer on that report together
+    the report, and gate G2 is a written sign-off by the human and the lead on that report together
     with `runs/phase1_gate/report.md` (PLAN section 13).
 
-    Realises: PLAN sections 4.5, 12.3, 13. Owning WO: a later task.
+    Realises: PLAN sections 4.5, 12.3 (WO-019), 13. Owning WO: **WO-019**.
     """
-    raise NotImplementedError("PLAN section 4.5")
+    from gosplan.config import p1_default_config
+    from gosplan.experiments import _g2
+
+    try:
+        g1 = _g2.read_g1(G1_DECISION_PATH)
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"dp_vs_ppo: {exc}")
+        return 1
+    out = run(p1_default_config(), g1.ap_levels)
+    for ap, n in dict(out["passing_seeds"]).items():
+        print(f"a*pen={ap}: {n}/{SEEDS_PER_LEVEL} seeds pass")
+    print(f"criterion_1_passed: {out['criterion_1_passed']}")
+    return 0 if Path(dict(out["artefacts"])["report"]).exists() else 1
+
+
+def _dp_policy_return(cfg: EnvConfig, sol: object, seed_env: int | None) -> float:
+    """Mean episode return of `DPGreedy` (the DP policy replayed in the environment) over
+    `RECOVERY_SIZING.measure_episodes` episodes of the gate measurement seed block - the same
+    episodes each PPO seed 0 is measured on. Context for the report (is PPO below the optimum, or
+    at a different policy of equal value?); it enters no criterion (AMBIGUITY-020)."""
+    from gosplan.agents.heuristic import DPGreedy
+    from gosplan.env.env import GosplanEnv
+    from gosplan.experiments import _g2
+
+    root = int(cfg.tech.seed_env) if seed_env is None else int(seed_env)
+    agent = DPGreedy(cfg, sol)
+    env = GosplanEnv(cfg, records=False)
+    rng = np.random.default_rng(0)
+    returns = []
+    for e in range(RECOVERY_SIZING.measure_episodes):
+        obs, _ = env.reset(root + _g2.MEASURE_SEED_OFFSET + e, cfg.tech.seed_policy)
+        agent.reset()
+        total, done = 0.0, False
+        while not done:
+            obs, reward, done, _info = env.step(agent.act(obs, env.phase(), rng))
+            total += float(np.mean(reward))
+        returns.append(total)
+    return float(np.mean(returns))
+
+
+def _share(rho: np.ndarray) -> float:
+    """Share of `rho` in the excess window [1.00, 1.02] (the AMBIGUITY-011 criterion-2 quantity)."""
+    from gosplan.metrics.phenomena import BUNCHING_EXCESS_HI, BUNCHING_EXCESS_LO
+
+    return float(np.mean((rho >= BUNCHING_EXCESS_LO) & (rho <= BUNCHING_EXCESS_HI)))
+
+
+def _report(
+    levels: tuple[float, ...],
+    dp_rows: dict[float, dict[str, object]],
+    per_seed: list[dict[str, object]],
+    passing: dict[float, int],
+    passed: bool,
+    flags: list[str],
+    summaries: list[dict[str, object]],
+) -> str:
+    """`runs/dp_vs_ppo/report.md`: DP reference, per-seed comparison, one line per level."""
+    from gosplan.experiments import _g2
+
+    n_seeds = len(per_seed) // max(len(levels), 1)
+    lines = [
+        "# Gate G2 criterion 1 - DP-vs-PPO recovery (WO-019)",
+        "",
+        f"Git: `{_g2.git_hash()}`. Setting: PLAN section 5 (`N = 1`, `a = 0`, `phi = 1`), the G1",
+        "configuration at each recorded `a*pen` level. Sizing (AMBIGUITY-019): "
+        f"`{RECOVERY_SIZING}`.",
+        f"Tolerances (PLAN section 4.5): |padding| <= {PADDING_TOL}, |effort| <= {EFFORT_TOL},",
+        f"W1 < {WASSERSTEIN_TOL}; a level passes with >= {MIN_PASSING_SEEDS} of {n_seeds} seeds.",
+        "",
+        "## DP reference",
+        "",
+        "| `a*pen` | regime | padding | effort | share in [1.00, 1.02] | DP policy return in env "
+        "(context) | converged | config hash |",
+        "|---|---|---|---|---|---|---|---|",
+    ]
+    for ap in levels:
+        d = dp_rows[ap]
+        lines.append(
+            f"| {ap:g} | {d['regime']} | {d['padding']:.4f} | {d['effort']:.3f} | "
+            f"{d['share_window']:.4f} | {d['return_in_env']:.3f} | {d['converged']} | "
+            f"`{str(d['config_hash'])[:12]}` |"
+        )
+    lines += [
+        "",
+        "## Per seed",
+        "",
+        "| `a*pen` | seed | padding PPO | effort PPO | W1 | share PPO | return PPO | pass |",
+        "|---|---|---|---|---|---|---|---|",
+    ]
+    for r in per_seed:
+        lines.append(
+            f"| {r['ap_level']:g} | {r['seed_index']} | {r['padding_ppo']:.4f} | "
+            f"{r['effort_ppo']:.3f} | {r['wasserstein1']:.4f} | {r['share_window_ppo']:.4f} | "
+            f"{r['return_ppo']:.3f} | {'yes' if r['passed'] else 'no'} |"
+        )
+    lines += ["", "## Result", ""]
+    for ap in levels:
+        ok = passing[ap] >= MIN_PASSING_SEEDS
+        lines.append(
+            f"- `a*pen` = {ap:g}: {passing[ap]}/{n_seeds} seeds pass -> "
+            f"**{'PASS' if ok else 'FAIL'}**"
+        )
+    lines += [
+        "",
+        f"**criterion_1_passed: {passed}**",
+        "",
+        f"Flags raised: {', '.join(flags) if flags else 'none'}.",
+        "",
+    ]
+    if not passed:
+        lines += [
+            "Per PLAN section 4.5 a criterion-1 failure is a training-stack failure: it blocks",
+            "criteria 2-4 and the next step is a LEAD diagnosis work order, never a tolerance,",
+            "level or parameter change.",
+            "",
+        ]
+    wall = sum(float(s["wall_clock_s"]) for s in summaries)
+    lines.append(f"Total training wall clock: {wall / 3600:.1f} h over {len(summaries)} runs.")
+    return "\n".join(lines) + "\n"
 
 
 if __name__ == "__main__":

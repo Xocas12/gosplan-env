@@ -1,8 +1,8 @@
 """Plan prices: the cost-plus fixed point, and the price-vector sensitivity perturbation.
 
 Realises: PLAN section 2.10 (plan prices and final demand), plus the standing robustness check of
-PLAN sections 2.9.4 and 7.5. Owning task: reporting and reward,
-with the sensitivity harness itself in `gosplan/experiments/price_sensitivity.py`.
+PLAN sections 2.9.4 and 7.5. Owning work order: **WO-007** (reporting and reward; MID-strong),
+with the sensitivity harness itself in `gosplan/experiments/price_sensitivity.py` (WO-036).
 
 Prices are a *measurement* instrument in this design, not a market. Nothing an agent does moves
 them, and no agent observes them: they enter only the planner-side aggregate `val_measured`, the
@@ -29,7 +29,7 @@ are swept only in the price-sensitivity check of PLAN section 7.5, never in a tr
 
 Dimensions: `J = cfg.supply.n_sectors`. One good per sector, so a price vector is `(J,)`.
 
-Cross-module bindings. `EnvConfig` is the runtime dataclass of `gosplan/config.py` and
+Cross-module bindings. `EnvConfig` is the runtime dataclass of `gosplan/config.py` (WO-003) and
 must stay field-for-field identical to its `spec/spec.py` declaration, which is not importable as
 a package. It is imported under `TYPE_CHECKING` so this module stays importable while its siblings
 are still skeletons.
@@ -69,6 +69,38 @@ prices and under these three. A sign change in `specification_gap` across them i
 suppressed."""
 
 
+def _solve_cost_plus(io: Array, markup: float) -> Array:
+    """Solve `p = (1 + m) * (kappa_labour * 1 + a @ p)` directly (PLAN section 2.10).
+
+    `(I - (1 + m) * a) p = (1 + m) * kappa_labour * 1`. Raises `ValueError` when a row violates the
+    convergence condition `(1 + m) * sum_k a_jk < 1`, rather than returning a diverged vector.
+    """
+    a = np.asarray(io, dtype=float)
+    factor = 1.0 + markup
+    row_sums = factor * a.sum(axis=1)
+    if np.any(row_sums >= 1.0):
+        bad = [int(j) for j in np.flatnonzero(row_sums >= 1.0)]
+        raise ValueError(
+            "cost-plus fixed point does not converge: (1 + m) * sum_k a_jk >= 1 in row(s) "
+            f"{bad} (m = {markup})"
+        )
+    # Plain iteration from p = kappa_labour * (1 + m) until the largest coordinate change is below
+    # 1e-12, summed left to right exactly as ref_initial_prices does, so the prices agree bit for
+    # bit with the reference (the golden state digests compare them exactly).
+    n = a.shape[0]
+    rows = [[float(v) for v in a[j]] for j in range(n)]
+    prices = [LABOUR_COST * factor for _ in range(n)]
+    for _ in range(100000):
+        nxt = [
+            factor * (LABOUR_COST + sum(rows[j][k] * prices[k] for k in range(n))) for j in range(n)
+        ]
+        delta = max(abs(nxt[j] - prices[j]) for j in range(n))
+        prices = nxt
+        if delta < 1e-12:
+            break
+    return np.array(prices, dtype=float)
+
+
 def initial_prices(cfg: EnvConfig) -> Array:
     """Solve the cost-plus plan-price fixed point at `t = 0` (PLAN section 2.10).
 
@@ -87,7 +119,7 @@ def initial_prices(cfg: EnvConfig) -> Array:
     only for convergence and positivity.
 
     Convergence requires every row of `a` to satisfy `(1 + m) * sum_k a_jk < 1`, which is exactly
-    why `EnvConfig.validate` rejects `sum_k a_jk >= 1`. At the Phase-1 `io_matrix` every
+    why `EnvConfig.validate` rejects `sum_k a_jk >= 1` (WO-003). At the Phase-1 `io_matrix` every
     row sums to 0.4, so `(1 + m) * 0.4 = 0.44 < 1` and the spectral radius is comfortably inside
     the unit circle. A configuration that fails the condition must raise rather than return a
     diverged vector.
@@ -101,10 +133,10 @@ def initial_prices(cfg: EnvConfig) -> Array:
     every headline table to be recomputed under the perturbed vectors of `perturbed_price_vectors`,
     and a sign change in `specification_gap` is reported rather than suppressed.
 
-    Binds: `tests/unit/test_prices.py` (the corresponding task must-pass list) - the fixed point converges and
-    every price is strictly positive. Owning WO: a later task.
+    Binds: `tests/unit/test_prices.py` (the WO-007 must-pass list) - the fixed point converges and
+    every price is strictly positive. Owning WO: **WO-007**.
     """
-    raise NotImplementedError("PLAN section 2.10")
+    return _solve_cost_plus(cfg.supply.io_matrix, cfg.supply.price_markup)
 
 
 def recompute_prices(planner_io: Array, cfg: EnvConfig) -> Array:
@@ -126,15 +158,15 @@ def recompute_prices(planner_io: Array, cfg: EnvConfig) -> Array:
     do with anybody's report. Reading `cfg.supply.io_matrix` here would destroy that channel.
 
     The *schedule* - recomputation every `cfg.supply.price_lag` periods - is applied by the step
-    machine (`gosplan/env/step.py`, a later task), not here; this function is the solver alone, so it
+    machine (`gosplan/env/step.py`, WO-009), not here; this function is the solver alone, so it
     stays a pure function of `(planner_io, cfg)`. The exact trigger predicate and the treatment of
     a non-integer `price_lag` are frozen at the Phase-2 spec revision (PLAN section 0).
 
     Binds: `tests/unit/test_prices.py` - agrees with `initial_prices` to 1e-12 when `planner_io`
-    equals `cfg.supply.io_matrix`, which is the Phase-1 state at every `t`. Owning WO: a later task
-    (solver), Phase-2 activation with a later task.
+    equals `cfg.supply.io_matrix`, which is the Phase-1 state at every `t`. Owning WO: **WO-007**
+    (solver), Phase-2 activation with WO-022/WO-023.
     """
-    raise NotImplementedError("PLAN section 2.10")
+    return _solve_cost_plus(planner_io, cfg.supply.price_markup)
 
 
 def perturbed_price_vectors(prices: Array, seeds: tuple[int, ...]) -> tuple[Array, ...]:
@@ -155,26 +187,46 @@ def perturbed_price_vectors(prices: Array, seeds: tuple[int, ...]) -> tuple[Arra
     The chosen triple is recorded in the run manifest (CONTRACT rule 10) and never re-rolled to
     change a table; re-rolling it is the exact move CONTRACT rule 8's spirit forbids.
 
-    Use: `gosplan/experiments/price_sensitivity.py` recomputes `padding_index`,
+    Use: `gosplan/experiments/price_sensitivity.py` (WO-036) recomputes `padding_index`,
     `welfare_ratio` and `specification_gap` (PLAN section 2.9.4) under each returned vector and
     reports them beside the baseline. A sign change in `specification_gap` is reported, not
     suppressed (PLAN section 7.5). The perturbation is post-hoc: it re-values a ledger that has
     already been produced, so it never enters an episode, an observation or a reward, and
     `State.plan_prices` is not touched by it.
 
-    Randomness - an open item for the v1 freeze. CONTRACT rule 9 requires every draw made
+    Randomness - an open item for the v1 freeze (WO-013). CONTRACT rule 9 requires every draw made
     under `gosplan/env/` to go through `gosplan.rng.draw(seed_env, purpose, *indices)`, and the
     `Purpose` enumeration of PLAN section 2.15 has no value for a price perturbation. Two
-    resolutions are admissible and the maintainer must record one in `spec/CHANGELOG.md`: (i) add a
+    resolutions are admissible and the lead must record one in `spec/CHANGELOG.md`: (i) add a
     purpose (for example `pricepert`) to `Purpose` at the v1 freeze and draw
     `dist="normal", mean=0.0, sigma=PRICE_PERTURBATION_SIGMA` with `shape=(J,)` keyed by each seed;
     or (ii) move this helper to `gosplan/experiments/price_sensitivity.py`, which is outside
-    `gosplan/env/` and therefore outside rule 9. Until that is recorded, the contributor must not
+    `gosplan/env/` and therefore outside rule 9. Until that is recorded, the implementer must not
     pick one silently and must not call `numpy.random` here.
 
     Binds: `tests/unit/test_prices.py` - `len(result) == len(seeds)`; every vector is strictly
     positive; the result is deterministic in `(prices, seeds)` and independent of call order;
-    the vectors differ from the baseline and from each other. Owning WO: a later task (helper),
-    a later task (the tables it feeds).
+    the vectors differ from the baseline and from each other. Owning WO: **WO-007** (helper),
+    **WO-036** (the tables it feeds).
     """
-    raise NotImplementedError("PLAN sections 2.9.4, 7.5")
+    from gosplan.rng import draw
+
+    # Resolution (i), recorded in spec/CHANGELOG.md 2.0.0: purpose "pricepert", keyed by each seed.
+    base = np.asarray(prices, dtype=float)
+    return tuple(
+        base
+        * np.exp(
+            np.asarray(
+                draw(
+                    int(seed),
+                    "pricepert",
+                    shape=base.shape,
+                    dist="normal",
+                    mean=0.0,
+                    sigma=PRICE_PERTURBATION_SIGMA,
+                ),
+                dtype=float,
+            )
+        )
+        for seed in seeds
+    )

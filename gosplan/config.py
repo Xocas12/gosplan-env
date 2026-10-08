@@ -1,22 +1,22 @@
 """Environment configuration: the `EnvConfig` family, its validation, its hash and its loaders.
 
 Realises: PLAN section 3 (parameter registry and ranges), with the field semantics of PLAN sections
-2.1-2.15 and the manifest requirement of CONTRACT rule 10. Owning task: Config;
-P1; contributor; depends on a later task. Must pass ``; run
+2.1-2.15 and the manifest requirement of CONTRACT rule 10. Owning work order: **WO-003** (Config;
+P1; MID-fast; depends on WO-001). Must pass `tests/unit/test_config.py`; completion command
 `pytest tests/unit/test_config.py -q`.
 
 **Mirror obligation.** `spec/spec.py` is the frozen interface (CONTRACT rule 1) but is not an
 importable package, so this module declares the runtime dataclasses instead. They MUST stay
 field-for-field identical to `spec/spec.py`: same class names, same field names, same order, same
-types, same Phase-1 defaults, same `frozen=True`. `tests/unit/test_spec_imports.py` checks
-that the public surface matches, and `tests/unit/test_config.py` checks the defaults
+types, same Phase-1 defaults, same `frozen=True`. `tests/unit/test_spec_imports.py` (WO-001) checks
+that the public surface matches, and `tests/unit/test_config.py` (WO-003) checks the defaults
 against `gosplan.params.REGISTRY`. If a field here and a field there disagree, `spec/spec.py` wins
-and the fix is an OPEN QUESTION plus a lead-signed `spec/CHANGELOG.md` entry - never a silent
+and the fix is an AMBIGUITY REPORT plus a lead-signed `spec/CHANGELOG.md` entry - never a silent
 edit on this side (CONTRACT rules 1, 3).
 
 **Skeleton status.** The dataclass field declarations and their defaults are real content: they are
 the Phase-1 configuration of PLAN section 3. Everything executable - `validate`, `hash`,
-`load_config`, `p1_default_config` - raises `NotImplementedError` until a later task lands. The
+`load_config`, `p1_default_config` - raises `NotImplementedError` until WO-003 lands. The
 dataclasses carry fields only: no `__post_init__`, no computed property, no derived constant.
 Derived quantities named in PLAN section 2 (`T_0 = initial_target_frac * A * cap`,
 `S_max = inventory_cap_mult * cap`, `T_min = target_floor_frac * T_0`, `omega_j`, `reward_scale`)
@@ -38,10 +38,10 @@ import tomllib
 from dataclasses import dataclass, field
 from typing import Literal
 
-SPEC_VERSION = "0.1.0"
+SPEC_VERSION = "2.1.0"
 """Mirror of `spec.spec.SPEC_VERSION` - the provisional (v0) interface version.
 
-a later task bumps it to `"1.0.0"` at gate G1 and every later change needs a `spec/CHANGELOG.md` entry
+WO-013 bumps it to `"1.0.0"` at gate G1 and every later change needs a `spec/CHANGELOG.md` entry
 (CONTRACT rule 1). It is the default of `EnvConfig.spec_version` and is written into every run
 manifest (CONTRACT rule 10), so a result can never be silently attributed to a different interface
 version. Distinct from `gosplan.__version__`, which versions the distribution."""
@@ -62,7 +62,7 @@ PenaltyArg = Literal["positive_part", "absolute"]
 
 AuditMode = Literal["random", "targeted"]
 """Audit selection rule (PLAN section 2.7.4). Phase 1 `random`; `targeted` is a Phase-2 information
-mechanism gated by `shortfall_visibility`."""
+mechanism gated by `shortfall_visibility` (WO-023)."""
 
 AggLevel = Literal["enterprise", "sector"]
 """Level at which the planner sees reports (PLAN sections 2.4, 2.7.5). At `sector` the planner sees
@@ -92,7 +92,7 @@ class SupplyConfig:
     default is a `tuple`, so `EnvConfig.hash()` is stable and a configuration can be a dictionary
     key. Field docstrings record the arm (CONTRACT rule 11) and the sweep range of PLAN section 3;
     the ranges themselves are data in `gosplan.params.REGISTRY` and are enforced by
-    `EnvConfig.validate`.
+    `EnvConfig.validate` (WO-003).
     """
 
     n_enterprises: int = 20
@@ -185,7 +185,7 @@ class SupplyConfig:
     price_lag: float = float("inf")
     """SUPPLY. Periods between price recomputations (PLAN section 2.10). Phase 1: `inf`, i.e. plan
     prices are fixed after `t = 0`. Serialised as the string "inf" by `EnvConfig.hash` and decoded
-    back by `load_config`."""
+    back by `load_config` (WO-003)."""
 
     tech_drift_sigma: float = 0.0
     """SUPPLY. `sigma_drift` in the per-period I-O drift `a <- a * exp(zeta)`,
@@ -200,7 +200,7 @@ class SupplyConfig:
     ces_sigma: float = 0.8
     """SUPPLY. `sigma_c`, consumer CES elasticity of substitution (PLAN sections 2.9.3, 2.10).
     Phase 1: 0.8, complements-leaning; `validate` requires `ces_sigma > 0`. The `sigma_c -> 1`
-    limit is Cobb-Douglas and is tested in `tests/unit/test_reward.py`. Not tabulated in
+    limit is Cobb-Douglas and is tested in `tests/unit/test_reward.py` (WO-007). Not tabulated in
     PLAN section 3."""
 
     trade_tau: float = 0.05
@@ -211,7 +211,7 @@ class SupplyConfig:
     quality_matters: bool = False
     """SUPPLY. Master toggle for the quality mechanism: quality routed through the input bundle,
     `X_ij` credited as `deliv * qbar_j` (PLAN section 2.6). Phase 1: False (`q == 1` everywhere).
-    Turned on by a later task. Not tabulated in PLAN section 3."""
+    Turned on by WO-021. Not tabulated in PLAN section 3."""
 
     quality_cost: float = 0.0
     """SUPPLY. `kappa_q` in the effort cost `c = kappa * e**2 + F * 1[e > 0] + kappa_q * q * e`
@@ -235,11 +235,11 @@ class IncentiveConfig:
     """INC. Which fulfilment measure the bonus and the ratchet key on (PLAN section 2.9.2). Phase
     1: `val`. Historical motivation: `val` is the measure the NNO reforms attacked."""
 
-    ratchet_lambda: float = 0.5  # provisional: replaced at G1
+    ratchet_lambda: float = 0.53  # G1 value, runs/G1_decision.md
     """INC. `lambda`, ratchet coefficient in the target rule of PLAN section 2.7.1. Range [0, 1];
     Weitzman-type models motivate the form, the empirical value is unsourced."""
 
-    growth_directive: float = 0.02  # provisional: replaced at G1
+    growth_directive: float = 0.021  # G1 value, runs/G1_decision.md
     """INC. `g`, the exogenous growth directive multiplying the target every period (PLAN section
     2.7.1). The forcing term added for finding F1; it must be a treatment variable because at
     `g = 0` with reports at target the target rule has a fixed point (test T-B2). Range
@@ -269,7 +269,7 @@ class IncentiveConfig:
     estimator-bias study (PLAN section 7.2). Grid {0, 0.02, 0.05, 0.10, 0.25}; `validate` rejects
     `w < 0`."""
 
-    overfulfilment_slope: float = 0.5  # provisional: replaced at G1
+    overfulfilment_slope: float = 0.331  # G1 value, runs/G1_decision.md
     """INC. `s`, linear bonus slope above target: `s * clip(rho - 1, 0, rho_cap - 1)` (PLAN section
     2.8). Range [0, 2]; the historical anchor is the per-percentage-point bonus increment (lead to
     source, PLAN section 15)."""
@@ -289,18 +289,18 @@ class IncentiveConfig:
     (`absolute`) (PLAN section 2.8). Under `positive_part` any under-report incurs no penalty -
     test T-U8."""
 
-    penalty_scale: float = 60.0  # provisional: replaced at G1
+    penalty_scale: float = 200.0  # G1 value, runs/G1_decision.md
     """INC. `pen`, penalty scale in ratio units (PLAN sections 2.8, 2.9.1; finding F9). Range
     [5, 200]; unsourced, chosen from the regime map. `audit_rate * penalty_scale` is the compound
     quantity the G2 padding-elasticity criterion sweeps (PLAN section 4.5)."""
 
-    effort_cost: float = 0.15  # provisional: replaced at G1
+    effort_cost: float = 0.193  # G1 value, runs/G1_decision.md
     """INC. `kappa` in `c_ik = kappa * e_ik**2 + ...` (PLAN section 2.6). A real cost paid when
     incurred, not shaping (CONTRACT rule 4). Range [0.05, 0.5]; unsourced, from the regime map."""
 
     soft_budget: float = 0.0
     """INC. Kornai soft-budget intensity; the Phase-2 definition is the bailout probability when
-    `fill < 1` (PLAN section 3, a later task). Phase 1: 0.0. Range [0, 1]."""
+    `fill < 1` (PLAN section 3, WO-023). Phase 1: 0.0. Range [0, 1]."""
 
     steps_per_period: int = 4
     """INC. `M`, PRODUCE steps per plan period; agents act `M + 1` times per period (PLAN sections
@@ -346,7 +346,7 @@ class InformationConfig:
     """INFO. Level at which the planner observes claims (PLAN section 2.7.5). At `sector` it sees
     only `sum_{i in j} claimed_i` and allocates by planned need alone. Phase 1: `enterprise`."""
 
-    audit_rate: float = 0.10  # provisional: replaced at G1
+    audit_rate: float = 0.10  # G1 value, runs/G1_decision.md
     """INFO (dual: it also enters the reward through the penalty, so it is reported separately -
     PLAN section 4.3). `a`, per-enterprise per-period audit probability (PLAN section 2.7.4). Range
     [0.01, 0.30]; unsourced. `validate` requires it in [0, 1]."""
@@ -358,7 +358,7 @@ class InformationConfig:
     audit_mode: AuditMode = "random"
     """INFO. Audit selection rule (PLAN section 2.7.4). Phase 1: `random`. `targeted` raises the
     probability with the planner's noisy knowledge of downstream complaints and requires
-    `shortfall_visibility > 0`."""
+    `shortfall_visibility > 0` (WO-023)."""
 
     channel_noise: float = 0.0
     """INFO. `sigma_ch`, log-sd of the reporting-channel distortion
@@ -372,7 +372,7 @@ class InformationConfig:
 
     n_ministries: int = 1
     """INFO. `M_min`, number of ministries partitioning the enterprises (PLAN section 2.14). Not
-    tabulated in PLAN section 3; 1 in Phase 1, where the layer is inert. Set by a later task."""
+    tabulated in PLAN section 3; 1 in Phase 1, where the layer is inert. Set by WO-025."""
 
     horizontal_visibility: float = 0.0
     """INFO. Fraction of the other `N - 1` enterprises visible as trade counterparties, and the
@@ -387,10 +387,21 @@ class InformationConfig:
     """INFO. How much of buyers' complaints the planner sees, gating the `targeted` audit mode
     (PLAN section 2.7.4). Phase 1: 0.0; range [0, 1]."""
 
+    audit_target_gain: float = 4.0
+    """INFO. `kappa_t`, the gain of the `targeted` audit probability
+    `clip(a * (1 + kappa_t * downstream_shortfall_i), 0, 1)` (PLAN section 2.7.4; P2 revision R4).
+    Default 4.0; range [0, 10]. Inert unless `audit_mode = "targeted"` and
+    `shortfall_visibility > 0`."""
+
+    ministry_pad: float = 0.5
+    """INFO. `kappa_m`, how much of a shortfall `max(0, T_i - R_i)` a ministry pads into the claim
+    it forwards (PLAN section 2.14; P2 revision R10). Default 0.5; range [0, 1]. Inert at
+    `ministry_passthrough = 1`."""
+
     self_obs_noise: float = 0.0
     """INFO. Log-sd of the multiplicative noise `exp(N(0, s**2))` applied to the agent's own
     cumulative output and stock observation fields, drawn with purpose `selfobs` (PLAN section 2.4,
-    a later task). Phase 1: 0.0, so those fields are exact. Mechanism toggle for the shape study; range
+    WO-008). Phase 1: 0.0, so those fields are exact. Mechanism toggle for the shape study; range
     [0, 0.05]."""
 
 
@@ -402,7 +413,7 @@ class TechConfig:
     Mirrors `spec.spec.TechConfig` field for field. Frozen and hashable. None of these is a
     treatment variable in any contrast; they are fixed across arms. The PPO hyper-parameters
     (`gamma = 0.99`, `lambda_GAE = 0.97`, lr 3e-4, clip 0.2, entropy 0.01 -> 0.001) are TECH too
-    but live with the adapter, not in `EnvConfig`, because the environment never reads
+    but live with the adapter (WO-017), not in `EnvConfig`, because the environment never reads
     them; `gosplan.params.REGISTRY` records them under the `ppo_` names.
     """
 
@@ -490,7 +501,7 @@ class EnvConfig:
         defaults a bad value: a configuration that cannot be run is an error, not something to be
         silently fixed.
 
-        Must reject at least (the corresponding task must-pass list, `tests/unit/test_config.py`):
+        Must reject at least (the WO-003 must-pass list, `tests/unit/test_config.py`):
           - `incentive.overfulfilment_cap < 1` (`rho_cap < 1` would invert the bonus kink);
           - `incentive.notch_width < 0` (`w < 0` has no logistic reading);
           - `supply.input_complementarity < 1` (`theta < 1` leaves the CES branch of PLAN section
@@ -517,7 +528,7 @@ class EnvConfig:
         enforces feasibility, not the sweep ranges, so a deliberate out-of-sweep sensitivity run
         stays possible and is recorded in the manifest.
 
-        Realises: PLAN section 3 (registry ranges) and its task specification. Owning WO: a later task.
+        Realises: PLAN section 3 (registry ranges) and the WO-003 card. Owning WO: **WO-003**.
         """
         supply = self.supply
         incentive = self.incentive
@@ -634,6 +645,39 @@ class EnvConfig:
             value = getattr(information, name)
             if value < 0:
                 raise ValueError(f"information.{name}: must be non-negative (got {value})")
+        if not 0 <= information.audit_target_gain <= 10:
+            raise ValueError(
+                "information.audit_target_gain: must lie in [0, 10] "
+                f"(got {information.audit_target_gain})"
+            )
+        if not 0 <= information.ministry_pad <= 1:
+            raise ValueError(
+                f"information.ministry_pad: must lie in [0, 1] (got {information.ministry_pad})"
+            )
+        if information.report_lag not in (0, 1, 2):
+            raise ValueError(
+                f"information.report_lag: must be 0, 1 or 2 (got {information.report_lag})"
+            )
+        if not 1 <= information.n_ministries <= supply.n_enterprises:
+            raise ValueError(
+                "information.n_ministries: must lie in [1, supply.n_enterprises] "
+                f"(got {information.n_ministries})"
+            )
+
+        # Out of Phase-2 scope (spec/P2_REVISION.md R1): rejected rather than silently ignored.
+        out_of_scope = {
+            "supply.irs_alpha": supply.irs_alpha != 0,
+            "supply.capital_dep": supply.capital_dep != 0,
+            "supply.tech_drift_sigma": supply.tech_drift_sigma != 0,
+            "supply.price_lag": supply.price_lag != float("inf"),
+            "incentive.bonus_heterogeneity": incentive.bonus_heterogeneity != 0,
+        }
+        for name, active in out_of_scope.items():
+            if active:
+                raise ValueError(
+                    f"{name}: not implemented in Phase 2 (spec/P2_REVISION.md R1); only its "
+                    "Phase-1 value is accepted"
+                )
 
         # TECH: horizon and bounds (PLAN sections 2.3, 2.12).
         if tech.min_periods > tech.max_periods:
@@ -647,7 +691,7 @@ class EnvConfig:
     def hash(self) -> str:
         """Return the stable content hash of this configuration.
 
-        Takes: nothing beyond `self`. Returns: the SHA-256 hex digest of the canonical JSON encoding, pinned byte-for-byte by open question #51 because
+        Takes: nothing beyond `self`. Returns: the SHA-256 hex digest of the canonical JSON encoding, pinned byte-for-byte by ambiguity report #51 because
         `ref/gen_golden.config_hash` re-derives it independently and `tests/golden/` asserts the two
         digests are equal:
 
@@ -658,11 +702,11 @@ class EnvConfig:
         string "inf", tuples as JSON arrays, no trailing newline, encoded UTF-8 and hashed with
         `hashlib.sha256`, rendered lowercase hex. The five semantic bullets alone did not determine
         the bytes - `sort_keys=True` on its own still emits ", " and ": " separators - so two
-        faithful implementations could disagree and fail golden parity with no task at fault. The digest names the run directory `runs/<hash>/` and
+        faithful implementations could disagree and fail golden parity with no card at fault. The digest names the run directory `runs/<hash>/` and
         appears in the manifest (CONTRACT rule 10).
 
         Binds: `tests/unit/test_config.py` - the hash is stable under field order, and two
-        configurations differing in any single parameter hash differently. Owning WO: a later task.
+        configurations differing in any single parameter hash differently. Owning WO: **WO-003**.
         """
 
         def canonical(value: object) -> object:
@@ -674,7 +718,9 @@ class EnvConfig:
                 return {key: canonical(item) for key, item in value.items()}
             return value
 
-        payload = canonical(dataclasses.asdict(self))
+        # The nested per-section object only (spec docstring; ambiguity report #51).
+        sections = ("supply", "incentive", "information", "tech")
+        payload = {name: canonical(dataclasses.asdict(getattr(self, name))) for name in sections}
         encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
         return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
@@ -691,7 +737,7 @@ def load_config(path: str) -> EnvConfig:
     Raises `ValueError` on an unknown key: silently ignoring an unrecognised parameter would let a
     sweep run at defaults while its manifest claimed otherwise.
 
-    Realises: PLAN section 3. Owning WO: a later task.
+    Realises: PLAN section 3. Owning WO: **WO-003**.
     """
     if path.lower().endswith(".toml"):
         with open(path, "rb") as handle:
@@ -768,8 +814,59 @@ def p1_default_config() -> EnvConfig:
     Binds: `tests/unit/test_config.py` asserts field-by-field agreement between this function and
     the registry data in `gosplan/params.py` - `params.by_name(<field>).default` for every registry
     entry that names an `EnvConfig` field (all but the five `ppo_` rows, which belong to the
-    adapter of a later task). The two must never drift. Owning WO: a later task.
+    adapter of WO-017). The two must never drift. Owning WO: **WO-003**.
     """
     config = EnvConfig()
+    config.validate()
+    return config
+
+
+def p2_default_config() -> EnvConfig:
+    """Return the Phase-2 default configuration (spec/P2_REVISION.md R11).
+
+    Takes: nothing. Returns: `p1_default_config()` (the G1 values) with the PLAN section 4.2
+    locked values behind the held-out phenomena, and the Phase-2 baseline C0's information and
+    incentive settings chosen by the LEAD before any Phase-2 run:
+
+        locked (PLAN 4.2)  delivery_timing = "stochastic", arrival_probs = (0.25,)*4;
+                           alloc_eta_request = 0.7, input_complementarity = 8,
+                           input_holding_loss = 0.01; horizontal_visibility = 1.0,
+                           trade_tau = 0.05; g, penalty_arg and h as in Phase 1
+        C0 (LEAD, R11)     report_lag = 1, channel_noise = 0.05, ministry_passthrough = 0.75,
+                           n_ministries = 5, ministry_pad = 0.5, audit_mode = "targeted",
+                           shortfall_visibility = 0.5, audit_target_gain = 4.0,
+                           quality_matters = True, quality_cost = 0.05,
+                           quality_measurability = 0.5, soft_budget = 0.25
+
+    Owning: the Phase-2 spec revision (LEAD).
+    """
+    import dataclasses
+
+    base = p1_default_config()
+    supply = dataclasses.replace(
+        base.supply,
+        delivery_timing="stochastic",
+        arrival_probs=(0.25, 0.25, 0.25, 0.25),
+        input_complementarity=8.0,
+        input_holding_loss=0.01,
+        trade_tau=0.05,
+        quality_matters=True,
+        quality_cost=0.05,
+    )
+    incentive = dataclasses.replace(base.incentive, alloc_eta_request=0.7, soft_budget=0.25)
+    information = dataclasses.replace(
+        base.information,
+        horizontal_visibility=1.0,
+        report_lag=1,
+        channel_noise=0.05,
+        ministry_passthrough=0.75,
+        n_ministries=5,
+        ministry_pad=0.5,
+        audit_mode="targeted",
+        shortfall_visibility=0.5,
+        audit_target_gain=4.0,
+        quality_measurability=0.5,
+    )
+    config = dataclasses.replace(base, supply=supply, incentive=incentive, information=information)
     config.validate()
     return config

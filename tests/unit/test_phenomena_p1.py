@@ -11,7 +11,7 @@ with known excess mass recovers it within 5%; hole mass; SE by bootstrap; fallba
 
 Pre-registered estimator settings (PLAN section 4.5, verbatim, and the constants of
 `gosplan/metrics/phenomena.py`): bins of width 0.005 on `rho` in [0.6, 1.4]; excluded window
-[0.95, 1.02]; polynomial of degree 7 fitted outside the window; excess mass
+[0.95, 1.02]; polynomial of degree 9 fitted outside the window; excess mass
 `b_hat = (observed - counterfactual mass in [1.00, 1.02]) / mean counterfactual density in the
 window`; hole mass computed identically on [0.95, 1.00); standard error by bootstrap **over seeds**.
 Measurement window (PLAN section 4.4): periods `t >= 2`; no end-of-episode exclusion under geometric
@@ -127,7 +127,7 @@ def test_estimator_recovers_a_known_excess_mass_within_five_percent(implemented)
     [1.00, 1.02] so that the true excess mass `b_true` - in the units PLAN section 4.5 defines,
     (observed minus counterfactual mass in the excess window) divided by the mean counterfactual
     density in that window - is known by construction. `estimate(x, window_lo=0.6, window_hi=1.4,
-    bin_width=0.005, degree=7, excl_lo=0.95, excl_hi=1.02).excess_mass` must satisfy
+    bin_width=0.005, degree=9, excl_lo=0.95, excl_hi=1.02).excess_mass` must satisfy
     `|b_hat - b_true| / b_true <= 0.05`, at several planted values spanning the range gate G2
     cares about.
 
@@ -215,7 +215,7 @@ def test_preregistered_settings_are_the_defaults_and_are_recorded() -> None:
 
     Assertion: the constants in `gosplan/metrics/phenomena.py` equal the pre-registration exactly -
     `BUNCHING_BIN_WIDTH = 0.005`, `BUNCHING_WINDOW_LO = 0.6`, `BUNCHING_WINDOW_HI = 1.4`,
-    `BUNCHING_EXCL_LO = 0.95`, `BUNCHING_EXCL_HI = 1.02`, `BUNCHING_POLY_DEGREE = 7`,
+    `BUNCHING_EXCL_LO = 0.95`, `BUNCHING_EXCL_HI = 1.02`, `BUNCHING_POLY_DEGREE = 9`,
     `BUNCHING_EXCESS_LO = 1.00`, `BUNCHING_EXCESS_HI = 1.02`, `BUNCHING_HOLE_LO = 0.95`,
     `BUNCHING_HOLE_HI = 1.00` - `phenomenon_bunching` passes them to the estimator without
     modification, and the same values appear in the manifest's `bunching_settings` field (CONTRACT
@@ -229,7 +229,8 @@ def test_preregistered_settings_are_the_defaults_and_are_recorded() -> None:
     assert phenomena.BUNCHING_WINDOW_HI == 1.4
     assert phenomena.BUNCHING_EXCL_LO == 0.95
     assert phenomena.BUNCHING_EXCL_HI == 1.02
-    assert phenomena.BUNCHING_POLY_DEGREE == 7
+    # LEAD edit (AMBIGUITY-011): pre-registration amended 7 -> 9 before any learning run.
+    assert phenomena.BUNCHING_POLY_DEGREE == 9
     assert phenomena.BUNCHING_EXCESS_LO == 1.00
     assert phenomena.BUNCHING_EXCESS_HI == 1.02
     assert phenomena.BUNCHING_HOLE_LO == 0.95

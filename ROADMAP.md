@@ -229,11 +229,11 @@ criterion 1 passing is a multi-agent effect and is a **result**, reported and no
 
 ## 4. Tasks by milestone
 
-"Diff." is the 1-5 difficulty estimate. Status is against the current tree: 463 of the 657
-functions in the repository are implemented and 194 are stubs, and the split is described in
-the README.
+"Diff." is the 1-5 difficulty estimate. Every task below is built; the status column names the
+artefact, and where a gate was not passed it says so. The gate records under `runs/` are the
+authority on what each result does and does not show.
 
-### G0 Scaffold and sanity
+### G0 Scaffold and sanity - signed off (`runs/G0_signoff.md`)
 
 | Title | Diff. | Status |
 |---|---|---|
@@ -241,79 +241,75 @@ the README.
 | Spec v0, CONTRACT, registry | 4 | **done** - `spec/spec.py`, `CONTRACT.md`, `gosplan/params.py` |
 | Reference dynamics and frozen tests | 5 | **done** - `ref/ref_step.py`; `make golden` generates 30 trajectories |
 | Config | 2 | **done** - `gosplan/config.py`, with cross-field validation and config hashing |
-| RNG | 2 | open - `gosplan/rng.py` is the mandated single chokepoint and is still a stub |
-| Production | 3 | open |
-| Planner | 3 | open |
-| Reporting and reward | 3 | open |
-| Observation | 2 | open |
-| Step function and env wrapper | 5 | open - the join point, and the one place the whole env comes together |
-| Heuristic agents | 2 | open - `TruthfulMyopic` and `Random` exist in `ref/` only |
-| Ledger and manifest | 2 | open |
-| Monte-Carlo sanity harness | 3 | open - produces the G0 artefact |
+| RNG | 2 | **done** - `gosplan/rng.py` |
+| Production | 3 | **done** - `gosplan/env/production.py` |
+| Planner | 3 | **done** - `gosplan/env/planner.py` |
+| Reporting and reward | 3 | **done** - `gosplan/env/reporting.py`, `reward.py`, `prices.py` |
+| Observation | 2 | **done** - `gosplan/env/obs.py` |
+| Step function and env wrapper | 5 | **done** - `gosplan/env/step.py`, `env.py`; golden parity exact on all 30 cells |
+| Heuristic agents | 2 | **done** - `gosplan/agents/heuristic.py` |
+| Ledger and manifest | 2 | **done** - `gosplan/metrics/ledger.py` |
+| Monte-Carlo sanity harness | 3 | **done** - `runs/mc_sanity/report.md`, all assertions held |
 
-The sanity harness may not compute or plot any held-out quantity (PLAN section 4.1, rows 2, 5,
-6 and 7); its assertions are conservation and boundedness only, never direction.
+The sanity harness computes and plots no held-out quantity (PLAN section 4.1, rows 2, 5, 6 and
+7); its assertions are conservation and boundedness only, never direction.
 
-### G1 Regime map and freeze
-
-| Title | Diff. | Status |
-|---|---|---|
-| Spec v1 freeze | 3 | blocked on the written G0 sign-off. After it, only the maintainer may change `spec/spec.py`, and only with a `spec/CHANGELOG.md` entry (CONTRACT rule 1) |
-| Single-enterprise DP | 4 | open - the exactly-solved optimum the learned policy is measured against |
-| Regime map experiment | 3 | open - produces the G1 artefact |
-
-G1 is where a human fixes the six provisional parameters from the interior of the bunching
-region, and records the thresholds **before** any training run. That ordering is what stops the
-result being produced by tuning.
-
-### G2 Phase 1 gate
+### G1 Regime map and freeze - values recorded (`runs/G1_decision.md`)
 
 | Title | Diff. | Status |
 |---|---|---|
-| Phase-1 metrics (rows 1 and 4 only) | 3 | blocked on G1 |
-| PPO adapter | 5 | blocked on G1 |
-| Training harness | 3 | blocked on G1 |
-| DP-vs-PPO recovery (G2 criterion 1) | 3 | blocked on the signed G1 record |
-| Phase-1 gate experiment (G2 criteria 2-4) | 3 | blocked on the signed G1 record |
+| Spec v1 freeze | 3 | **done** - `SPEC_VERSION` 1.0.0, then post-freeze revisions to 2.1.0 in `spec/CHANGELOG.md` |
+| Single-enterprise DP | 4 | **done** - `gosplan/agents/dp.py` |
+| Regime map experiment | 3 | **done** - `runs/regime_map/` (500 points, 71 interior bunching candidates) |
 
-Nothing in this block may implement phenomena rows 2, 5, 6 and 7. Those arrive at G3 and are
-computed for the first time in the Phase-2 acceptance run.
+G1 is where the six provisional parameters were fixed from the interior of the bunching region,
+with the thresholds recorded **before** any training run. The owner delegated the choice.
 
-### G3 Phase 2 acceptance
+### G2 Phase 1 gate - **not passed** (`runs/G2_record.md`)
 
-Every task here is a placeholder rather than a ready task: each is gated on G2 *and* on the
-Phase-2 spec revision that follows it, so none carries a difficulty yet.
+| Title | Diff. | Status |
+|---|---|---|
+| Phase-1 metrics (rows 1 and 4 only) | 3 | **done** - `gosplan/metrics/phenomena.py`, `_fallback.py` |
+| PPO adapter | 5 | **done** - `gosplan/agents/ppo/adapter.py` |
+| Training harness | 3 | **done** - `gosplan/agents/ppo/train.py` |
+| DP-vs-PPO recovery (G2 criterion 1) | 3 | **run; not met** in three attempts - `runs/dp_vs_ppo/` (limitation L1) |
+| Phase-1 gate experiment (G2 criteria 2-4) | 3 | **run as a labelled study** - `runs/phase1_gate/report.md` (limitation L2) |
 
-| Title | Status |
-|---|---|
-| Quality mechanism on | blocked on G2 and the spec revision |
-| Delivery timing (`stochastic`, `backloaded`) | blocked |
-| Input holding loss, targeted audits, soft budget | blocked |
-| Trade matching | blocked - the matching rule and the surplus definition are written in the revision, not here |
-| Rule-based ministry, `n_ministries` | blocked |
-| LLM ministry adapter | blocked |
-| Oracle (expected-value MIP) | blocked |
-| Exploitability harness | blocked |
-| JAX port | blocked - one unit of work, not split |
-| Held-out phenomena metrics (rows 2, 3, 5, 6, 7) and the Phase-2 heuristic agents | blocked |
-| Phase-2 acceptance experiment | blocked |
+Nothing in this block implements phenomena rows 2, 5, 6 and 7. They arrive at G3.
 
-This is where the four held-out phenomena are measured for the first time, in the acceptance
-run only. Nothing earlier may plot, tabulate or test them, and
-`scripts/contract_guard.py` fails CI if a Phase-1 module so much as calls one.
+### G3 Phase 2 acceptance - **not passed** (`runs/G3_record.md`)
 
-### G4 Final report
-
-All gated on G3, and therefore on the Phase-2 spec revision.
+The Phase-2 spec revision is `spec/P2_REVISION.md` (R1-R16).
 
 | Title | Status |
 |---|---|
-| Contrasts harness with `rliable` | blocked on G3 |
-| Saltelli/Sobol design and total-order indices (optional) | blocked; JAX only |
-| Estimator-bias study | blocked |
-| LLM ministry study | blocked |
-| Price-vector sensitivity on every headline table | blocked |
-| Report generation: figures, tables, manifest roll-up | blocked |
+| Quality mechanism on | **done** (R5) |
+| Delivery timing (`stochastic`, `backloaded`) | **done** (R6) |
+| Input holding loss, targeted audits, soft budget | **done** (R7, R4, R8) |
+| Trade matching | **done** (R9); the offer timing fixed by R15 after G3 found no learner could post an offer (D1) |
+| Rule-based ministry, `n_ministries` | **done** (R10) - `gosplan/env/ministry.py` |
+| LLM ministry adapter | **done** - `gosplan/agents/llm_ministry.py`, `llm_client.py` |
+| Oracle (expected-value MIP) | **done** - `gosplan/oracle/kantorovich.py` (HiGHS) |
+| Exploitability harness | **done** - `gosplan/experiments/exploitability.py`; revised by R16 after G3 found the audit inconclusive (D2) |
+| JAX port | **done** - `gosplan/jax/`, NumPy parity about 1e-13 |
+| Held-out phenomena metrics (rows 2, 3, 5, 6, 7) and the Phase-2 heuristic agents | **done** - first computed in the acceptance run |
+| Phase-2 acceptance experiment | **run** - `runs/phase2_acceptance/report.md`; the labelled G3b study (R15, R16) is `runs/G3b_record.md`: row 6 fails behaviourally, populations non-converged; the learner-convergence study LC (R17) is `runs/LC_record.md`; the coordination-trap test CT (R18) is `runs/CT_record.md`; the budget-versus-schedule study ES (R19) is `runs/ES_record.md` |
+
+The four held-out phenomena were measured for the first time in the acceptance run only.
+`scripts/contract_guard.py` still fails CI if a Phase-1 module so much as calls one.
+
+### G4 Final report - not met until the LLM study runs (`runs/final_report/report.md`)
+
+The Phase-3 revision is `spec/P3_REVISION.md` (S1-S7); the record is `runs/P3_record.md`.
+
+| Title | Status |
+|---|---|
+| Contrasts harness with `rliable` | **run** - `runs/contrasts/report.md` (15 seeds per new arm, reduced for compute) |
+| Saltelli/Sobol design and total-order indices (optional) | **not run** by decision (S3): out of reach without a JAX trainer |
+| Estimator-bias study | **run** - `runs/estimator_bias/report.md` |
+| LLM ministry study | **implemented; NOT RUN** - needs model credentials; the command is in `runs/llm_study/report.md` |
+| Price-vector sensitivity on every headline table | **run** - `runs/price_sensitivity/report.md` |
+| Report generation: figures, tables, manifest roll-up | **done** - `gosplan/experiments/report.py` |
 
 ## 5. Parallelism and serialisation
 
@@ -387,13 +383,14 @@ own pre-registration (PLAN section 13).
 A failed gate is signed as failed and produces a written failure report. The next task is a
 lead diagnosis.
 
-### 6.3 Open ambiguity reports
+### 6.3 Open questions
 
-Two ambiguity reports are filed and unresolved. Both need a decision from the maintainer or the human;
-neither blocks any test, because nothing in `testpaths` depends on either answer.
+None are open. The two filed against the skeleton were answered in the build:
+`tests/acceptance/` is maintainer-authored and holds the five gate harnesses, and the P2 and P3
+modules the PLAN section 8 tree does not draw are `gosplan/experiments/phase2_acceptance.py` and
+`gosplan/experiments/report.py`. The lead rulings made during the build are in `docs/rulings/`.
 
-| Report | Question | Options on the table | Blocked |
-|---|---|---|---|
+---|---|---|---|
 | [`open question 001`](open question 001) | Which task is authorised to author `tests/acceptance/`, given that no task's "Write only" list names it? | (A) add `tests/acceptance/*` to a maintainer task's "Write only", a later task being the natural home since it already re-runs the full suite; (B) declare the directory maintainer-authored outside the whitelist system, exempt from CONTRACT rule 12 | Nothing. The five harnesses are excluded from `testpaths` |
 | [`open question 002`](open question 002) | What are the module names for the P2 acceptance harness and the P3 report generator, which PLAN section 8's tree does not draw? | (A) add both names to the section 8 tree now and create the stubs; (B) note that P2/P3 harness module names are fixed at the P2 spec revision, and leave the two files uncreated until then | Nothing. Both modules are P2/P3 and no Phase-1 test imports them |
 

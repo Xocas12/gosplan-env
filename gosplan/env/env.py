@@ -3,14 +3,14 @@
 Realises: PLAN section 2.5 (period schedule, driven through `gosplan/env/step.py`), PLAN section 2.3
 (action space and the active-dimension rule), PLAN section 2.4 (the observation the wrapper returns,
 built by `gosplan/env/obs.py`), PLAN section 2.10 (the plan prices precomputed at construction) and
-PLAN section 2.12 (the geometric termination flag). Owning task: Step function and
-env wrapper - a **maintainer**-owned unit (PLAN sections 12.3, 1.3 finding F14).
+PLAN section 2.12 (the geometric termination flag). Owning work order: **WO-009** (Step function and
+env wrapper) - a **LEAD**-owned unit (PLAN sections 12.3, 1.3 finding F14).
 
 This is the `env.py` row of the PLAN section 8 layout: "reset/step wrapper, specs, info/ledger
 hookup". It holds no economics. The schedule is `gosplan/env/step.py`; the arithmetic is
 `production.py`, `planner.py`, `reporting.py`, `reward.py`, `prices.py` and `obs.py`. `action_spec`
-and `active_action_dims` live here because they are a later task-owned in `spec/spec.py` and because the
-PPO adapter reads them from the environment rather than from the spec file.
+and `active_action_dims` live here because they are WO-009-owned in `spec/spec.py` and because the
+PPO adapter (WO-017) reads them from the environment rather than from the spec file.
 
 Three invariants this wrapper is responsible for.
 
@@ -21,7 +21,7 @@ conservation identity and the forensic estimators of PLAN section 7.3 have somet
 against. It is written by the environment and read by `gosplan/metrics/ledger.py` and by lead-run
 experiments only. No agent, no policy, no reward term and no observation may read it: `Agent.act`
 takes `obs`, `phase` and an RNG and nothing else, the PPO adapter's forward pass takes `obs` only,
-and the forbidden list names "any agent reading `StepInfo`" explicitly. Test T-B5 plants
+and the WO-010 forbidden list names "any agent reading `StepInfo`" explicitly. Test T-B5 plants
 sentinel values in `welfare`, in other enterprises' `y`, and in periods-remaining, and asserts none
 of them appears in any observation.
 
@@ -39,7 +39,7 @@ flag, there is no truncation signal distinct from it in Phase 1, and **no observ
 periods remaining** - the agent learns the episode ended only when it has (finding F4). Tenure is an
 economic parameter (INC arm), distinct from the PPO discount `gamma` that lives with the adapter.
 
-Binding tests (PLAN section 11, a later task must-pass list): `tests/unit/test_conservation.py` (T-U1, the
+Binding tests (PLAN section 11, WO-009 must-pass list): `tests/unit/test_conservation.py` (T-U1, the
 per-period per-good identity to 1e-9 over trajectories driven through `step`), `tests/golden/*`
 (T-B7, agreement with `ref/ref_step.py` to 1e-9 on seeded trajectories with `Random` and
 `TruthfulMyopic`), `tests/behavioural/test_termination.py` (T-B9, empirical continuation equals
@@ -53,25 +53,31 @@ those of `gosplan/metrics/ledger.py`, and `EnvConfig` that of `gosplan/config.py
 field-for-field and name-for-name identical to `spec/spec.py`, which is not importable as a package;
 `tests/unit/test_spec_imports.py` enforces the surface and `tests/unit/test_env_api.py` the fields.
 Those imports are type-only here so this skeleton imports cleanly before the modules that own them
-land; the contributor promotes the ones it calls at runtime. `advance` is imported at runtime
+land; the implementer promotes the ones it calls at runtime. `advance` is imported at runtime
 because `step` calls it.
 """
 
 from __future__ import annotations
 
+import dataclasses
 from typing import TYPE_CHECKING
 
 import numpy as np
 
+from gosplan.env.obs import build_observation, obs_spec
+from gosplan.env.planner import arrival_steps
+from gosplan.env.prices import initial_prices
+from gosplan.env.reward import reward_scale
+from gosplan.env.state import StepInfo, initial_state, initial_targets
 from gosplan.env.step import advance
 
 if TYPE_CHECKING:  # type-only: see the cross-module bindings note in the module docstring
     from gosplan.config import EnvConfig
-    from gosplan.env.state import EnterpriseAction, Phase, State, StepInfo
+    from gosplan.env.state import EnterpriseAction, Phase, State
     from gosplan.metrics.ledger import Ledger
 
 Array = np.ndarray
-"""Alias for every numeric array in this module (PLAN section 10). The Phase-2 JAX port
+"""Alias for every numeric array in this module (PLAN section 10). The Phase-2 JAX port (WO-029)
 substitutes its own array type behind the same name."""
 
 __all__ = ["GosplanEnv", "action_spec", "active_action_dims", "advance"]
@@ -96,17 +102,25 @@ def action_spec(cfg: EnvConfig) -> dict[str, tuple[tuple[int, ...], float, float
 
     `input_request` is expressed as a multiple of need because the true bound of PLAN section 2.3 is
     `r_max * need_ij` and `need_ij` is state-dependent; the environment rescales and clips it
-    against the current need when it reads the action (`process_reports`, a later task).
+    against the current need when it reads the action (`process_reports`, WO-007).
 
     The report bound is a result, not a nuisance: CONTRACT rule 8 forbids widening or narrowing it
     to fix an outcome, the fraction of reports at the bound is logged, and above 1% the run manifest
     is flagged `BOUND_BINDING` (test T-B8).
 
     Binds: `tests/unit/test_env_api.py` (all six keys present with these shapes and bounds; bounds
-    track `cfg`) and `tests/unit/test_ppo_adapter.py` (a later task builds heads inside these bounds).
-    Owning WO: a later task.
+    track `cfg`) and `tests/unit/test_ppo_adapter.py` (WO-017 builds heads inside these bounds).
+    Owning WO: **WO-009**.
     """
-    raise NotImplementedError("PLAN section 2.3")
+    n, j = cfg.supply.n_enterprises, cfg.supply.n_sectors
+    return {
+        "effort": ((n,), 0.0, 1.0),
+        "quality": ((n,), 0.0, 1.0),
+        "invest": ((n,), 0.0, 1.0),
+        "report_ratio": ((n,), 0.0, float(cfg.tech.report_max_ratio)),
+        "input_request": ((n, j), 0.0, float(cfg.tech.request_max_multiple)),
+        "trade_offer": ((n, j), -1.0, 1.0),
+    }
 
 
 def active_action_dims(cfg: EnvConfig) -> list[str]:
@@ -119,13 +133,21 @@ def active_action_dims(cfg: EnvConfig) -> list[str]:
     switched on (`supply.quality_matters`, non-zero investment/`supply.capital_dep`,
     `information.horizontal_visibility > 0`).
 
-    The PPO adapter builds Gaussian heads only for these names (PLAN section 6.1, a later task), which is
+    The PPO adapter builds Gaussian heads only for these names (PLAN section 6.1, WO-017), which is
     why the answer must be a pure function of the configuration and must not change within a run.
 
     Binds: `tests/unit/test_env_api.py` (the Phase-1 list above; each Phase-2 toggle adds exactly
-    its own dimension) and `tests/unit/test_ppo_adapter.py`. Owning WO: a later task.
+    its own dimension) and `tests/unit/test_ppo_adapter.py`. Owning WO: **WO-009**.
     """
-    raise NotImplementedError("PLAN section 2.3")
+    dims = ["effort"]
+    if cfg.supply.quality_matters:
+        dims.append("quality")
+    if cfg.supply.capital_dep > 0.0:
+        dims.append("invest")
+    dims += ["report_ratio", "input_request"]
+    if cfg.information.horizontal_visibility > 0.0:
+        dims.append("trade_offer")
+    return dims
 
 
 class GosplanEnv:
@@ -152,12 +174,12 @@ class GosplanEnv:
     the precomputed per-run constants, the observation call and the ledger hookup. It is not a
     Gym/Gymnasium subclass: the reset/step signatures below are the frozen ones of `spec/spec.py`
     (`reset` takes both seeds explicitly and returns `(obs, info)`; `step` returns a `(N,)` reward
-    and one episode-level `done`), and the PPO adapter of a later task wraps this surface rather than the
+    and one episode-level `done`), and the PPO adapter of WO-017 wraps this surface rather than the
     reverse.
 
     Binds: `tests/golden/*` (T-B7), `tests/unit/test_conservation.py` (T-U1),
     `tests/unit/test_env_api.py`, and `tests/behavioural/test_termination.py` (T-B9). Owning WO:
-    a later task (maintainer).
+    **WO-009** (LEAD).
     """
 
     cfg: EnvConfig
@@ -174,7 +196,7 @@ class GosplanEnv:
     produces is appended as one `StepRecord` per enterprise. `None` means the run is not being
     recorded; nothing else changes (CONTRACT rule 6 - the ledger never feeds back)."""
 
-    def __init__(self, cfg: EnvConfig) -> None:
+    def __init__(self, cfg: EnvConfig, *, records: bool = True, ministry_policy=None) -> None:
         """Construct the environment for one configuration.
 
         Takes: `cfg`, already validated. Returns: nothing. Stores the configuration, precomputes the
@@ -188,9 +210,24 @@ class GosplanEnv:
         Phase 1 (`supply.price_lag = inf`, PLAN section 2.10) and keeps `reward_scale` analytic and
         constant, which CONTRACT rule 4 requires.
 
-        Realises: PLAN sections 2.5, 2.10. Owning WO: a later task.
+        Realises: PLAN sections 2.5, 2.10. Owning WO: **WO-009**.
         """
-        raise NotImplementedError("PLAN section 2.5")
+        self.cfg = cfg
+        self.ledger = None
+        # `records=False` (spec 1.1.1): per-enterprise `StepRecord`s are not built except where the
+        # observation needs them (the DELIVER step). For training throughput only; any run that
+        # attaches a ledger or reads `StepInfo.records` keeps the default.
+        self._records = bool(records)
+        self._ministry_policy = ministry_policy  # P3 revision S5; None = rule-based (R10)
+        self._plan_prices = np.array(initial_prices(cfg), dtype=float)
+        self._scale = reward_scale(cfg)
+        self._t0 = initial_targets(cfg)
+        self._seeds = (int(cfg.tech.seed_env), int(cfg.tech.seed_policy))
+        self._episode = -1
+        self._deliv = np.zeros((cfg.supply.n_enterprises, cfg.supply.n_sectors))
+        # P2 revision R6: arrival step of each buyer-good delivery this period (None = uniform,
+        # everything arrives at step 0).
+        self._arrival = None
 
     def reset(self, seed_env: int, seed_policy: int) -> tuple[Array, StepInfo]:
         """Start a new episode.
@@ -210,9 +247,30 @@ class GosplanEnv:
         The opening `StepInfo` carries the initial `StepRecord`s and zeroed period-level metrics; it
         is for the ledger, not for the agent (CONTRACT rule 6).
 
-        Owning WO: a later task.
+        Owning WO: **WO-009**.
         """
-        raise NotImplementedError("PLAN section 2.5")
+        self._seeds = (int(seed_env), int(seed_policy))
+        self._episode += 1
+        self.state = self._fresh_state(t_period=0)
+        self._deliv = np.zeros((self.cfg.supply.n_enterprises, self.cfg.supply.n_sectors))
+        self._arrival = None
+        self._period_delivery = self._no_delivery()
+        obs = self._observe(self.state)
+        n, j = self.cfg.supply.n_enterprises, self.cfg.supply.n_sectors
+        info = StepInfo(
+            records=(),
+            t_period=0,
+            k_step=0,
+            phase="produce",
+            val_measured=0.0,
+            val_true=0.0,
+            welfare=0.0,
+            consumer=np.zeros(j),
+            flags=(),
+            terminated=False,
+        )
+        del n
+        return obs, info
 
     def step(self, action: EnterpriseAction) -> tuple[Array, Array, bool, StepInfo]:
         """Advance one agent-step through the schedule above.
@@ -247,9 +305,47 @@ class GosplanEnv:
 
         Binds: T-B7 (golden parity with `ref/`), T-U1 (conservation), T-B9 (empirical continuation
         equals `tenure`; no observation field correlates with periods remaining). Owning WO:
-        a later task (maintainer).
+        **WO-009** (LEAD).
         """
-        raise NotImplementedError("PLAN section 2.5")
+        if not self.state.alive:
+            # AMBIGUITY-004: continue into a fresh episode exactly as ref_rollout does, with the
+            # period index carried on; harnesses still treat `done` as the boundary and reset.
+            self._episode += 1
+            self.state = self._fresh_state(t_period=self.state.t_period)
+            self._deliv = np.zeros_like(self._deliv)
+            self._arrival = None
+            self._period_delivery = self._no_delivery()
+        # A fresh State per step: a State handed out earlier (e.g. to a harness keeping a
+        # trajectory) is never mutated afterwards.
+        state = _copy_state(self.state)
+        records = self._records or self.ledger is not None
+        state, reward, done, info = advance(
+            state, action, self.cfg, records=records, ministry_policy=self._ministry_policy
+        )
+        self.state = state
+        if info.k_step == 0 and info.phase == "produce":
+            self._deliv = np.array([rec.deliv for rec in info.records], dtype=float)
+            if self.cfg.supply.delivery_timing != "uniform":
+                self._arrival = arrival_steps(state.seed_env, info.t_period, self.cfg)
+            self._period_delivery = [
+                {"alloc": r.alloc, "deliv": r.deliv, "fill": r.fill, "shipped": r.shipped}
+                for r in info.records
+            ]
+        # The period's DELIVER quantities are period-level: carried on every row of the period so
+        # each row (in particular the REPORT row) is self-contained for the ledger.
+        if records:
+            rows = tuple(
+                dataclasses.replace(r, episode=self._episode, **self._period_delivery[r.enterprise])
+                for r in info.records
+            )
+            info = dataclasses.replace(info, records=rows)
+        # The observation describes the step just executed (golden files, PLAN section 2.4).
+        executed = dataclasses.replace(
+            state, t_period=info.t_period, k_step=info.k_step, phase=info.phase
+        )
+        obs = self._observe(executed)
+        self.record_step(info)
+        return obs, np.asarray(reward, dtype=float), bool(done), info
 
     def phase(self) -> Phase:
         """Return the phase the next call to `step` will execute.
@@ -259,26 +355,27 @@ class GosplanEnv:
         inactive action dimensions; the environment never trusts an agent to have masked correctly
         and ignores whatever the inactive dimensions contain.
 
-        Owning WO: a later task.
+        Owning WO: **WO-009**.
         """
-        raise NotImplementedError("PLAN section 2.5")
+        return self.state.phase
 
     def obs_spec(self) -> list[str]:
         """Return the ordered names of this environment's observation components (PLAN section 2.4).
 
-        Takes: nothing beyond `self`. Returns: `obs_spec(self.cfg)` from `gosplan/env/obs.py` - a `list[str]` of length `12 + 3J` in Phase 1, in the canonical order of PLAN
+        Takes: nothing beyond `self`. Returns: `obs_spec(self.cfg)` from `gosplan/env/obs.py`
+        (WO-008) - a `list[str]` of length `12 + 3J` in Phase 1, in the canonical order of PLAN
         section 2.4, whose length equals `step`'s and `reset`'s observation width.
 
-        An accessor, not a second definition: the layout has exactly one owner so a
+        An accessor, not a second definition: the layout has exactly one owner (WO-008) so a
         disagreement between the vector and its names is impossible. Never present in that list, in
         any phase: `welfare_true`, `val_measured`, any other enterprise's `y`, `S` or `X`, the audit
         selection for the current period, and periods remaining under geometric termination
         (CONTRACT rule 6, test T-B5).
 
         Binds: `tests/unit/test_env_api.py` - `len(env.obs_spec()) == env.reset(...)[0].shape[1]`.
-        Owning WO: a later task.
+        Owning WO: **WO-009**.
         """
-        raise NotImplementedError("PLAN section 2.4")
+        return obs_spec(self.cfg)
 
     def action_spec(self) -> dict[str, tuple[tuple[int, ...], float, float]]:
         """Return this environment's action shapes and box bounds (PLAN section 2.3).
@@ -286,11 +383,11 @@ class GosplanEnv:
         Takes: nothing beyond `self`. Returns: `action_spec(self.cfg)`, the module-level function
         above - all six dimensions as `name -> (shape, lo, hi)`, whether or not they are active.
 
-        An accessor, so the PPO adapter and the heuristic agents read bounds from
+        An accessor, so the PPO adapter (WO-017) and the heuristic agents (WO-010) read bounds from
         the environment they are attached to rather than re-deriving them from a configuration they
-        might not share. Owning WO: a later task.
+        might not share. Owning WO: **WO-009**.
         """
-        raise NotImplementedError("PLAN section 2.3")
+        return action_spec(self.cfg)
 
     def active_action_dims(self) -> list[str]:
         """Return the action dimensions this environment actually reads (PLAN section 2.3).
@@ -299,15 +396,15 @@ class GosplanEnv:
         `p1_default_config()`, `["effort", "report_ratio", "input_request"]`.
 
         An accessor. The answer is a pure function of the configuration and does not change within a
-        run, which is what lets a later task build its policy heads once at construction. Owning WO:
-        a later task.
+        run, which is what lets WO-017 build its policy heads once at construction. Owning WO:
+        **WO-009**.
         """
-        raise NotImplementedError("PLAN section 2.3")
+        return active_action_dims(self.cfg)
 
     def attach_ledger(self, ledger: Ledger) -> None:
         """Attach a ledger so every subsequent step is recorded.
 
-        Takes: `ledger`, a `Ledger` from `gosplan/metrics/ledger.py`. Returns: `None`.
+        Takes: `ledger`, a `Ledger` from `gosplan/metrics/ledger.py` (WO-011). Returns: `None`.
         Stores it on `self.ledger`; from the next `step` (and from the next `reset`) onward, each
         `StepInfo` is appended as one `StepRecord` per enterprise per agent-step.
 
@@ -317,9 +414,9 @@ class GosplanEnv:
         must not change a single trajectory - `tests/unit/test_env_api.py` runs the same seeded
         episode with and without one and compares the observations and rewards exactly.
 
-        Owning WO: a later task; the ledger itself is a later task.
+        Owning WO: **WO-009**; the ledger itself is **WO-011**.
         """
-        raise NotImplementedError("PLAN section 4")
+        self.ledger = ledger
 
     def record_step(self, info: StepInfo) -> None:
         """Append one agent-step's `StepInfo` to the attached ledger, if any.
@@ -332,12 +429,54 @@ class GosplanEnv:
 
         This method is the **only** consumer of `StepInfo` inside the environment. `StepInfo`
         carries the true quantities of PLAN section 2.2 plus the period-level `val_measured`,
-        `val_true` and `welfare` of PLAN section 2.9.3; CONTRACT rule 6 and the corresponding task forbidden
+        `val_true` and `welfare` of PLAN section 2.9.3; CONTRACT rule 6 and the WO-010 forbidden
         list ("any agent reading `StepInfo`") make it unreachable from any agent-facing path. It is
         never used to build an observation, never used to compute a reward, and never fed back into
         a planner rule.
 
         Binds: `tests/unit/test_ledger.py` (one record per enterprise per agent-step; every rule-10
-        field present) and T-B8. Owning WO: a later task; the ledger itself is a later task.
+        field present) and T-B8. Owning WO: **WO-009**; the ledger itself is **WO-011**.
         """
-        raise NotImplementedError("PLAN section 4")
+        if self.ledger is None:
+            return
+        for rec in info.records:
+            self.ledger.append(rec)
+
+    def _fresh_state(self, t_period: int) -> State:
+        """`initial_state(cfg)` under this episode's seeds, at period index `t_period`."""
+        state = initial_state(self.cfg)
+        state.seed_env, state.seed_policy = self._seeds
+        state.t_period = t_period
+        return state
+
+    def _observe(self, state: State) -> Array:
+        """Build the observation of `state` through `gosplan/env/obs.py` (the only obs builder)."""
+        sector = np.asarray(self.cfg.supply.sector_of, dtype=int)
+        need = np.asarray(state.planner_io, dtype=float)[sector] * np.asarray(state.target)[:, None]
+        deliv = self._deliv
+        if self._arrival is not None:
+            # P2 revision R6: fields 11 and 12+2J:12+3J report deliveries received so far this
+            # period - those whose arrival step is at or before the step just executed.
+            deliv = np.where(self._arrival <= state.k_step, deliv, 0.0)
+        return build_observation(state, self.cfg, deliv, need)
+
+    def _no_delivery(self) -> list[dict]:
+        """Per-enterprise DELIVER fields before any DELIVER has run (all zero)."""
+        zeros = tuple(0.0 for _ in range(self.cfg.supply.n_sectors))
+        return [
+            {"alloc": zeros, "deliv": zeros, "fill": 0.0, "shipped": 0.0}
+            for _ in range(self.cfg.supply.n_enterprises)
+        ]
+
+
+def _copy_state(state: State) -> State:
+    """A fresh `State` whose arrays are copies (a harness keeping earlier states never sees them
+    mutate). Field-wise `numpy` copies; cheaper than `copy.deepcopy`."""
+    return dataclasses.replace(
+        state,
+        **{
+            f.name: np.array(getattr(state, f.name))
+            for f in dataclasses.fields(state)
+            if isinstance(getattr(state, f.name), np.ndarray)
+        },
+    )

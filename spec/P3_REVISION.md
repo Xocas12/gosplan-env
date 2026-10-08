@@ -1,0 +1,205 @@
+# Phase-3 revision - LEAD
+
+Written on 2026-09-26, while the G3 acceptance run was still in its exploitability stage. No G3
+number, and no rows 2, 5, 6 or 7 figure, had been read. This revision fixes the design of WO-032 to
+WO-037 before any Phase-3 run. A gap found while implementing goes through an AMBIGUITY REPORT
+(CONTRACT rule 3).
+
+It resolves the points each Phase-3 card says "the revision must state". Where it reduces a PLAN
+design, the reduction and its reason are stated here, and every report that uses it cites this
+section.
+
+**Compute.**
+- A Phase-2 `N = 20` run at gate sizing (1M agent-steps) takes about 46 min on one core of this
+  4-core container. A Phase-1 run takes about 16 min. The G3 run took about 11 h.
+- PLAN section 14 assumed JAX training for Phase 3. WO-029 ported the step function, but there is
+  no JAX trainer, so the PPO learner still steps the NumPy environment.
+- The designs below are sized to fit in about one day of this container's compute.
+
+Limitations carried into every Phase-3 report: L1 and L2 (runs/G2_record.md), and whatever the G3
+record adds.
+
+---
+
+## S1. Post-G3 C0
+
+`C0 = p2_default_config()` (spec/P2_REVISION.md R11), unchanged. R14 stated R11 stands unless the
+owner's G3 decision changes it. If the owner later changes C0, the contrasts are re-run under that
+change as a new labelled study.
+
+## S2. Contrasts (WO-032, PLAN section 4.3)
+
+**Arms.** `CONTRASTS` in `gosplan/experiments/contrasts.py`, verbatim from PLAN section 4.3.
+
+**C_AUDIT range.** C_AUDIT's `audit_rate x4` gives 0.4, outside the PLAN section 3 sweep range
+`[0.01, 0.30]`. This is reported, not clamped (WO-032).
+
+**Seeds.**
+- C0 reuses the 30 G3 runs. Its configuration and seeds are identical to G3's, so the runs share
+  the same hashes and are read back rather than re-trained.
+- Each other arm runs **15 seeds**: indices 0-14, `seed_env = 1000 + s`, sharing C0's draws
+  (common random numbers).
+- Reduced from PLAN's 30 for compute (about 11.5 h instead of about 23 h). The reduction is stated
+  in the report.
+
+**Per-seed outcomes.** Computed over the PLAN section 4.4 window of 100 measurement episodes:
+- `padding_index` = mean `val_measured` / mean `val_true`
+- `welfare_ratio` = mean `W` / `W_oracle`
+- `specification_gap` = mean `val_measured` / `val_oracle` - `welfare_ratio`
+
+`W_oracle` and `val_oracle` come from `solve_oracle(arm config, 40, False)` for each arm.
+
+**Aggregation.**
+- Per arm: the IQM over seeds, with a 95% bootstrap CI (stratified over seeds, single task,
+  10,000 resamples).
+  - The IQM itself is `rliable.metrics.aggregate_iqm`.
+  - The bootstrap is a percentile bootstrap over seeds, generator seed 0.
+  - Why not `rliable.library`: it cannot be imported in this environment, because `arch` 7.2 is
+    incompatible with pandas 3.0 (`deprecate_kwarg`).
+  - With one task, `rliable`'s stratified bootstrap *is* a bootstrap over seeds, so the two are
+    the same procedure.
+- `Delta_X` is computed on `welfare_ratio`, **paired by seed** under common random numbers:
+  `d_s = wr(C_X, s) - wr(C0, s)` for `s = 0..14`.
+  - Its point estimate is the IQM of `d_s`, with a percentile bootstrap CI over seed indices
+    (10,000 resamples, generator seed 0).
+- `I` is computed seed-paired as `d_BOTH,s - d_OGAS,s - d_INC,s`, with the same bootstrap.
+
+**Convergence.**
+- Exploitability is audited on seeds 0-2 of each new arm. C0's audit comes from G3.
+- Best-responder sizing and the threshold are as in R14.
+- An arm above the threshold carries the NON-CONVERGED label beside every number derived from it.
+
+## S3. Sobol (WO-033): not run
+
+PLAN marks it optional and "JAX only". About 1,500-2,800 runs at 46 min is out of reach without a
+JAX trainer. `sobol.py` stays a stub, and the final report states it was not run.
+
+## S4. Estimator bias (WO-034, PLAN section 7.2)
+
+**Grid.** `w in {0, 0.02, 0.05, 0.10, 0.25}` x `rho_cap in {1.2, inf}`: 10 arms on the Phase-1
+(G1-recorded) configuration.
+
+**(a) DP truth.** The single-enterprise DP's exact stationary `rho` distribution per arm, from the
+same solver G1 used. True excess mass is computed on that distribution with the pre-registered
+windows.
+
+**(b) Simulation.**
+- `N = 20` PPO populations at Phase-1 gate sizing, using the attempt-2 learner.
+- Reuse the Phase-1 gate's arms: `notched` (w = 0, cap 1.2; 30 seeds) and `smooth` (w = 0.25,
+  cap inf; 30 seeds).
+- The other 8 arms run **5 seeds** each, sharing the Phase-1 gate's `seed_env` root, so there are
+  40 new runs (about 3 h).
+- Truth for (b) is relative to the arm's own smooth counterpart (PLAN: "relative to its own
+  w = 0.25 arm").
+
+**Amendment (2026-09-27, during the run).** The "reused" arms could not be reused.
+- Spec 2.0.0 added two `InformationConfig` fields, so every Phase-1 configuration hash changed. The
+  30-seed notched and smooth runs were therefore retrained under the current spec.
+- All 10 arms thus share one spec and one code version, which is cleaner than the planned mix. The
+  cost is about 100 runs instead of 40.
+- The retrained runs sit in `runs/phase1_gate/runs` under the new hashes, beside the untouched G2
+  runs.
+
+**Estimator grid.**
+- Excluded window in `{[0.95, 1.02], [0.97, 1.02], [0.93, 1.03]}`
+- Degree in `{5, 7, 9}`
+- Bin width in `{0.005, 0.01}`
+- That is 18 settings. The pre-registered setting is marked.
+- Reported per (arm, setting): bias, RMSE and CI coverage.
+
+**Reconciliation power curve.**
+- Ledgers come from `TruthfulMyopic` on the Phase-1 configuration, 20 replicates.
+- Fictitious output is injected by inflating the claims of a random fraction
+  `f in {0, 0.05, 0.1, 0.2, 0.3, 0.5}` of enterprise-periods by 20%. The inflation is keyed by
+  replicate seed.
+- Power is the rejection rate of `ledger_test` at 5%. At `f = 0` this is the size.
+- **Amended (2026-09-26, before any P3 run and before any G3 number was read).** The call is made
+  per (period, good), not per enterprise-period. The sellers' claimed intermediate supply
+  `(1 - phi_j) sum R_i` is set against the buyers' total receipts of good j at the next DELIVER,
+  with a unit `io` row. This is PLAN section 7.3's reading ("claimed supply of each good against
+  buyers' receipts of it").
+  - R13.5's per-enterprise form, which compares a seller's claim with its *own* input receipts, has
+    no power. Under truthful play its statistic is about -77 (receipts are allocated by the buyer's
+    next target, not the seller's output), so it never rejects at any inflation share.
+  - The per-good form has size 0.05 and power 0.90 at a 5% inflated share.
+  - G3's row-7 `reconciliation_stat` was computed under R13.5 and is therefore uninformative. The
+    G3 record says so. Row 7's pass rule never used it.
+
+Digit tests and calibration claims stay out of scope.
+
+## S5. LLM ministry study (WO-035, PLAN section 7.4)
+
+The harness is implemented, but the run needs model access this container does not have: no API
+key, no OAuth profile, and no `anthropic` SDK installed.
+- The report records the study as NOT RUN.
+- It gives the exact command the owner runs once credentials and a budget are provided.
+
+Three design points PLAN leaves open and R10 does not settle are fixed here.
+
+**S5.1 The ministry's payoff.** The environment gives a ministry no reward. For this study it is
+the sum of its enterprises' rewards, minus a **ministry audit** on the forwarded figures.
+- Each period, each enterprise of the ministry is audited on the *forwarded* claim with probability
+  `a` (`audit_rate`), drawn at key `(seed_env, "audit", 10_000 + t, i)`.
+- An audited enterprise costs the ministry `penalty_scale * max(0, Rtilde_i - S_i) / T_i`.
+- Why: R10.3 has audits compare the enterprise's own `R` with stock, so forwarding would never be
+  audited, and PLAN's `padding_dominated` arm ("a = 1, pen large") could not make padding worse for
+  the ministry.
+- The ministry audit is computed by the study harness from the ledger and the forwarded values. It
+  never enters the environment's dynamics or any enterprise reward (CONTRACT rules 4, 7).
+
+**S5.2 What the model sees.**
+- The rendered `MinistryView`, plus one rules paragraph generated from the configuration. The
+  paragraph gives:
+  - the audit probability;
+  - the penalty per unit of over-forwarding;
+  - the ratchet coefficient;
+  - the bonus notch and the overfulfilment slope;
+  - a statement that the ministry is paid the sum of its enterprises' period rewards, less the
+    ministry audit penalty.
+- The paragraph is identical across arms apart from the numbers. It never names the arm and never
+  says what to do (PLAN section 7.4: "each arm is a configuration, not a prompt").
+- `passthrough` stays unrendered.
+- Each decision is a fresh, stateless call. The view carries `prev_forward`.
+
+**S5.3 Arms and dominance.**
+- `padding_dominated`: `audit_rate = 1`, `penalty_scale = 1000`.
+- `overfulfilment_optimal`: `ratchet_lambda = 0`, `overfulfilment_slope = 2.0`.
+- All arms run with `ministry_passthrough = 0.75` (C0). At `pi = 1` the environment bypasses the
+  ministry policy (R10.4).
+- Dominance is verified **by simulation**, not analytically: the coupled ratchet and delivery
+  dynamics have no closed form. The procedure:
+  - Run rule ministries on C0's trained population (G3 seed 0), 50 episodes, common random numbers.
+  - "Padding" forwards `1.1 * R`, "passthrough" forwards `R`, and "smoothing" forwards
+    `prev_forward`.
+  - An arm is verified if its 95% bootstrap CI of the payoff difference (dominated minus
+    alternative) lies entirely below 0.
+  - An unverified arm is not run, and the report says so.
+
+**S5.4 Models, cost, refusals.**
+- The owner chooses the models, at least two. `claude-opus-5` is the adapter's default.
+- Temperature is sent only if configured, because it is rejected on current Opus models.
+- A refusal (`stop_reason = "refusal"`) is a parse failure and goes to the documented passthrough
+  fallback. It is never routed to another model. **Server-side model fallbacks are deliberately
+  disabled**: they would change the model under study mid-episode.
+- Decisions per episode are about `n_ministries x periods`, roughly 50, not PLAN's 12. The cost
+  estimate is scaled to match (about 16M tokens).
+- Framings: the WO-026 texts, now final.
+
+## S6. Price sensitivity (WO-036, PLAN section 7.5)
+
+**Seeds.** `PRICE_PERTURBATION_SEEDS = (11, 12, 13)`, the same vectors G3 used (R14), so that every
+headline table in the project shares one triple. The WO-036 stub's `(0, 1, 2)` is replaced by this
+decision.
+
+**Tables covered.** The G3 C0 headline, and every contrast arm.
+
+**Rerun label.** An arm whose `objective_metric` reads prices (`net_output`: C_INC, C_BOTH) gets
+the label "recomputation only; the objective reads prices, a behavioural answer needs a rerun".
+That rerun is not performed, for compute reasons, and the report says so.
+
+## S7. Final report (WO-037) and G4
+
+`runs/final_report/report.md` rolls up G1-G3, the contrasts, the estimator-bias study, the price
+tables, and the not-run statements for Sobol and the LLM study. It cites every manifest hash.
+
+G4 needs the human's sign-off. G4's "LLM study" condition cannot pass until the owner runs S5.
