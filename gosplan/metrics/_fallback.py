@@ -11,8 +11,11 @@ vendored by its consumers as the submodule `packages/forensics_core`; the Soviet
 coupling would draw on are in the `gosplan` project of
 [`forensic-economy`](https://github.com/Xocas12/forensic-economy); and the elections work is in
 [`forensic-elections`](https://github.com/Xocas12/forensic-elections). Only the names changed.
-What the coupling is scoped to -- estimator robustness, and nothing else -- is stated in
-README.md section 1.3 and ROADMAP.md section 1.3, and is unaffected.
+What the coupling is scoped to -- estimator robustness, and nothing else -- is stated under
+"What is *not* claimed" in README.md and in ROADMAP.md section 1.3, and is unaffected. (The
+coupling document that forensic-economy#24 would rather point at does not exist yet: the task
+that writes it, forensic-economy#23, is still open, which is the same reason PR #99 gave for not
+linking it.)
 
 Why it exists. The repository must type-check, import and run its Phase-1 metrics before the
 `forensics_core` owner has agreed the interface at gate G1 and before the package is installed
