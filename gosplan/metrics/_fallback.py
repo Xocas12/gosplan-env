@@ -1,9 +1,18 @@
 """Vendored estimator surface - the `forensics_core` interface of PLAN section 7.3.
 
-Realises: PLAN section 7.3 (the interface gosplan consumes from the sibling `forensic-stats`
+Realises: PLAN section 7.3 (the interface gosplan consumes from the sibling statistical-forensics
 programme, "to agree with the `forensics_core` owner at G1; vendored fallback in
 `gosplan/metrics/_fallback.py` with identical signatures until then") and PLAN section 7.2 (the
 estimator-bias study these estimators are the payback for). Owning work order: **WO-016**.
+
+That programme was one repository, `forensic-stats`, when PLAN was written. It is now three:
+the estimator interface below lives in [`forensics-core`](https://github.com/Xocas12/forensics-core),
+vendored by its consumers as the submodule `packages/forensics_core`; the Soviet series the
+coupling would draw on are in the `gosplan` project of
+[`forensic-economy`](https://github.com/Xocas12/forensic-economy); and the elections work is in
+[`forensic-elections`](https://github.com/Xocas12/forensic-elections). Only the names changed.
+What the coupling is scoped to -- estimator robustness, and nothing else -- is stated in
+README.md section 1.3 and ROADMAP.md section 1.3, and is unaffected.
 
 Why it exists. The repository must type-check, import and run its Phase-1 metrics before the
 `forensics_core` owner has agreed the interface at gate G1 and before the package is installed
