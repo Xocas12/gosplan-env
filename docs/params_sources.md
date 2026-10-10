@@ -219,8 +219,9 @@ itself held and aggregated.
 
 The consequence for PLAN section 7.3 is direct and restrictive: a ministry-level series **cannot**
 speak to an enterprise-level notch, because aggregation destroys exactly the bunching the estimator
-looks for. On the evidence retrieved here, **the coupling to the forensic-stats Soviet series is
-unpromised at the enterprise level.** It may still be promised at the ministry level, which is what
+looks for. On the evidence retrieved here, **the coupling to the Soviet series of the `gosplan`
+project in [`forensic-economy`](https://github.com/Xocas12/forensic-economy) is unpromised at the
+enterprise level.** It may still be promised at the ministry level, which is what
 PLAN section 7.3 already scopes ("ministry-level series only from P2"), and that scoping is
 consistent with what was found.
 
