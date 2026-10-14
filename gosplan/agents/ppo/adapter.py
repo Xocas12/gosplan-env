@@ -507,9 +507,13 @@ class IPPO:
         applied afterwards and none is needed.
 
         CONTRACT rule 8 applies at the far end of this map: the fraction of reports sitting at
-        `rho_max` is logged and flags the run `BOUND_BINDING` above 1%. A saturating tanh is exactly
-        how a policy gets there, so the flag is a real diagnostic of the learner and the bound is
-        never widened to clear it.
+        `rho_max` is logged and flags the run `BOUND_BINDING` above 1%. A saturating tanh is how a
+        policy gets there, but in float64 it reaches `rho_max` exactly only from `raw` of about
+        18.5 (`raw = 8` gives 9.9999989 at `rho_max = 10`). The environment therefore counts a
+        report as at the bound when it is within `gosplan.env.reporting.AT_BOUND_REL_TOL` of
+        `rho_max`, which on this map is `raw >= atanh(1 - 2 * AT_BOUND_REL_TOL)` (about 3.45).
+        With that, the flag is a real diagnostic of the learner, and the bound is never widened to
+        clear it.
 
         Owning WO: **WO-017**.
         """

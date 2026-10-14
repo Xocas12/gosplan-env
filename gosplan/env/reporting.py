@@ -27,7 +27,9 @@ beyond the symmetric penalty arithmetic below, whose asymmetry is a *configurati
 
 CONTRACT RULE 8 (BOUNDS ARE RESULTS). `report_ratio` is bounded at `rho_max =
 cfg.tech.report_max_ratio` (Phase 1: 10.0). `process_reports` records, per enterprise per period,
-whether the report sat at the bound; `gosplan/metrics/ledger.py` (WO-011) aggregates that into the
+whether the report sat at the bound (`report_at_bound`: within `AT_BOUND_REL_TOL` of it, because a
+tanh-squashed policy approaches the bound without reaching it in floating point);
+`gosplan/metrics/ledger.py` (WO-011) aggregates that into the
 fraction of reports at `rho_max`, and above 1% the run manifest is flagged `BOUND_BINDING` and the
 result is reported *with the flag* (test T-B8). The bound is never silently widened or narrowed to
 make a result look better, and reports at `rho_max` are included in the histograms of PLAN section
@@ -64,6 +66,41 @@ Array = np.ndarray
 """Alias for every numeric array in this module (PLAN section 10), mirroring `spec.spec.Array`. The
 Phase-2 JAX port (WO-029) substitutes its own array type behind the same name, so no signature here
 may depend on a numpy-only method."""
+
+AT_BOUND_REL_TOL: float = 1e-3
+"""CONTRACT rule 8: how close to `rho_max` a report must come to count as sitting at the bound, as a
+fraction of `rho_max`. A report counts as `at_bound` when
+
+    rho_i >= rho_max * (1 - AT_BOUND_REL_TOL)          # 9.99 at the Phase-1 rho_max = 10
+
+Exact equality is not enough (issue #111). The PPO adapter maps a pre-squash value `z` onto the
+report box `[0, rho_max]` as `rho_max * (tanh(z) + 1) / 2`, and the deterministic evaluation that
+feeds the manifest does this in float64, where the result equals `rho_max` only from `z` of about
+18.5. A policy pinned against the bound at `z = 8` reports 9.9999989 and an exact test never sees it.
+Because the report box starts at 0, this tolerance is a fixed pre-squash threshold whatever
+`rho_max` is: `rho_i >= rho_max * (1 - tol)` holds exactly when `tanh(z) >= 1 - 2 * tol`, i.e.
+`z >= atanh(0.998)`, about 3.45, at `tol = 1e-3`.
+
+The value 1e-3 is the one proposed in issue #111 and the smallest that covers the band it names
+(reports pinned anywhere from 9.99 to just below 10). Nothing in the spec fixes it, so it is a
+stated choice that the lead can change, not a derived constant. It moves only which reports are
+counted; the bound itself and the 1% flag threshold
+(`gosplan.metrics.ledger.AT_BOUND_FLAG_THRESHOLD`) are untouched."""
+
+
+def report_at_bound(ratio: Array, rho_max: float) -> Array:
+    """Whether each clipped report ratio sits at the bound `rho_max` (CONTRACT rule 8).
+
+    Takes: `ratio`, the clipped report ratios (`state.last_report_ratio`, a scalar or `(N,)`);
+    `rho_max = cfg.tech.report_max_ratio`. Returns: a bool array of the same shape, True where
+    `ratio >= rho_max * (1 - AT_BOUND_REL_TOL)`.
+
+    This is the one definition of `StepRecord.at_bound`; `gosplan/env/step.py` calls it when it
+    writes the REPORT rows, and `gosplan/metrics/ledger.py` turns the fraction of True rows into
+    `BOUND_BINDING`. Binds: test T-B8 (`tests/behavioural/test_bound_flag.py`), including the case
+    driven through `IPPO.squash` at a finite pre-squash value.
+    """
+    return np.asarray(ratio, dtype=float) >= rho_max * (1.0 - AT_BOUND_REL_TOL)
 
 
 def process_reports(state: State, action: EnterpriseAction, cfg: EnvConfig) -> State:
@@ -110,7 +147,9 @@ def process_reports(state: State, action: EnterpriseAction, cfg: EnvConfig) -> S
         request             `action.input_request`, clipped to `r_max * need_ij` with
                             `r_max = cfg.tech.request_max_multiple` and `need_ij` the current
                             planned need; logged in Phase 1 and inert while `alloc_eta_request = 0`
-        at_bound            per enterprise, whether the report sat at `rho_max` (CONTRACT rule 8)
+        at_bound            per enterprise, whether the report sat at `rho_max` (CONTRACT rule 8),
+                            within `AT_BOUND_REL_TOL`; the ledger row takes it from
+                            `report_at_bound(last_report_ratio, rho_max)`
 
     The `at_bound` record is the whole mechanism behind CONTRACT rule 8: `gosplan/metrics/ledger.py`
     turns it into the fraction of reports at the bound, and above 1% the manifest is flagged

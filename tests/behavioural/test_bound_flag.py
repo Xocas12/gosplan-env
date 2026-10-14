@@ -34,6 +34,12 @@ rather than in `gosplan/agents/heuristic.py` because nothing in the production a
 exist to trip a flag. `Random` reaches high ratios but does not land exactly on the bound (see
 `ref_random_policy` in `ref/gen_golden.py`), which is why the bound is driven deliberately here.
 
+A learned policy never lands exactly on the bound either: `IPPO.squash` maps a pre-squash value `z`
+to `rho_max * (tanh(z) + 1) / 2`, which in float64 equals `rho_max` only from `z` of about 18.5. The
+last two cases drive reports through `IPPO.squash` at a finite `z`, as the deterministic evaluation
+behind the manifest does (issue #111): `z = 8` sits within `AT_BOUND_REL_TOL` of the bound and must
+raise the flag, and a report twice that distance from the bound must not.
+
 Held-out phenomena (PLAN section 4.1): none. This file measures a flag, not a behaviour.
 """
 
@@ -317,3 +323,109 @@ def test_manifest_carries_the_flag(implemented, tmp_path) -> None:
     write_manifest(str(run_dir), cfg, {"flags": tuple(ledger.flags)})
     doc = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
     assert BOUND_FLAG in (doc.get("flags") or [])
+
+
+SQUASH_Z_PINNED = 8.0
+"""A finite pre-squash report value, the example in issue #111. Through `IPPO.squash` it gives
+9.9999989 at `rho_max = 10`: pinned against the bound, but not equal to it in float64, which is the
+precision of the deterministic evaluation (`squash(mean)`) whose ledger sets the manifest flag."""
+
+
+def _squashed_episode(cfg, z, n_pinned, seed_env, implemented):
+    """One episode in which enterprises `0 .. n_pinned - 1` report `IPPO.squash(z)` at every REPORT
+    step and every other choice is `TruthfulMyopic`'s. Returns the ledger.
+
+    The squash is the adapter's own, called through its public method, so the reported ratio is the
+    value a learned policy with pre-squash report mean `z` would submit at evaluation.
+    """
+    from gosplan.agents.heuristic import TruthfulMyopic
+    from gosplan.agents.ppo.adapter import IPPO, PPOConfig
+    from gosplan.config import p1_default_config
+    from gosplan.env.env import GosplanEnv
+    from gosplan.metrics.ledger import Ledger
+
+    implemented(
+        p1_default_config,
+        GosplanEnv.reset,
+        GosplanEnv.step,
+        TruthfulMyopic.act,
+        Ledger.append,
+        IPPO.squash,
+    )
+    pinned = IPPO(cfg, PPOConfig()).squash(np.full(n_pinned, z), "report_ratio")
+
+    env = GosplanEnv(cfg)
+    ledger = Ledger()
+    env.attach_ledger(ledger)
+    obs, _info = env.reset(seed_env, cfg.tech.seed_policy)
+    policy = TruthfulMyopic(cfg)
+    rng = np.random.default_rng(cfg.tech.seed_policy)
+    cap = cfg.tech.max_periods * (cfg.incentive.steps_per_period + 1)
+    done = False
+    steps = 0
+    while not done and steps < cap:
+        phase = env.phase()
+        action = policy.act(obs, phase, rng)
+        if phase == "report":
+            action.report_ratio = np.array(action.report_ratio, dtype=float)
+            action.report_ratio[:n_pinned] = pinned
+        obs, _r, done, _i = env.step(action)
+        steps += 1
+    return ledger
+
+
+@pytest.mark.skeleton
+def test_squashed_report_pinned_below_the_bound_raises_the_flag(implemented) -> None:
+    """A report squashed from `z = 8` is below `rho_max` in float64, yet it is at the bound.
+
+    Pin `ABOVE_THRESHOLD_FRACTION` of the enterprises (one of 20) to `IPPO.squash(SQUASH_Z_PINNED)`
+    at every REPORT step, everyone else truthful, at `p1_default_config()`. Assert, for the pinned
+    rows, `report_ratio < RHO_MAX` (the squash never reaches the bound, so an exact test cannot
+    count them) and `at_bound is True`; for every other REPORT row `at_bound is False`; and that
+    `BOUND_FLAG in ledger.flags` and `bound_binding(ledger) is True`.
+
+    Before issue #111 `at_bound` was `rho >= rho_max`, so this run - 5% of reports pinned against
+    the bound - carried no flag.
+    """
+    from gosplan.metrics.ledger import bound_binding
+
+    cfg = _cfg()
+    n_pinned = max(1, round(ABOVE_THRESHOLD_FRACTION * cfg.supply.n_enterprises))
+    ledger = _squashed_episode(cfg, SQUASH_Z_PINNED, n_pinned, TB8_SEEDS[0], implemented)
+    rows = _report_rows(ledger.records)
+    pinned = [r for r in rows if r.enterprise < n_pinned]
+    others = [r for r in rows if r.enterprise >= n_pinned]
+    assert pinned and others
+    for r in pinned:
+        assert float(r.report_ratio) < RHO_MAX, r.report_ratio
+        assert bool(r.at_bound) is True, (r.t_period, r.enterprise, r.report_ratio)
+    for r in others:
+        assert bool(r.at_bound) is False, (r.t_period, r.enterprise, r.report_ratio)
+    assert bound_binding(ledger) is True
+    assert BOUND_FLAG in ledger.flags
+
+
+@pytest.mark.skeleton
+def test_squashed_report_outside_the_tolerance_does_not_raise_the_flag(implemented) -> None:
+    """The same run with the pinned report twice the tolerance away from the bound carries no flag.
+
+    Identical to the raising case except for `z`, chosen so `IPPO.squash(z) = rho_max * (1 - 2 *
+    AT_BOUND_REL_TOL)` (9.98 at the stated 1e-3). Assert no REPORT row is `at_bound`, `BOUND_FLAG
+    not in ledger.flags` and `bound_binding(ledger) is False`. Without this half, a tolerance that
+    counted every high report as at the bound would pass the raising case.
+    """
+    from gosplan.env.reporting import AT_BOUND_REL_TOL
+    from gosplan.metrics.ledger import bound_binding
+
+    cfg = _cfg()
+    n_pinned = max(1, round(ABOVE_THRESHOLD_FRACTION * cfg.supply.n_enterprises))
+    z_outside = float(np.arctanh(1.0 - 4.0 * AT_BOUND_REL_TOL))
+    ledger = _squashed_episode(cfg, z_outside, n_pinned, TB8_SEEDS[0], implemented)
+    rows = _report_rows(ledger.records)
+    pinned = [r for r in rows if r.enterprise < n_pinned]
+    assert pinned
+    for r in pinned:
+        assert abs(float(r.report_ratio) - RHO_MAX * (1.0 - 2.0 * AT_BOUND_REL_TOL)) < 1e-9
+    assert not any(bool(r.at_bound) for r in rows)
+    assert bound_binding(ledger) is False
+    assert BOUND_FLAG not in ledger.flags
