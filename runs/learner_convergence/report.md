@@ -2,6 +2,12 @@
 
 C0, seeds 0-9, population budget 3M agent-steps against G3b's 1M; R16 audit unchanged (warm-started best responder, 1M steps, ratio floor 1). Pre-registered before any LC run. LC re-evaluates no gate; G3 and G3b stand as recorded.
 
+> **Correction (2026-10-14, #108).** The best responders in this audit trained for 500k
+> agent-steps, not the 1M stated above, and so did G3b's. The 1M budget was set in the parent
+> process only and did not reach the spawned audit workers; `exploitability/C0_report.md` and
+> the best-responder manifests record 500000. Both legs used 500k, so the paired comparison
+> below is like-for-like. See `runs/G3b_record.md` and `runs/LC_record.md` (corrections).
+
 ## Primary: exploitability, seed-paired (3M - 1M)
 
 | seed_env | 1M (G3b) | 3M (LC) | difference |

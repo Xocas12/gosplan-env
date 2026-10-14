@@ -55,6 +55,10 @@ ARMS: dict[str, dict[str, dict[str, object]]] = {
 SEEDS: dict[str, int] = {"C0": 30, "R7_NULL": 10, "R3_QW": 10}
 EXPLOIT_SEEDS: dict[str, int] = {"C0": 10, "R7_NULL": 5, "R3_QW": 5}
 BR_TOTAL_AGENT_STEPS = 500_000
+"""R14's best-responder budget in agent-steps: the G3 audit and the Phase-3 contrasts' audits."""
+R16_BR_TOTAL_AGENT_STEPS = 1_000_000
+"""R16's best-responder budget, the full gate budget (`GATE_SIZING`): the G3b, LC and ES audits.
+Passed to `run` as `br_steps`; nothing reads it inside the audit worker."""
 ORACLE_HORIZON = 40
 CLAIRVOYANT_SEEDS = 5
 PRICE_SEEDS = (11, 12, 13)
@@ -89,10 +93,13 @@ def arm_config(arm: str, seed_index: int) -> EnvConfig:
     return _g2.seeded(cfg, seed_index, SEED_ROOT)
 
 
-def br_sizing():
+def br_sizing(total_agent_steps: int = BR_TOTAL_AGENT_STEPS):
+    """`GATE_SIZING` with the best responder's budget. Build it in the calling process and hand the
+    object to the audit worker in its job: a `spawn` worker re-imports this module, so a budget set
+    on the module in the parent never reaches it."""
     from gosplan.experiments.phase1_gate import GATE_SIZING
 
-    return dataclasses.replace(GATE_SIZING, total_agent_steps=BR_TOTAL_AGENT_STEPS)
+    return dataclasses.replace(GATE_SIZING, total_agent_steps=total_agent_steps)
 
 
 def exploitability_arms(
@@ -348,12 +355,13 @@ def price_table(
 
 
 def _run_exploit(args: tuple) -> dict[str, object]:
+    """Audit one arm in a pool worker. Takes `(arm, audit_dir, out_dir, br_sizing)`. The
+    best-responder sizing travels in the job because the worker is spawned: it re-imports this
+    module and reads none of the parent's module state."""
     from gosplan.experiments import exploitability
 
-    arm, audit_dir, out_dir = args
-    res = exploitability.run(
-        None, arm, audit_dir, Path(out_dir) / "exploitability", sizing=br_sizing()
-    )
+    arm, audit_dir, out_dir, sizing = args
+    res = exploitability.run(None, arm, audit_dir, Path(out_dir) / "exploitability", sizing=sizing)
     return {k: v for k, v in res.items() if k != "per_seed"} | {"per_seed": list(res["per_seed"])}
 
 
@@ -394,11 +402,15 @@ def run(
     seeds: dict[str, int] | None = None,
     exploit_seeds: dict[str, int] | None = None,
     ppo_cfg=None,
+    br_steps: int | None = None,
 ) -> dict[str, object]:
     """Train, measure, audit and report the R14 acceptance set. `sizing`, `seeds` and
     `exploit_seeds` default to R14's values; other values are for a smoke run or a labelled study.
     `ppo_cfg` defaults to `study_ppo_config()`; the R19 study passes its own entropy schedule. The
-    exploitability audit's best responder always keeps R16's learner."""
+    exploitability audit's best responder always keeps R16's learner. `br_steps` is the best
+    responder's budget in agent-steps: `None` means R14's `BR_TOTAL_AGENT_STEPS`, and an R16 audit
+    passes `R16_BR_TOTAL_AGENT_STEPS`. It is resolved here and sent to the audit workers in their
+    jobs."""
     from gosplan.experiments import _g2
     from gosplan.experiments.phase1_gate import GATE_SIZING, study_ppo_config
     from gosplan.oracle.kantorovich import solve_oracle
@@ -410,6 +422,7 @@ def run(
     run_root = out_dir / "runs"
     run_root.mkdir(parents=True, exist_ok=True)
     ppo = study_ppo_config() if ppo_cfg is None else ppo_cfg
+    br = br_sizing(BR_TOTAL_AGENT_STEPS if br_steps is None else br_steps)
 
     jobs = [(arm, s) for arm in ARMS for s in range(seeds[arm])]
     train_summ = _g2.run_many([(arm_config(a, s), sizing, run_root, ppo) for a, s in jobs])
@@ -444,7 +457,9 @@ def run(
         zip(
             subset_dirs,
             _pool(
-                _run_exploit, [(a, d, out_dir) for a, d in subset_dirs.items()], len(subset_dirs)
+                _run_exploit,
+                [(a, d, out_dir, br) for a, d in subset_dirs.items()],
+                len(subset_dirs),
             ),
             strict=True,
         )
@@ -480,6 +495,7 @@ def run(
         "max_runaway_frac": float(np.nanmax(runaway)),
         "per_arm": per_arm,
         "sizing": dataclasses.asdict(sizing),
+        "br_sizing": dataclasses.asdict(br),
         "git": _g2.git_hash(),
     }
     import pandas as pd
@@ -611,6 +627,7 @@ def render_report(result: dict) -> str:
             f"over {len(e['per_seed'])} seeds (threshold {e['threshold']}, "
             f"{e['threshold_status']}) {e['label']}"
         )
+    lines.append(f"- best-responder sizing: `{result['br_sizing']}`")
     p = result["parity"]
     lines += [
         "",
@@ -641,14 +658,19 @@ def render_report(result: dict) -> str:
 
 def main() -> int:
     """Run the R14 acceptance set and write `runs/phase2_acceptance/report.md`."""
-    global BR_TOTAL_AGENT_STEPS, ORACLE_HORIZON, CLAIRVOYANT_SEEDS
+    global ORACLE_HORIZON, CLAIRVOYANT_SEEDS
     import sys
 
     if "--g3b" in sys.argv:
         # Labelled study G3b (spec/P2_REVISION.md R15, R16; runs/G3_record.md owner decision):
         # C0 only at 30 seeds under spec 2.1.0, row 6 re-evaluated, R16 audit on seeds 0-9.
-        BR_TOTAL_AGENT_STEPS = 1_000_000
-        res = run(G3B_DIR, None, {"C0": 30, "R7_NULL": 0, "R3_QW": 0}, {"C0": 10})
+        res = run(
+            G3B_DIR,
+            None,
+            {"C0": 30, "R7_NULL": 0, "R3_QW": 0},
+            {"C0": 10},
+            br_steps=R16_BR_TOTAL_AGENT_STEPS,
+        )
         text = (G3B_DIR / REPORT_PATH.name).read_text(encoding="utf-8")
         (G3B_DIR / REPORT_PATH.name).write_text(G3B_HEADER + text, encoding="utf-8")
     elif "--smoke" in sys.argv:
@@ -663,8 +685,8 @@ def main() -> int:
             eval_episodes=1,
             measure_episodes=2,
         )
-        BR_TOTAL_AGENT_STEPS, ORACLE_HORIZON, CLAIRVOYANT_SEEDS = 2_000, 6, 1
-        res = run(out, tiny, {a: 2 for a in ARMS}, {a: 1 for a in ARMS})
+        ORACLE_HORIZON, CLAIRVOYANT_SEEDS = 6, 1
+        res = run(out, tiny, {a: 2 for a in ARMS}, {a: 1 for a in ARMS}, br_steps=2_000)
     else:
         res = run()
     for name in CONDITIONS:

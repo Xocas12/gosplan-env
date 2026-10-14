@@ -56,7 +56,9 @@ Three limitations travel with every learned-agent number:
 - **L3.** Every Phase-2 and Phase-3 number before G3b comes from an economy in which no learner
   could post a trade offer (G3 D1).
 - **L4.** Under the revised audit (R16) the learned C0 populations are not approximate equilibria:
-  a warm-started best responder gains on 9 of 10 seeds (G3b).
+  a warm-started best responder gains on 9 of 10 seeds (G3b). Every R16 audit so far (G3b, LC, ES)
+  trained its best responders for 500k agent-steps, not R16's 1M (#108), so these ratios are
+  likely, though not certainly, lower bounds.
 - **L5.** Learned-economy outcomes depend on the training budget: at 3M agent-steps the C0
   economy collapses to near-zero output (LC), under either entropy schedule (ES). Every
   learned-agent number here comes from 1M-step populations and describes a point on a learning

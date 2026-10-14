@@ -596,6 +596,10 @@ horizontal trade does not emerge.
 
 - R16's design: the best responder starts from the population policy, trains for 1M steps, and the
   ratio is `(R_BR - R_pop) / max(|R_pop|, 1)`.
+- **As run, the best responders trained for 500k steps, not 1M** (found on 2026-10-14, #108). All
+  10 best-responder manifests and the header of `exploitability/C0_report.md` record
+  `total_agent_steps=500000`. Every number in this section comes from that 500k audit. See the
+  correction at the end of this record.
 - Sorted per-seed ratios: -1.244, 0.125, 0.341, 0.364, 0.694, 0.899, 0.929, 0.972, 0.983, 0.990.
 - The one negative seed (1007) is one where the population's own return is about -30 and the best
   responder fell further, to about -68.
@@ -631,6 +635,30 @@ horizontal trade does not emerge.
 - The owner decides at G3/G4 whether a longer-trained or differently configured learner is
   commissioned. That would be a new labelled study, because the numbers here must not be tuned to
   pass.
+
+#### Correction (2026-10-14): the R16 audit ran with 500k-step best responders (#108)
+
+R16 registered a best responder trained for the full gate budget, 1M agent-steps. Every R16 audit
+that has run trained its best responders for 500k instead: G3b, LC and ES, 10 each, 30 in all.
+- **Cause.** The drivers set the 1M budget on the harness module, in the parent process only. The
+  audit runs in a `spawn` process pool, and each worker re-imported the module and read R14's 500k
+  default. Each best-responder manifest records `total_agent_steps: 500000`, and so does each
+  study's `exploitability/C0_report.md`, but no record mentioned the deviation.
+- **What it changes.** Each best responder had half the training R16 registered to improve on the
+  population it starts from. More training usually raises `R_BR`, so the ratios above are likely
+  lower bounds on exploitability. Nothing guarantees that, though: seed 1007's best responder
+  ended below the population it started from. The NON-CONVERGED verdict and L4 stand, and are if
+  anything conservative.
+- **What it does not change.** The populations, rows 2, 5, 6 and 7, and every other number in this
+  record. The G3 audit and the Phase-3 contrasts' audits were registered at 500k (R14) and ran at
+  500k.
+- **Not re-run.** A 1M re-audit of the three studies needs the trained populations, which are not
+  in the repository, and about twice the 656 minutes the 30 best responders took at 500k (the
+  sum of their manifests' `wall_clock_s`). It would be a labelled re-run, for the owner to
+  approve.
+- **Code.** The harness now builds the best-responder sizing in the parent and passes it to each
+  audit worker in its job (`phase2_acceptance.run(..., br_steps=...)`), and G3b, LC and ES pass
+  R16's 1M explicitly. `tests/unit/test_best_responder_budget.py` checks both.
 
 ---
 
@@ -714,6 +742,8 @@ as recorded. Written on 2026-09-29; the human sign-off is pending.
 - Driver: `gosplan/experiments/learner_convergence.py`. Report: `runs/learner_convergence/report.md`.
 - Design: C0, seeds 0-9, population budget 3M agent-steps against G3b's 1M. Everything else is
   unchanged, including the R16 audit.
+- As run, the R16 audit's best responders trained for 500k agent-steps, not R16's 1M, in both
+  legs (found on 2026-10-14, #108). See the correction at the end of this record.
 - The run started at 09:15 UTC. A container reboot at about 15:25 UTC killed it with 8 of 10 runs
   complete.
   - It was relaunched at 15:30 UTC. The 8 completed runs were read back.
@@ -818,6 +848,18 @@ learner, not an artefact of the stretched schedule.
   - contrasts at a fixed longer budget;
   - a direct test of the coordination-trap reading, for example a population seeded with producers.
 
+#### Correction (2026-10-14): the R16 audit ran with 500k-step best responders (#108)
+
+R17 kept R16's 1M best-responder budget. As run, the best responders of both legs trained for
+500k agent-steps, R14's default; the cause and the evidence are in `runs/G3b_record.md`
+(correction).
+- The paired comparison is still like-for-like, because both legs used 500k. "Exploitability falls
+  with budget" stands, as a statement about a 500k-step audit.
+- The 3M figures (median -0.003, max 0.429) are weaker evidence of convergence than R17's design
+  would give. A best responder with the registered 1M steps might find more to gain against the 3M
+  populations. That has not been measured.
+- Nothing here was re-run.
+
 ---
 
 ## Labelled study LC - learner convergence (R17)
@@ -827,6 +869,12 @@ _Source: `runs/learner_convergence/report.md`_
 ### Labelled study LC - learner convergence (spec/P2_REVISION.md R17)
 
 C0, seeds 0-9, population budget 3M agent-steps against G3b's 1M; R16 audit unchanged (warm-started best responder, 1M steps, ratio floor 1). Pre-registered before any LC run. LC re-evaluates no gate; G3 and G3b stand as recorded.
+
+> **Correction (2026-10-14, #108).** The best responders in this audit trained for 500k
+> agent-steps, not the 1M stated above, and so did G3b's. The 1M budget was set in the parent
+> process only and did not reach the spawned audit workers; `exploitability/C0_report.md` and
+> the best-responder manifests record 500000. Both legs used 500k, so the paired comparison
+> below is like-for-like. See `runs/G3b_record.md` and `runs/LC_record.md` (corrections).
 
 #### Primary: exploitability, seed-paired (3M - 1M)
 
@@ -1140,7 +1188,7 @@ this learner: with the 1M runs' exact schedule, a 3M-step run still collapses.
   - row 2 (storming) and row 5 (hoarding) appear: excess Gini 0.222 (LC 0.220), request-inflation
     excess 1.79 (LC 1.98);
   - row 6 (trade volume) stays at 0.
-- R16 exploitability:
+- R16 exploitability (500k-step best responders, not R16's 1M; see the correction at the end):
   - Median -0.008 and max 0.173, with 1 of 10 seeds above 5%. LC 3M had median -0.003 and 3 of
     10 above.
   - The paired difference from LC is median +0.003 [95% CI -0.296, +0.950], so no difference is
@@ -1179,6 +1227,15 @@ this learner: with the 1M runs' exact schedule, a 3M-step run still collapses.
   learners settle into a Pareto-dominated no-production coordination trap.
 - Any follow-up is the owner's decision and needs a new pre-registration (#97).
 
+#### Correction (2026-10-14): the R16 audit ran with 500k-step best responders (#108)
+
+ES kept LC's R16 audit, which registered 1M best-responder steps. As run, ES's best responders
+trained for 500k agent-steps, as LC's and G3b's did; the cause and the evidence are in
+`runs/G3b_record.md` (correction). ES's R16 figures above (median -0.008, max 0.173, and the paired
+difference from LC) all come from that 500k audit, and the paired difference compares two 500k
+audits. The primary result and the coordination-trap test do not use the best responder and are
+unaffected. Nothing here was re-run.
+
 ---
 
 ## Labelled study ES - budget versus exploration schedule (R19)
@@ -1188,6 +1245,12 @@ _Source: `runs/entropy_schedule/report.md`_
 ### Labelled study ES - budget versus exploration schedule (spec/P2_REVISION.md R19)
 
 C0, seeds 0-9, 3M agent-steps with the entropy bonus annealed over the first 1M steps (the 1M runs' schedule) and held at 0.001 after; R16 audit unchanged. Pre-registered before any ES run. ES re-evaluates no gate.
+
+> **Correction (2026-10-14, #108).** The R16 audit's best responders trained for 500k
+> agent-steps, not R16's 1M, here and in LC. The 1M budget was set in the parent process only
+> and did not reach the spawned audit workers; `exploitability/C0_report.md` and the
+> best-responder manifests record 500000. Every exploitability figure below is from a 500k
+> audit. See `runs/G3b_record.md` and `runs/ES_record.md` (corrections).
 
 #### Primary: does the collapse reproduce under the matched schedule?
 

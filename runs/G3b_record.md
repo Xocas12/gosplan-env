@@ -47,6 +47,10 @@ horizontal trade does not emerge.
 
 - R16's design: the best responder starts from the population policy, trains for 1M steps, and the
   ratio is `(R_BR - R_pop) / max(|R_pop|, 1)`.
+- **As run, the best responders trained for 500k steps, not 1M** (found on 2026-10-14, #108). All
+  10 best-responder manifests and the header of `exploitability/C0_report.md` record
+  `total_agent_steps=500000`. Every number in this section comes from that 500k audit. See the
+  correction at the end of this record.
 - Sorted per-seed ratios: -1.244, 0.125, 0.341, 0.364, 0.694, 0.899, 0.929, 0.972, 0.983, 0.990.
 - The one negative seed (1007) is one where the population's own return is about -30 and the best
   responder fell further, to about -68.
@@ -82,3 +86,27 @@ horizontal trade does not emerge.
 - The owner decides at G3/G4 whether a longer-trained or differently configured learner is
   commissioned. That would be a new labelled study, because the numbers here must not be tuned to
   pass.
+
+## Correction (2026-10-14): the R16 audit ran with 500k-step best responders (#108)
+
+R16 registered a best responder trained for the full gate budget, 1M agent-steps. Every R16 audit
+that has run trained its best responders for 500k instead: G3b, LC and ES, 10 each, 30 in all.
+- **Cause.** The drivers set the 1M budget on the harness module, in the parent process only. The
+  audit runs in a `spawn` process pool, and each worker re-imported the module and read R14's 500k
+  default. Each best-responder manifest records `total_agent_steps: 500000`, and so does each
+  study's `exploitability/C0_report.md`, but no record mentioned the deviation.
+- **What it changes.** Each best responder had half the training R16 registered to improve on the
+  population it starts from. More training usually raises `R_BR`, so the ratios above are likely
+  lower bounds on exploitability. Nothing guarantees that, though: seed 1007's best responder
+  ended below the population it started from. The NON-CONVERGED verdict and L4 stand, and are if
+  anything conservative.
+- **What it does not change.** The populations, rows 2, 5, 6 and 7, and every other number in this
+  record. The G3 audit and the Phase-3 contrasts' audits were registered at 500k (R14) and ran at
+  500k.
+- **Not re-run.** A 1M re-audit of the three studies needs the trained populations, which are not
+  in the repository, and about twice the 656 minutes the 30 best responders took at 500k (the
+  sum of their manifests' `wall_clock_s`). It would be a labelled re-run, for the owner to
+  approve.
+- **Code.** The harness now builds the best-responder sizing in the parent and passes it to each
+  audit worker in its job (`phase2_acceptance.run(..., br_steps=...)`), and G3b, LC and ES pass
+  R16's 1M explicitly. `tests/unit/test_best_responder_budget.py` checks both.

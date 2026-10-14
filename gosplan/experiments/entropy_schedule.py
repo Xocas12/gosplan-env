@@ -132,11 +132,15 @@ def main() -> int:
     from gosplan.experiments import phase2_acceptance as pa
     from gosplan.experiments.phase1_gate import GATE_SIZING
 
-    pa.BR_TOTAL_AGENT_STEPS = lcm.BASE_BUDGET  # R16, unchanged
     sizing = dataclasses.replace(GATE_SIZING, total_agent_steps=ES_BUDGET)
     ppo = es_ppo_config()
     pa.run(
-        ES_DIR, sizing, {"C0": ES_SEEDS, "R7_NULL": 0, "R3_QW": 0}, {"C0": ES_SEEDS}, ppo_cfg=ppo
+        ES_DIR,
+        sizing,
+        {"C0": ES_SEEDS, "R7_NULL": 0, "R3_QW": 0},
+        {"C0": ES_SEEDS},
+        ppo_cfg=ppo,
+        br_steps=pa.R16_BR_TOTAL_AGENT_STEPS,  # R16, unchanged
     )
     es = json.loads((ES_DIR / "result.json").read_text(encoding="utf-8"))
     lc = json.loads(LC_RESULT.read_text(encoding="utf-8"))

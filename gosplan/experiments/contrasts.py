@@ -528,20 +528,21 @@ def _pool(fn, jobs: list) -> list:
 
 
 def _exploit_one(args: tuple) -> dict[str, object]:
+    """Audit one contrast arm in a pool worker. Takes `(name, audit_dir, out_dir, br_sizing)`; the
+    sizing is built in the parent, as in `phase2_acceptance._run_exploit`."""
     from gosplan.experiments import exploitability
-    from gosplan.experiments.phase2_acceptance import br_sizing
 
-    name, audit_dir, out_dir = args
-    res = exploitability.run(
-        None, name, audit_dir, Path(out_dir) / "exploitability", sizing=br_sizing()
-    )
+    name, audit_dir, out_dir, sizing = args
+    res = exploitability.run(None, name, audit_dir, Path(out_dir) / "exploitability", sizing=sizing)
     return {k: v for k, v in res.items() if k != "per_seed"} | {"per_seed": list(res["per_seed"])}
 
 
 def _exploitability(out_dir: Path, arm_cfgs, root: int, contrasts) -> dict[str, object]:
     """Audit seeds 0..EXPLOIT_SEEDS-1 of every non-C0 arm; C0's audit is G3's (S2)."""
     from gosplan.experiments import _g2
+    from gosplan.experiments.phase2_acceptance import BR_TOTAL_AGENT_STEPS, br_sizing
 
+    br = br_sizing(BR_TOTAL_AGENT_STEPS)  # R14's budget, as in the G3 audit (S2)
     jobs = []
     for name in contrasts:
         if name == "C0":
@@ -556,7 +557,7 @@ def _exploitability(out_dir: Path, arm_cfgs, root: int, contrasts) -> dict[str, 
                 link.symlink_to(
                     os.path.relpath(target, link.parent.resolve()), target_is_directory=True
                 )
-        jobs.append((name, audit, out_dir))
+        jobs.append((name, audit, out_dir, br))
     results = _pool(_exploit_one, jobs) if jobs else []
     out = {name: r for (name, *_), r in zip(jobs, results, strict=True)}
     g3 = Path("runs/phase2_acceptance/result.json")
