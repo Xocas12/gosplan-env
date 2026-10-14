@@ -5,7 +5,8 @@ agent's within-period effort Gini from the learned one under common random numbe
 effort is a function of its target alone, which moves once a period, so its Gini is 0 and the
 excess is the learned Gini. The Gini is also symmetric in step order. These tests pin both facts,
 in the committed measurements and in the environment as built, and check that the records, the
-final report, the README status table and the docstring say what row 2 can and cannot show.
+final report, the README status table and both docstrings (the implementation's and the spec's)
+say what row 2 can and cannot show.
 
 Nothing here computes a held-out row for a learned agent: the learned values are read back from the
 committed `p2_measure.json` files, and the environment is driven only by `TruthfulMyopic`.
@@ -13,6 +14,7 @@ committed `p2_measure.json` files, and the environment is driven only by `Truthf
 
 from __future__ import annotations
 
+import ast
 import json
 from pathlib import Path
 
@@ -66,7 +68,7 @@ def test_readme_status_and_final_report_carry_the_row2_correction() -> None:
         assert _norm(_read(rel)) in report, f"{rel} is not embedded as it stands: regenerate"
 
 
-def test_storming_docstring_describes_the_baseline_as_built() -> None:
+def test_storming_docstrings_describe_the_baseline_as_built() -> None:
     from gosplan.agents.heuristic import TruthfulMyopic
     from gosplan.experiments.phase2_acceptance import _rollout, arm_config
     from gosplan.metrics import phenomena
@@ -93,7 +95,16 @@ def test_storming_docstring_describes_the_baseline_as_built() -> None:
     assert gini(np.array([1.0, 0, 0, 0])) == gini(np.array([0, 0, 0, 1.0])) == 0.75
     assert gini(np.array([1.0, 1, 0, 0])) == gini(np.array([0, 0, 1, 1.0])) == 0.5
 
-    doc = _norm(phenomena.phenomenon_storming.__doc__ or "")
-    assert "absorbs the mechanical concentration" not in doc
-    assert "any gini excess is behavioural" not in doc
-    assert NOT_EVIDENCE in doc
+    implementation = phenomena.phenomenon_storming.__doc__ or ""
+    for source in (implementation, _spec_docstring("phenomenon_storming")):
+        doc = _norm(source)
+        assert "absorbs the mechanical concentration" not in doc
+        assert "any gini excess is behavioural" not in doc
+        assert NOT_EVIDENCE in doc
+
+
+def _spec_docstring(name: str) -> str:
+    """A function's docstring in `spec/spec.py`, read without importing the file."""
+    tree = ast.parse(_read("spec/spec.py"))
+    node = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == name)
+    return ast.get_docstring(node) or ""

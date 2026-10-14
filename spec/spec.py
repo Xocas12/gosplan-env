@@ -40,7 +40,7 @@ Array = np.ndarray
 """Alias for every numeric array in the interface (PLAN section 10). The JAX port substitutes its
 own array type behind the same name; no module may rely on numpy-only methods in a signature."""
 
-SPEC_VERSION = "2.1.0"
+SPEC_VERSION = "2.1.1"
 """Provisional spec version (PLAN section 10 header). Bumped to "1.0.0" by WO-013 at the v1 freeze;
 every later change needs a `spec/CHANGELOG.md` entry (CONTRACT rule 1). Written into every run
 manifest (CONTRACT rule 10)."""
@@ -1832,18 +1832,25 @@ def phenomenon_hidden_reserves(ledger: Ledger, cfg: EnvConfig) -> dict[str, floa
 def phenomenon_storming(
     ledger: Ledger, baseline_ledger: Ledger, cfg: EnvConfig
 ) -> dict[str, float]:
-    """Effort deferral beyond input timing - PLAN section 4.1 row 2. **Phase 2, held out.**
+    """Storming - PLAN section 4.1 row 2. **Phase 2, held out.**
 
     Class: **emergence** (Claim A). Operationalisation: `Gini_k(e_ik)` of *effort* across the steps
     of a period, minus the same Gini computed for the truthful-myopic heuristic under the same
-    delivery-timing draws (common random numbers). A positive excess means agents defer effort
-    beyond what input arrival forces - which is why the comparison ledger is a required argument
-    and not an optional convenience.
+    delivery-timing draws (common random numbers). The comparison ledger is a required argument,
+    not an optional convenience.
+
+    What the excess shows (2.1.1). The row was meant to measure effort deferred beyond what input
+    arrival forces. As built it does not. The truthful-myopic heuristic sets effort from its target
+    alone, and the target moves once a period, so its effort is constant within every period, its
+    Gini is 0, and the excess is the run's own Gini: nothing of input timing is netted out. The
+    Gini is also symmetric in step order, so effort pulled to the start of a period scores the same
+    as effort deferred to its end. A positive excess shows that effort varies within a period, and
+    nothing more. Row 2 as computed is not evidence for storming.
 
     HELD OUT (PLAN section 4.1), on the same terms as `phenomenon_hidden_reserves`. Mechanism
     parameters locked in PLAN section 4.2: `delivery_timing = "stochastic"` with
-    `arrival_probs = (0.25, 0.25, 0.25, 0.25)` - uniform-random arrival, so there is no mechanical
-    backloading and any Gini excess is behavioural - and `yield_sigma` at x1.
+    `arrival_probs = (0.25, 0.25, 0.25, 0.25)` - uniform-random arrival, so nothing pushes effort
+    late on average - and `yield_sigma` at x1.
 
     Takes: the run's `ledger`, the truthful-myopic `baseline_ledger` under identical draws, and
     `cfg`. Returns: a mapping with at least `gini`, `gini_baseline`, `excess`. Owning WO:

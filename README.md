@@ -26,7 +26,7 @@ the optional Sobol design (`gosplan/experiments/sobol.py`, not run by decision: 
 | `gosplan/experiments/` | Every experiment driver: MC sanity, regime map, DP vs PPO, the Phase-1 gate study, exploitability, the Phase-2 acceptance run, contrasts, estimator bias, price sensitivity, the LLM study and the final report |
 
 Spec revisions after the v1 freeze are pre-registered in `spec/P2_REVISION.md` (R1-R16) and
-`spec/P3_REVISION.md` (S1-S7) and logged in `spec/CHANGELOG.md`; the spec is at 2.1.0. The lead
+`spec/P3_REVISION.md` (S1-S7) and logged in `spec/CHANGELOG.md`; the spec is at 2.1.1. The lead
 rulings behind them are in `docs/rulings/`.
 
 ## Where the project stands
