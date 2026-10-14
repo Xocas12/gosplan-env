@@ -1,0 +1,3 @@
+# #106: a new regression test for CT's lone-producer leg and the self-enforcement check.
+# It edits no existing test. Remove this entry in a follow-up once the change is on main.
+tests/unit/test_coordination_trap_self_enforcement.py

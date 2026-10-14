@@ -1,7 +1,10 @@
 # Labelled study LC - record (LEAD)
 
 **Status: complete. LC is a labelled study and re-evaluates no gate.** G3 (NOT PASSED) and G3b stand
-as recorded. Written on 2026-09-29; the human sign-off is pending.
+as recorded. Written on 2026-09-29; the human sign-off is pending. Revised on 2026-10-14 (#106):
+qbar was added to the collapse table and to the bullets below it, the 2026-09-30 and 2026-10-03
+updates and the 2026-10-01 addendum were reworded so that they no longer call the collapse a
+coordination trap, and one follow-up candidate was added. No recorded number changed.
 
 - Pre-registration: `spec/P2_REVISION.md` R17, committed in cfba026 before any LC run.
 - Driver: `gosplan/experiments/learner_convergence.py`. Report: `runs/learner_convergence/report.md`.
@@ -27,13 +30,17 @@ Median exploitability went from 0.797 (1M) to -0.003 (3M). Per-seed values are i
 
 Read the primary result against this before citing it.
 
-| C0, seeds 0-9 | Mean effort | Mean return | Fictitious padding | Welfare (mean W) | welfare_ratio |
-|---|---|---|---|---|---|
-| 1M (G3b) | 0.195 | -16.0 | 0.040 | 0.087 | 0.0335 |
-| 3M (LC) | 0.019 | +0.27 | 0.000 | 0.000 on every seed | 0.0000 |
+| C0, seeds 0-9 | Mean effort | Mean return | Fictitious padding | Mean qbar | Welfare (mean W) | welfare_ratio |
+|---|---|---|---|---|---|---|
+| 1M (G3b) | 0.195 | -16.0 | 0.040 | 0.387 (0.06-0.75) | 0.087 | 0.0335 |
+| 3M (LC) | 0.019 | +0.27 | 0.000 | 0.000 (at most 3.4e-5) | 0.000 on every seed | 0.0000 |
 
 - With three times the training, the learned enterprises stop producing: mean effort 0.005-0.036
   on every seed. They also stop padding.
+- They also play quality of about 0: mean qbar (`quality.mean_quality` in `result.json`) is at
+  most 3.4e-5 on every seed, against 0.06-0.75 at 1M. Deliveries are credited `deliv * qbar`, so
+  what these populations deliver is worth almost nothing as an input: a producer among them earns
+  exactly the autarky payoff (`runs/CT_record.md`).
 - Their returns rise from about -16 to about 0. The large losses the 1M populations carried are
   gone.
 - Welfare is exactly 0 on all 10 seeds. The oracle and the truthful-myopic baseline, on the same
@@ -53,12 +60,18 @@ convergence to a functioning equilibrium.
   enterprises' outputs as inputs (near-Leontief, `theta = 8`), so when every supplier produces
   nothing, effort is wasted. **LC does not test this. It is an interpretation, not a finding.**
 
-## Update (2026-09-30): the coordination-trap reading was tested
+## Update (2026-09-30, revised 2026-10-14): the coordination-trap reading was tested
 
 See `runs/CT_record.md`. R18 was pre-registered and run as an evaluation-only test. Against the
-truthful-myopic producer, the 3M collapse **is** a coordination trap: producing alone does not pay,
-and everyone producing pays more. The "interpretation, not a finding" caveat above therefore no
-longer applies to that reading. What training does to reach the trap is still untested.
+truthful-myopic producer both of its tests hold at 3M (qbar at most 3.4e-5): producing alone does
+not pay, and everyone producing pays more. R18 calls that conjunction a coordination trap, and
+this update first read it that way.
+
+**Revised 2026-10-14 (#106).** The two tests do not tell a coordination trap from a quality
+free-rider dilemma. Producing alone is compared with the autarky payoff, and among truthful-myopic
+producers an enterprise gains by dropping quality, so all-production is not self-enforcing under
+C0. The "interpretation, not a finding" caveat above therefore still applies to the
+coordination-trap reading. What training does to reach the collapse is untested.
 
 ## Addendum (2026-10-01): training trajectories and a design caveat (descriptive, post hoc)
 
@@ -72,12 +85,13 @@ from the runs' `train_log.jsonl` (`python -m gosplan.experiments.learner_converg
 | median eval return, 3M runs | -191 | -43 | -20 | -6 | -1.3 | -0.01 | 0.49 | 0.71 |
 
 - **The collapse is a steady slide, not a late event.**
-  - Effort falls from about 0.66 to the trap level of about 0.02 by roughly 1.25-1.5M steps, then
-    stays there.
+  - Effort falls from about 0.66 to the collapse level of about 0.02 by roughly 1.25-1.5M steps,
+    then stays there.
   - Each enterprise's own evaluation return rises along the whole path. The learners improve
     their own payoff while welfare falls.
 - **The 1M populations were mid-slide.** Their median effort at 1M steps was already 0.09. G3, G3b
-  and the Phase-3 contrasts therefore describe an economy partway into the trap, which sharpens L5.
+  and the Phase-3 contrasts therefore describe an economy partway into the collapse, which
+  sharpens L5.
 - **Design caveat.**
   - The entropy bonus anneals from 0.01 to 0.001 over the whole run, so LC's budget manipulation
     also stretches the exploration schedule. At the 1M-step mark a 3M run's coefficient is 0.0070,
@@ -93,8 +107,8 @@ from the runs' `train_log.jsonl` (`python -m gosplan.experiments.learner_converg
 
 See `runs/ES_record.md`. R19 was pre-registered and run: 3M-step populations with the 1M runs'
 exact entropy schedule. They collapse just the same, with median effort 0.019 [95% CI 0.012,
-0.023], and land in the same coordination trap. The collapse is a training-length effect for this
-learner, not an artefact of the stretched schedule.
+0.023] and qbar at most 0.003, and both R18 tests hold on them too, with the same caveat. The
+collapse is a training-length effect for this learner, not an artefact of the stretched schedule.
 
 ## Consequences
 
@@ -109,4 +123,7 @@ learner, not an artefact of the stretched schedule.
   learner or configuration change follows from it without a new pre-registration"). Candidates:
   - a learner with a different exploration or population scheme;
   - contrasts at a fixed longer budget;
-  - a direct test of the coordination-trap reading, for example a population seeded with producers.
+  - a direct test of the coordination-trap reading, for example a population seeded with producers;
+  - a test that all-production is self-enforcing (does an enterprise among producers gain by
+    dropping quality or effort?), without which the trap reading cannot be told from a quality
+    free-rider dilemma (#106).

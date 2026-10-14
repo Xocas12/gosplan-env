@@ -1,9 +1,9 @@
 """Labelled study ES - training budget versus exploration schedule (spec/P2_REVISION.md R19).
 
-LC tripled the population budget (1M -> 3M agent-steps) and found the C0 economy collapsing into a
-coordination trap (`runs/LC_record.md`, `runs/CT_record.md`). Because the entropy bonus anneals
-over the whole run, LC's 3M runs also explored for longer: at the 1M-step mark their coefficient
-was 0.0070, against 0.0010 for a 1M run. ES separates the two.
+LC tripled the population budget (1M -> 3M agent-steps) and found the C0 economy collapsing to
+near-zero output (`runs/LC_record.md`; CT's R18 test, `runs/CT_record.md`). Because the entropy
+bonus anneals over the whole run, LC's 3M runs also explored for longer: at the 1M-step mark their
+coefficient was 0.0070, against 0.0010 for a 1M run. ES separates the two.
 
 Design (R19, fixed before any ES run): C0 under spec 2.1.0, seeds 0-9, the study learner, 3M
 agent-steps, with the entropy bonus annealed 0.01 -> 0.001 over the first 1,000 updates (1M
