@@ -80,6 +80,17 @@ this learner: with the 1M runs' exact schedule, a 3M-step run still collapses.
   when the other seats are producers. This matches CT's finding that the learned policy has
   partly unlearned production.
 
+## Update (2026-10-14): row 2 as computed is not evidence for storming (#105)
+
+The row-2 line under "Outcomes at 3M" (excess Gini 0.222, LC 0.220, "appear") has the defect
+recorded in `runs/G3_record.md` (update of 2026-10-14):
+- The truthful-myopic baseline's effort is constant within every period, so its Gini is 0. It is
+  exactly 0 in all 10 of ES's `p2_measure.json` files, and the excess equals the learned Gini.
+- The Gini has no time direction, so it cannot tell deferred effort from effort pulled forward.
+
+Both values stand as computed. They show that learned effort varies within a period, and nothing
+more.
+
 ## Limits
 
 - One alternative schedule was tested. ES separates budget from *this* schedule; it does not

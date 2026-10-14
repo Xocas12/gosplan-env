@@ -70,6 +70,17 @@ horizontal trade does not emerge.
 - **Checks:** JAX parity passes (7.1e-14). Hygiene passes (runaway 0.0000, `BOUND_BINDING` 0). The
   oracle gap is 0.
 
+## Update (2026-10-14): row 2 as computed is not evidence for storming (#105)
+
+The supplementary row-2 value above (0.118 [0.086, 0.150]) has the defect recorded in
+`runs/G3_record.md` (update of 2026-10-14):
+- The truthful-myopic baseline's effort is constant within every period, so its Gini is 0. It is
+  exactly 0 in all 30 of G3b's `p2_measure.json` files, and the excess equals the learned Gini.
+- The Gini has no time direction, so it cannot tell deferred effort from effort pulled forward.
+
+The value stands as computed. It shows that learned effort varies within a period, and nothing
+more.
+
 ## Consequences
 
 - G3 remains NOT PASSED. G3b adds two findings:

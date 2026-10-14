@@ -269,7 +269,7 @@ def _measured_reports(ledger: Ledger) -> list[StepRecord]:
 def phenomenon_storming(
     ledger: Ledger, baseline_ledger: Ledger, cfg: EnvConfig
 ) -> dict[str, float]:
-    """Row 2 - storming: effort deferred within the period beyond what input arrival forces.
+    """Row 2 - storming: within-period effort Gini in excess of the truthful-myopic baseline's.
 
     Class: **emergence** (Claim A). Phase: **2**. **HELD OUT.**
 
@@ -282,21 +282,33 @@ def phenomenon_storming(
     under **the same delivery-timing draws** (common random numbers - shared `seed_env`); `cfg`.
     Returns: a mapping with at least `gini`, `gini_baseline`, `excess`.
 
-    Operationalisation (PLAN section 4.1 row 2):
+    Operationalisation (PLAN section 4.1 row 2; spec/P2_REVISION.md R13.1):
 
         gini      = Gini_k(e_ik) of *effort* across the steps k = 0 .. M-1 within a period
         excess    = gini - gini_baseline
 
-    A positive excess means agents defer effort beyond what input arrival forces, which is why the
-    comparison ledger is a required argument and not an optional convenience: the baseline absorbs
-    the mechanical concentration that stochastic arrival alone produces. Effort is read from the
-    `effort` column of the PRODUCE rows, over the measurement window of PLAN section 4.4.
+    Effort is read from the `effort` column of the PRODUCE rows, over the measurement window of PLAN
+    section 4.4. The comparison ledger is a required argument, not an optional convenience.
+
+    What the excess shows (#105). The row was meant to measure effort deferred beyond what input
+    arrival forces, with the baseline netting out the concentration that stochastic arrival alone
+    produces. As built it measures neither:
+      - The baseline nets out nothing. `TruthfulMyopic` sets effort from its target alone
+        (observation field 2), and the target moves once a period, at the TARGET stage. Its effort
+        is therefore constant within every period whatever the delivery draws, `gini_baseline` is
+        0, and `excess` equals the run's own Gini.
+      - The Gini has no time direction. All of a period's effort at k = 0 and all of it at
+        k = M - 1 both give (M - 1) / M, so effort pulled to the start of a period scores the same
+        as effort deferred to its end.
+    A positive excess shows that effort varies within a period, and nothing more: a policy that
+    works only when inputs are on hand has one without deferring anything. Row 2 as computed is
+    not evidence for storming. Measuring storming needs a direction-aware statistic against a
+    reference that responds to input arrival, which is a new pre-registration.
 
     Locked mechanism parameters (PLAN section 4.2, so they cannot drift):
         delivery_timing = "stochastic"
         arrival_probs   = (0.25, 0.25, 0.25, 0.25)   uniform-random arrival over steps 0..3, so
-                                                     there is no mechanical backloading and any
-                                                     Gini excess is behavioural
+                                                     nothing pushes effort late on average
         yield_sigma     x1 (unchanged from the Phase-1 tuple)
 
     Owning WO: **WO-030**.

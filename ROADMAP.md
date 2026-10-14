@@ -258,7 +258,7 @@ The sanity harness computes and plots no held-out quantity (PLAN section 4.1, ro
 
 | Title | Diff. | Status |
 |---|---|---|
-| Spec v1 freeze | 3 | **done** - `SPEC_VERSION` 1.0.0, then post-freeze revisions to 2.1.0 in `spec/CHANGELOG.md` |
+| Spec v1 freeze | 3 | **done** - `SPEC_VERSION` 1.0.0, then post-freeze revisions to 2.1.1 in `spec/CHANGELOG.md` |
 | Single-enterprise DP | 4 | **done** - `gosplan/agents/dp.py` |
 | Regime map experiment | 3 | **done** - `runs/regime_map/` (500 points, 71 interior bunching candidates) |
 

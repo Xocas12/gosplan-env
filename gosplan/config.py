@@ -38,7 +38,7 @@ import tomllib
 from dataclasses import dataclass, field
 from typing import Literal
 
-SPEC_VERSION = "2.1.0"
+SPEC_VERSION = "2.1.1"
 """Mirror of `spec.spec.SPEC_VERSION` - the provisional (v0) interface version.
 
 WO-013 bumps it to `"1.0.0"` at gate G1 and every later change needs a `spec/CHANGELOG.md` entry
@@ -164,9 +164,11 @@ class SupplyConfig:
     arrival_probs: tuple[float, ...] = (0.25, 0.25, 0.25, 0.25)
     """SUPPLY. `pi_arrival`, distribution of a delivered unit's arrival step over `0..M-1`, used
     only when `delivery_timing != "uniform"` (PLAN section 2.6). Locked Phase-2 value from PLAN
-    section 4.2: uniform-random arrival, so no mechanical backloading and any effort-Gini excess is
-    behavioural. `validate` requires `len(arrival_probs) == steps_per_period` summing to 1 whenever
-    the timing is not `uniform`. Not tabulated in PLAN section 3."""
+    section 4.2: uniform-random arrival, so nothing pushes effort late on average. That does not
+    make uneven effort within a period behavioural: effort that follows inputs on hand is uneven
+    too (2.1.1; see `phenomenon_storming`). `validate` requires
+    `len(arrival_probs) == steps_per_period` summing to 1 whenever the timing is not `uniform`. Not
+    tabulated in PLAN section 3."""
 
     holding_loss: float = 0.02
     """SUPPLY. `h`, per-period proportional loss on carried own-good stock, applied before this

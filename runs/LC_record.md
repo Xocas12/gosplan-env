@@ -96,6 +96,19 @@ exact entropy schedule. They collapse just the same, with median effort 0.019 [9
 0.023], and land in the same coordination trap. The collapse is a training-length effect for this
 learner, not an artefact of the stretched schedule.
 
+## Update (2026-10-14): row 2 as computed is not evidence for storming (#105)
+
+This record quotes no row-2 value, but the acceptance-harness output in
+`runs/learner_convergence/report.md` prints one for the 3M populations (excess Gini 0.220,
+APPEARS), and `runs/ES_record.md` cites it. It has the defect recorded in `runs/G3_record.md`
+(update of 2026-10-14):
+- The truthful-myopic baseline's effort is constant within every period, so its Gini is 0. It is
+  exactly 0 in all 10 of LC's `p2_measure.json` files, and the excess equals the learned Gini.
+- The Gini has no time direction, so it cannot tell deferred effort from effort pulled forward.
+
+The value stands as computed. It shows that learned effort varies within a period, and nothing
+more.
+
 ## Consequences
 
 - **L4 stands.** The populations are non-converged at both budgets.
