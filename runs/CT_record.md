@@ -91,8 +91,8 @@ dilemma points instead towards incentive reform such as R3_QW.
 
 ## Limits
 
-- One producer policy was used. Test (i) failing for `TruthfulMyopic` does not show that no
-  producing strategy pays alone.
+- One producer policy was used. Test (i) holding for `TruthfulMyopic` (the producer losing when
+  it produces alone) does not show that no producing strategy pays alone.
 - R18's two tests do not test whether all-production is self-enforcing (see the reading above).
 - CT reuses the 3M populations as trained. Why training reaches the collapse is not tested.
 - No gate is re-evaluated. G3 (NOT PASSED), G3b and LC stand as recorded, and so do limitations

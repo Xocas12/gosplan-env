@@ -708,7 +708,10 @@ _Source: `runs/LC_record.md`_
 ### Labelled study LC - record (LEAD)
 
 **Status: complete. LC is a labelled study and re-evaluates no gate.** G3 (NOT PASSED) and G3b stand
-as recorded. Written on 2026-09-29; the human sign-off is pending.
+as recorded. Written on 2026-09-29; the human sign-off is pending. Revised on 2026-10-14 (#106):
+qbar was added to the collapse table and to the bullets below it, the 2026-09-30 and 2026-10-03
+updates and the 2026-10-01 addendum were reworded so that they no longer call the collapse a
+coordination trap, and one follow-up candidate was added. No recorded number changed.
 
 - Pre-registration: `spec/P2_REVISION.md` R17, committed in cfba026 before any LC run.
 - Driver: `gosplan/experiments/learner_convergence.py`. Report: `runs/learner_convergence/report.md`.
@@ -1066,8 +1069,8 @@ dilemma points instead towards incentive reform such as R3_QW.
 
 #### Limits
 
-- One producer policy was used. Test (i) failing for `TruthfulMyopic` does not show that no
-  producing strategy pays alone.
+- One producer policy was used. Test (i) holding for `TruthfulMyopic` (the producer losing when
+  it produces alone) does not show that no producing strategy pays alone.
 - R18's two tests do not test whether all-production is self-enforcing (see the reading above).
 - CT reuses the 3M populations as trained. Why training reaches the collapse is not tested.
 - No gate is re-evaluated. G3 (NOT PASSED), G3b and LC stand as recorded, and so do limitations
