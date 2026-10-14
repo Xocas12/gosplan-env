@@ -39,8 +39,11 @@ The 1M populations are not a trap. Several are so far from equilibrium (seat-0 r
     each seed, for example -1.425 against both for seed 1000.
   - Against all-producers, the same seat is better off.
   - Both learned populations therefore leave a producer similarly short. This fits the input
-    starvation that the hoarding result (row 5) and the buy-only trade offers (row 6, G3b) point
-    to. CT did not measure the producer's input receipts, so this is a reading.
+    starvation that the hoarding result (row 5) points to. CT did not measure the producer's input
+    receipts, so this is a reading.
+  - The buy-only trade offers of G3b are not evidence of input starvation. Under R9 a sale never
+    pays the seller, so no learner offers to sell whatever its inputs (`runs/G3b_record.md`,
+    correction of 2026-10-14).
 - **The learned policy responds only weakly to available inputs.** Seat 0's learned effort rises
   when the other seats are producers: at 3M the median rises from about 0.02 to about 0.14, with
   seed 1007 flat at 0.006. That is still far below what a producer supplies, so the trained policy
