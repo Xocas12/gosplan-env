@@ -652,8 +652,12 @@ changes.
 - **The seller's own reward cannot rise.** The only trade term in the reward is each enterprise's
   own `trade_surplus` (R9.5): the change in its own intended output through coverage. Coverage
   never falls as a stock grows.
-  - A sale is worth exactly 0 to a seller whose coverage of the sold good does not bind, and less
-    than 0 to one whose coverage does.
+  - A sale is never worth more than 0 to the seller. It is worth exactly 0 when the seller's stock
+    of the sold good still covers its need after the sale.
+  - It is worth less than 0 when the sale takes the stock below need, unless another input already
+    holds the seller's output down: one it holds none of, or, with a Leontief aggregator
+    (`theta = inf`), one whose coverage is no higher than the sold good's after the sale. Then it
+    is worth exactly 0.
   - A buy never lowers the buyer's surplus.
   - The gain from moving an input to where coverage binds goes wholly to the buyer.
 - **Nothing else pays the seller.** The planner never sees input stocks, cost depends on effort
@@ -662,8 +666,10 @@ changes.
   anonymous and no observation shows who traded with whom, so reciprocity cannot be learned
   either.
 - **Checked** in `tests/unit/test_trade_seller_incentive.py`:
-  - two hand-worked cases: a seller whose coverage does not bind gains exactly 0, and one whose
-    coverage binds loses;
+  - hand-worked cases: a sale that leaves the seller's stock above its need gains it exactly 0; a
+    sale that takes the stock below need loses; and a sale below need gains exactly 0 when the
+    seller holds none of another needed input, or, under `theta = inf`, when another needed
+    input's coverage is lower than the sold good's after the sale;
   - 300 random states of `p2_default_config()`: wherever the sale executed (70 cases), the
     seller's own surplus never rose, and a buy never lowered the buyer's.
 
@@ -1051,8 +1057,10 @@ The 1M populations are not a trap. Several are so far from equilibrium (seat-0 r
     starvation that the hoarding result (row 5) points to. CT did not measure the producer's input
     receipts, so this is a reading.
   - The buy-only trade offers of G3b are not evidence of input starvation. Under R9 a sale never
-    pays the seller, so no learner offers to sell whatever its inputs (`runs/G3b_record.md`,
-    correction of 2026-10-14).
+    pays the seller and a buy never lowers the buyer's own surplus, so an individually rewarded
+    learner gains nothing by selling and loses nothing by buying, whatever its inputs. Buy-only
+    offers are what the rule predicts with or without starvation. Row 6 is not evaluable under R9
+    (`runs/G3b_record.md`, correction of 2026-10-14).
 - **The learned policy responds only weakly to available inputs.** Seat 0's learned effort rises
   when the other seats are producers: at 3M the median rises from about 0.02 to about 0.14, with
   seed 1007 flat at 0.006. That is still far below what a producer supplies, so the trained policy

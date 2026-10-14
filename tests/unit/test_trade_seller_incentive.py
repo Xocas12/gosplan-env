@@ -4,8 +4,11 @@ Under R9 an executed sale lowers the seller's stock (`X_ij -= x`) and credits th
 (`X_bj += (1 - tau) x`). Nothing comes back to the seller: no good, no money, no credit. The only
 trade term in the reward is each enterprise's own `trade_surplus`, the change in its own intended
 output through the coverage aggregator, and coverage never falls as a stock grows. So a sale is
-worth exactly 0 to a seller whose coverage of the sold good does not bind, and less than 0 to one
-whose coverage does, while a buy never lowers the buyer's surplus.
+never worth more than 0 to the seller. It is worth exactly 0 when the seller's stock of the sold
+good still covers its need after the sale, and less than 0 when the sale takes the stock below
+need, unless another input already holds the seller's output down: one it holds none of, or, under
+`theta = inf`, one whose coverage is no higher than the sold good's after the sale. A buy never
+lowers the buyer's surplus.
 
 The row-6 (blat) readings in `runs/G3b_record.md`, `runs/LC_record.md`, `runs/CT_record.md`,
 `runs/P3_record.md` and `README.md` rest on this: row 6 is not evaluable under R9, because no
@@ -21,15 +24,17 @@ from __future__ import annotations
 import dataclasses
 
 import numpy as np
+import pytest
 
 from gosplan.config import p1_default_config, p2_default_config
 
 
-def _three():
+def _three(theta=8.0):
     """Three enterprises, sectors (0, 0, 1); each sector needs both goods."""
     base = p1_default_config()
     supply = dataclasses.replace(
         base.supply,
+        input_complementarity=theta,
         n_enterprises=3,
         n_sectors=2,
         sector_of=(0, 0, 1),
@@ -45,12 +50,12 @@ def _three():
     return cfg
 
 
-def _sell_good_0(x0, seller_offer):
+def _sell_good_0(x0, seller_offer, theta=8.0):
     """Enterprise 0 offers `seller_offer` of its good-0 stock; enterprise 2 wants 0.04 of good 0."""
     from gosplan.env.state import initial_state
     from gosplan.env.trade import execute_trades, trade_surplus
 
-    cfg = _three()
+    cfg = _three(theta)
     state = initial_state(cfg)
     offers = np.zeros((3, 2))
     offers[0, 0], offers[2, 0] = seller_offer, -1.0
@@ -84,14 +89,43 @@ def test_a_seller_whose_coverage_does_not_bind_gains_nothing_from_a_sale() -> No
     assert x1[0, 1] == x0[0, 1]  # nothing comes back to the seller
 
 
-def test_a_seller_whose_coverage_binds_loses_from_a_sale() -> None:
-    """R9.3-R9.5, hand-worked, as above but with the seller holding 0.03 of good 0 (need 0.025).
-    It offers 2/3 of it, so x = 0.02 and its good-0 stock falls to 0.01 (ratio 0.4): its own
-    surplus is negative while the buyer's is positive."""
+def test_a_sale_that_takes_the_sellers_coverage_below_need_loses() -> None:
+    """R9.3-R9.5, hand-worked, as above but with the seller holding 0.03 of good 0 against a need
+    of 0.025 (ratio 1.2, so its coverage of good 0 does not bind before the sale). It offers 2/3
+    of it, so x = 0.02 and its good-0 stock falls to 0.01 (ratio 0.4): the sale takes it below
+    need, so its own surplus is negative while the buyer's is positive."""
     x0 = np.array([[0.03, 0.02], [0.0, 0.0], [0.01, 0.10]])
     x1, sold, surplus = _sell_good_0(x0, 2.0 / 3.0)
     assert np.isclose(sold[0], 0.02)
+    assert x1[0, 0] < 0.025
     assert surplus[0] < 0.0
+    assert surplus[2] > 0.0
+    assert x1[0, 1] == x0[0, 1]
+
+
+@pytest.mark.parametrize(
+    ("theta", "seller_good_1"),
+    [
+        (8.0, 0.0),  # holds none of good 1: H = 0 before and after the sale
+        (float("inf"), 0.005),  # good-1 ratio 0.1 stays the Leontief minimum below 0.4
+    ],
+)
+def test_a_sale_below_need_is_worth_nothing_when_another_input_already_holds_output_down(
+    theta, seller_good_1
+) -> None:
+    """R9.3-R9.5, hand-worked: the below-need sale above, by a seller already held down by good 1.
+
+    With `theta` finite a zero coverage ratio sends `H` to 0, so a seller holding none of good 1
+    has an intended output of 0 before and after it sells. With `theta = inf`, `H` is the smallest
+    ratio, and good 1's 0.1 stays below good 0's 0.4 after the sale. Either way the sale takes the
+    seller's good-0 stock below need and its own surplus is exactly 0, not negative, while the
+    buyer still gains.
+    """
+    x0 = np.array([[0.03, seller_good_1], [0.0, 0.0], [0.01, 0.10]])
+    x1, sold, surplus = _sell_good_0(x0, 2.0 / 3.0, theta)
+    assert np.isclose(sold[0], 0.02)
+    assert x1[0, 0] < 0.025
+    assert surplus[0] == 0.0
     assert surplus[2] > 0.0
     assert x1[0, 1] == x0[0, 1]
 

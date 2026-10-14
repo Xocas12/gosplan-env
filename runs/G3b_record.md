@@ -103,8 +103,12 @@ changes.
 - **The seller's own reward cannot rise.** The only trade term in the reward is each enterprise's
   own `trade_surplus` (R9.5): the change in its own intended output through coverage. Coverage
   never falls as a stock grows.
-  - A sale is worth exactly 0 to a seller whose coverage of the sold good does not bind, and less
-    than 0 to one whose coverage does.
+  - A sale is never worth more than 0 to the seller. It is worth exactly 0 when the seller's stock
+    of the sold good still covers its need after the sale.
+  - It is worth less than 0 when the sale takes the stock below need, unless another input already
+    holds the seller's output down: one it holds none of, or, with a Leontief aggregator
+    (`theta = inf`), one whose coverage is no higher than the sold good's after the sale. Then it
+    is worth exactly 0.
   - A buy never lowers the buyer's surplus.
   - The gain from moving an input to where coverage binds goes wholly to the buyer.
 - **Nothing else pays the seller.** The planner never sees input stocks, cost depends on effort
@@ -113,8 +117,10 @@ changes.
   anonymous and no observation shows who traded with whom, so reciprocity cannot be learned
   either.
 - **Checked** in `tests/unit/test_trade_seller_incentive.py`:
-  - two hand-worked cases: a seller whose coverage does not bind gains exactly 0, and one whose
-    coverage binds loses;
+  - hand-worked cases: a sale that leaves the seller's stock above its need gains it exactly 0; a
+    sale that takes the stock below need loses; and a sale below need gains exactly 0 when the
+    seller holds none of another needed input, or, under `theta = inf`, when another needed
+    input's coverage is lower than the sold good's after the sale;
   - 300 random states of `p2_default_config()`: wherever the sale executed (70 cases), the
     seller's own surplus never rose, and a buy never lowered the buyer's.
 
