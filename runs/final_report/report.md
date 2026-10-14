@@ -407,6 +407,29 @@ CONTRACT rule 8 it is reported that way, not as a free estimate.
 - This is a behavioural result of the pre-registered mechanisms, not a pipeline artefact. The
   oracle and the truthful baseline use the same measurement.
 
+#### Update (2026-10-14): row 2 as computed is not evidence for storming (#105)
+
+Row 2 was meant to measure effort deferred beyond what input timing forces (Claim A(iv)). The
+statistic as built cannot show that. The **appears** above means only that learned effort varies
+within a period.
+
+- **The baseline subtracts nothing.** `TruthfulMyopic` sets effort from its target alone, and the
+  target moves once a period, so its effort is constant within every period whatever the delivery
+  draws, and its Gini is 0. In all 50 of this run's `p2_measure.json` files `gini_baseline` is
+  exactly 0 and `excess` equals the learned Gini. Nothing of input timing is netted out.
+- **The Gini has no time direction.** All of a period's effort at k = 0 and all of it at k = 3 both
+  score 0.75. The statistic cannot tell effort deferred to the end of a period from effort pulled
+  to its start.
+- **Policies that defer nothing pass the rule.** Effort that follows the inputs on hand varies
+  within a period without being deferred. Putting a whole period's effort at k = 0, the opposite of
+  storming, scores 0.75, above every learned value reported. #105 tabulates such controls on C0.
+- **What stands.** The value, 0.137 [0.095, 0.184], and R14's verdict stand as computed; nothing
+  is re-run or re-defined. What changes is what they are evidence for: the learner observes k/M,
+  cumulative output and input coverage, all of which move within a period, so its effort would vary
+  whether or not it defers. Measuring storming needs a direction-aware statistic (for example the
+  effort-weighted mean step k/M) against a reference that responds to input arrival. That is a new
+  pre-registration and the owner's decision.
+
 #### LEAD diagnosis
 
 **D1 - trade was structurally impossible (a pipeline defect).**
@@ -619,6 +642,17 @@ horizontal trade does not emerge.
 - **Checks:** JAX parity passes (7.1e-14). Hygiene passes (runaway 0.0000, `BOUND_BINDING` 0). The
   oracle gap is 0.
 
+#### Update (2026-10-14): row 2 as computed is not evidence for storming (#105)
+
+The supplementary row-2 value above (0.118 [0.086, 0.150]) has the defect recorded in
+`runs/G3_record.md` (update of 2026-10-14):
+- The truthful-myopic baseline's effort is constant within every period, so its Gini is 0. It is
+  exactly 0 in all 30 of G3b's `p2_measure.json` files, and the excess equals the learned Gini.
+- The Gini has no time direction, so it cannot tell deferred effort from effort pulled forward.
+
+The value stands as computed. It shows that learned effort varies within a period, and nothing
+more.
+
 #### Consequences
 
 - G3 remains NOT PASSED. G3b adds two findings:
@@ -802,6 +836,19 @@ See `runs/ES_record.md`. R19 was pre-registered and run: 3M-step populations wit
 exact entropy schedule. They collapse just the same, with median effort 0.019 [95% CI 0.012,
 0.023], and land in the same coordination trap. The collapse is a training-length effect for this
 learner, not an artefact of the stretched schedule.
+
+#### Update (2026-10-14): row 2 as computed is not evidence for storming (#105)
+
+This record quotes no row-2 value, but the acceptance-harness output in
+`runs/learner_convergence/report.md` prints one for the 3M populations (excess Gini 0.220,
+APPEARS), and `runs/ES_record.md` cites it. It has the defect recorded in `runs/G3_record.md`
+(update of 2026-10-14):
+- The truthful-myopic baseline's effort is constant within every period, so its Gini is 0. It is
+  exactly 0 in all 10 of LC's `p2_measure.json` files, and the excess equals the learned Gini.
+- The Gini has no time direction, so it cannot tell deferred effort from effort pulled forward.
+
+The value stands as computed. It shows that learned effort varies within a period, and nothing
+more.
 
 #### Consequences
 
@@ -1160,6 +1207,17 @@ this learner: with the 1M runs' exact schedule, a 3M-step run still collapses.
 - Seat 0's learned effort rises from about 0.02 to between 0.03 and 0.45 (median about 0.15)
   when the other seats are producers. This matches CT's finding that the learned policy has
   partly unlearned production.
+
+#### Update (2026-10-14): row 2 as computed is not evidence for storming (#105)
+
+The row-2 line under "Outcomes at 3M" (excess Gini 0.222, LC 0.220, "appear") has the defect
+recorded in `runs/G3_record.md` (update of 2026-10-14):
+- The truthful-myopic baseline's effort is constant within every period, so its Gini is 0. It is
+  exactly 0 in all 10 of ES's `p2_measure.json` files, and the excess equals the learned Gini.
+- The Gini has no time direction, so it cannot tell deferred effort from effort pulled forward.
+
+Both values stand as computed. They show that learned effort varies within a period, and nothing
+more.
 
 #### Limits
 

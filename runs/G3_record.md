@@ -44,6 +44,29 @@ CONTRACT rule 8 it is reported that way, not as a free estimate.
 - This is a behavioural result of the pre-registered mechanisms, not a pipeline artefact. The
   oracle and the truthful baseline use the same measurement.
 
+## Update (2026-10-14): row 2 as computed is not evidence for storming (#105)
+
+Row 2 was meant to measure effort deferred beyond what input timing forces (Claim A(iv)). The
+statistic as built cannot show that. The **appears** above means only that learned effort varies
+within a period.
+
+- **The baseline subtracts nothing.** `TruthfulMyopic` sets effort from its target alone, and the
+  target moves once a period, so its effort is constant within every period whatever the delivery
+  draws, and its Gini is 0. In all 50 of this run's `p2_measure.json` files `gini_baseline` is
+  exactly 0 and `excess` equals the learned Gini. Nothing of input timing is netted out.
+- **The Gini has no time direction.** All of a period's effort at k = 0 and all of it at k = 3 both
+  score 0.75. The statistic cannot tell effort deferred to the end of a period from effort pulled
+  to its start.
+- **Policies that defer nothing pass the rule.** Effort that follows the inputs on hand varies
+  within a period without being deferred. Putting a whole period's effort at k = 0, the opposite of
+  storming, scores 0.75, above every learned value reported. #105 tabulates such controls on C0.
+- **What stands.** The value, 0.137 [0.095, 0.184], and R14's verdict stand as computed; nothing
+  is re-run or re-defined. What changes is what they are evidence for: the learner observes k/M,
+  cumulative output and input coverage, all of which move within a period, so its effort would vary
+  whether or not it defers. Measuring storming needs a direction-aware statistic (for example the
+  effort-weighted mean step k/M) against a reference that responds to input arrival. That is a new
+  pre-registration and the owner's decision.
+
 ## LEAD diagnosis
 
 **D1 - trade was structurally impossible (a pipeline defect).**

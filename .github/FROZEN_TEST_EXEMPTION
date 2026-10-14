@@ -1,0 +1,4 @@
+# #105: a new test that ties the row-2 (storming) correction to the committed measurements, the
+# records, the final report and the docstrings. It adds a file under tests/unit and edits no
+# existing test. Remove this file once the change has landed on main, as #100 did after #84.
+tests/unit/test_row2_storming_records.py
