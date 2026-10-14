@@ -59,7 +59,7 @@ this learner: with the 1M runs' exact schedule, a 3M-step run still collapses.
   - row 2 (storming) and row 5 (hoarding) appear: excess Gini 0.222 (LC 0.220), request-inflation
     excess 1.79 (LC 1.98);
   - row 6 (trade volume) stays at 0.
-- R16 exploitability:
+- R16 exploitability (500k-step best responders, not R16's 1M; see the correction at the end):
   - Median -0.008 and max 0.173, with 1 of 10 seeds above 5%. LC 3M had median -0.003 and 3 of
     10 above.
   - The paired difference from LC is median +0.003 [95% CI -0.296, +0.950], so no difference is
@@ -97,3 +97,12 @@ this learner: with the 1M runs' exact schedule, a 3M-step run still collapses.
 - The project's mechanism result now holds under both 3M schedules. Given enough training, C0
   learners settle into a Pareto-dominated no-production coordination trap.
 - Any follow-up is the owner's decision and needs a new pre-registration (#97).
+
+## Correction (2026-10-14): the R16 audit ran with 500k-step best responders (#108)
+
+ES kept LC's R16 audit, which registered 1M best-responder steps. As run, ES's best responders
+trained for 500k agent-steps, as LC's and G3b's did; the cause and the evidence are in
+`runs/G3b_record.md` (correction). ES's R16 figures above (median -0.008, max 0.173, and the paired
+difference from LC) all come from that 500k audit, and the paired difference compares two 500k
+audits. The primary result and the coordination-trap test do not use the best responder and are
+unaffected. Nothing here was re-run.

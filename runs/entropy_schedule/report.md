@@ -2,6 +2,12 @@
 
 C0, seeds 0-9, 3M agent-steps with the entropy bonus annealed over the first 1M steps (the 1M runs' schedule) and held at 0.001 after; R16 audit unchanged. Pre-registered before any ES run. ES re-evaluates no gate.
 
+> **Correction (2026-10-14, #108).** The R16 audit's best responders trained for 500k
+> agent-steps, not R16's 1M, here and in LC. The 1M budget was set in the parent process only
+> and did not reach the spawned audit workers; `exploitability/C0_report.md` and the
+> best-responder manifests record 500000. Every exploitability figure below is from a 500k
+> audit. See `runs/G3b_record.md` and `runs/ES_record.md` (corrections).
+
 ## Primary: does the collapse reproduce under the matched schedule?
 
 | seed | final mean effort |

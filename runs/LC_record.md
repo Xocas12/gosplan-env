@@ -7,6 +7,8 @@ as recorded. Written on 2026-09-29; the human sign-off is pending.
 - Driver: `gosplan/experiments/learner_convergence.py`. Report: `runs/learner_convergence/report.md`.
 - Design: C0, seeds 0-9, population budget 3M agent-steps against G3b's 1M. Everything else is
   unchanged, including the R16 audit.
+- As run, the R16 audit's best responders trained for 500k agent-steps, not R16's 1M, in both
+  legs (found on 2026-10-14, #108). See the correction at the end of this record.
 - The run started at 09:15 UTC. A container reboot at about 15:25 UTC killed it with 8 of 10 runs
   complete.
   - It was relaunched at 15:30 UTC. The 8 completed runs were read back.
@@ -110,3 +112,15 @@ learner, not an artefact of the stretched schedule.
   - a learner with a different exploration or population scheme;
   - contrasts at a fixed longer budget;
   - a direct test of the coordination-trap reading, for example a population seeded with producers.
+
+## Correction (2026-10-14): the R16 audit ran with 500k-step best responders (#108)
+
+R17 kept R16's 1M best-responder budget. As run, the best responders of both legs trained for
+500k agent-steps, R14's default; the cause and the evidence are in `runs/G3b_record.md`
+(correction).
+- The paired comparison is still like-for-like, because both legs used 500k. "Exploitability falls
+  with budget" stands, as a statement about a 500k-step audit.
+- The 3M figures (median -0.003, max 0.429) are weaker evidence of convergence than R17's design
+  would give. A best responder with the registered 1M steps might find more to gain against the 3M
+  populations. That has not been measured.
+- Nothing here was re-run.

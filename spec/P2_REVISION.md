@@ -395,6 +395,14 @@ return, so the audit measured the best responder's weakness, not the population'
 **Application.** Implemented with R15, and applied only after the in-flight Phase-3 runs finish.
 Those runs' own exploitability numbers come from the old audit and are labelled as such.
 
+**R16 deviation note (2026-10-14, #108; no design change).** The 1M budget above never reached
+the audit. The G3b, LC and ES drivers set it on the harness module in the parent process, and
+the audit's `spawn` workers re-imported the module and read R14's 500k default. Every R16 best
+responder so far (G3b, LC and ES, 10 each) therefore trained for 500k agent-steps, as its
+manifest records. The rule is unchanged and the results are not re-run. The deviation is
+recorded in `runs/G3b_record.md`, `runs/LC_record.md` and `runs/ES_record.md`, and the harness
+now passes the budget to each audit worker in its job.
+
 ## R17. Learner-convergence study LC (labelled) - pre-registered before any LC run
 
 Written on 2026-09-29, after G3b (`runs/G3b_record.md`) and before any LC training.
@@ -429,6 +437,10 @@ limitation L4). Does tripling the population's training budget lower that exploi
 - Its outcome is reported whichever way it falls.
 - No further budget, learner or configuration change follows from it without a new
   pre-registration.
+
+**R17 note (2026-10-14, #108).** As run, the best responders of both legs trained for 500k
+agent-steps, not R16's 1M (R16 deviation note). The comparison stays like-for-like, because the
+best-responder budget was the same in both legs.
 
 ## R18. Coordination-trap test CT (labelled) - pre-registered before the CT evaluation
 
@@ -539,3 +551,5 @@ Training is deterministic and checkpoints restore exactly, so reuse equals retra
 (`tests/unit/test_best_responder_reuse.py`). The audit therefore resumes at the first unfinished
 seed. The best responder's learner and budget are unchanged (R16).
 
+**R19 note (2026-10-14, #108).** The unchanged budget in the note above is R16's registered 1M.
+As run, ES's best responders trained for 500k agent-steps, as LC's did (R16 deviation note).
