@@ -21,6 +21,14 @@ against when they are the learned population (does the learned policy produce wh
 Every evaluation uses the deterministic policies, the measurement seed block and the measurement
 window of the exploitability audit (common random numbers across conditions). CT re-evaluates no
 gate.
+
+What the two tests cannot show (#106). (i) says the no-production state is stable against the
+producer and (ii) that all-production Pareto-dominates it; neither says that all-production is
+itself an equilibrium, which a coordination trap needs (mutual defection in a prisoner's dilemma
+passes both). `--self-enforcement` writes a descriptive, post-hoc check that needs no checkpoint,
+because every seat in it is a heuristic: seat 0's return as a producer against inert seats (the
+all-zero action), against producers at quality 0, and among producers at quality 1 and 0
+(`self_enforcement`). Not pre-registered; no decision rule is attached.
 """
 
 from __future__ import annotations
@@ -40,6 +48,27 @@ CT_SEEDS = 10
 CT_EPISODES = 50
 SEAT = 0
 BOOTSTRAP_RESAMPLES = 10_000
+
+ACTION_FIELDS = ("effort", "quality", "invest", "report_ratio", "input_request", "trade_offer")
+SELF_ENFORCEMENT_CONDITIONS = {
+    "alone": "seat 0 producer; the other seats inert (the all-zero action, quality 0)",
+    "amid_q0": "seat 0 producer; the other seats producers at quality 0",
+    "producers": "every seat a producer (quality 1)",
+    "producers_seat0_q0": "every seat a producer; seat 0 at quality 0",
+}
+"""Joint actions of the `--self-enforcement` check. Producer = `TruthfulMyopic`, which plays
+quality 1 when quality matters (spec/P2_REVISION.md R13.8)."""
+TRAINED_POPULATIONS = {
+    # name: (qbar source, R_dev source and the key of its rows)
+    "LC 3M": (Path("runs/learner_convergence/result.json"), CT_DIR / "result.json", "3M"),
+    "ES 3M": (
+        Path("runs/entropy_schedule/result.json"),
+        Path("runs/entropy_schedule/comparison.json"),
+        "trap_rows",
+    ),
+    "G3b 1M": (Path("runs/phase2_acceptance_g3b/result.json"), CT_DIR / "result.json", "1M"),
+}
+"""Every population R18 was run on, with where its mean quality and its CT `R_dev` are recorded."""
 
 
 def median_ci(values, n_resamples: int = BOOTSTRAP_RESAMPLES) -> tuple[float, float, float]:
@@ -95,14 +124,7 @@ def _mixed_episode_stats(cfg, pop_agent, producer_seats: np.ndarray, n_episodes:
             action = pop_agent._to_action(_deterministic_rows(pop_agent, obs, phase))
             if producer_seats.any():
                 prod = tm.act(obs, phase, rng)
-                for name in (
-                    "effort",
-                    "quality",
-                    "invest",
-                    "report_ratio",
-                    "input_request",
-                    "trade_offer",
-                ):
+                for name in ACTION_FIELDS:
                     mine = np.array(getattr(action, name), dtype=float, copy=True)
                     mine[producer_seats] = np.asarray(getattr(prod, name), dtype=float)[
                         producer_seats
@@ -145,7 +167,191 @@ def evaluate_population(job: tuple) -> dict[str, object]:
         ),
         "effort_learned_amid_learned": learned["seat0_effort"],
         "effort_learned_amid_producers": amid["seat0_effort"],
+        # Not in R18 and not in the committed result (#106): seat 0's own return in condition 4.
+        "R_learned_amid_producers": amid["per_seat"][SEAT],
     }
+
+
+def _heuristic_joint_action(cfg, condition: str):
+    """`(obs, phase) -> EnterpriseAction` for one of `SELF_ENFORCEMENT_CONDITIONS`."""
+    from gosplan.agents.heuristic import TruthfulMyopic
+
+    if condition not in SELF_ENFORCEMENT_CONDITIONS:
+        raise ValueError(f"unknown condition {condition!r}")
+    tm = TruthfulMyopic(cfg)
+    rng = np.random.default_rng(0)  # unused by TruthfulMyopic, which is deterministic
+    others = np.arange(cfg.supply.n_enterprises) != SEAT
+
+    def act(obs, phase):
+        action = tm.act(obs, phase, rng)
+        if condition == "alone":
+            for name in ACTION_FIELDS:
+                mine = np.array(getattr(action, name), dtype=float, copy=True)
+                mine[others] = 0.0
+                setattr(action, name, mine)
+        elif condition == "amid_q0":
+            action.quality = np.where(others, 0.0, np.asarray(action.quality, dtype=float))
+        elif condition == "producers_seat0_q0":
+            action.quality = np.where(others, np.asarray(action.quality, dtype=float), 0.0)
+        return action
+
+    return act
+
+
+def heuristic_seat_returns(cfg, condition: str, n_episodes: int = CT_EPISODES) -> np.ndarray:
+    """Per-seat mean return over the measurement window under one of
+    `SELF_ENFORCEMENT_CONDITIONS`, on the episodes, seed block and window `_mixed_episode_stats`
+    uses, so each value is comparable with CT's (common random numbers)."""
+    from gosplan.env.env import GosplanEnv
+    from gosplan.experiments._g2 import MEASURE_SEED_OFFSET
+    from gosplan.experiments.exploitability import MEASUREMENT_WINDOW_START_PERIOD
+
+    joint_action = _heuristic_joint_action(cfg, condition)
+    env = GosplanEnv(cfg, records=False)
+    totals = np.zeros(cfg.supply.n_enterprises)
+    for e in range(n_episodes):
+        obs, _ = env.reset(int(cfg.tech.seed_env) + MEASURE_SEED_OFFSET + e, cfg.tech.seed_policy)
+        done = False
+        while not done:
+            phase = env.phase()
+            obs, reward, done, info = env.step(joint_action(obs, phase))
+            if info.t_period >= MEASUREMENT_WINDOW_START_PERIOD:
+                totals += np.asarray(reward, dtype=float)
+    return totals / n_episodes
+
+
+def self_enforcement(cfg, n_episodes: int = CT_EPISODES) -> dict[str, float]:
+    """Seat 0's return under each of `SELF_ENFORCEMENT_CONDITIONS`, and what it gains by dropping
+    quality among producers (#106; descriptive, not pre-registered).
+
+    `R_alone` is the inert-opponent payoff: R18's `R_dev` equals it whenever the learned seats
+    deliver nothing usable. `R_amid_q0` shows that producers at quality 0 deliver nothing usable
+    either, since a delivery is credited `deliv * qbar`. `quality_gain` (`R_producers_seat0_q0 -
+    R_producers`) is positive when all-production is not self-enforcing against a quality cut."""
+    r = {
+        c: float(heuristic_seat_returns(cfg, c, n_episodes)[SEAT])
+        for c in SELF_ENFORCEMENT_CONDITIONS
+    }
+    return {
+        "seed_env": int(cfg.tech.seed_env),
+        **{f"R_{c}": v for c, v in r.items()},
+        "quality_gain": r["producers_seat0_q0"] - r["producers"],
+    }
+
+
+def committed_populations() -> dict[str, dict[int, dict[str, float]]]:
+    """Per trained population and `seed_env`: its committed CT `R_dev` and its mean quality
+    (`quality.mean_quality`, the acceptance harness's mean `qbar` over the measurement window)."""
+    out: dict[str, dict[int, dict[str, float]]] = {}
+    for name, (qbar_path, r_dev_path, key) in TRAINED_POPULATIONS.items():
+        harness = json.loads(qbar_path.read_text(encoding="utf-8"))
+        qbar = {int(r["seed_env"]): r["quality"]["mean_quality"] for r in harness["per_arm"]["C0"]}
+        ct = json.loads(r_dev_path.read_text(encoding="utf-8"))
+        rows = ct["results"][key] if "results" in ct else ct[key]
+        out[name] = {
+            int(r["seed_env"]): {
+                "R_dev": float(r["R_dev"]),
+                "qbar": float(qbar[int(r["seed_env"])]),
+            }
+            for r in rows
+        }
+    return out
+
+
+def render_self_enforcement(rows: list[dict], populations: dict) -> str:
+    def f(v):
+        return f"{v:.6f}"
+
+    names = list(populations)
+    lines = [
+        "# CT - self-enforcement and the lone producer's payoff (descriptive, post hoc)",
+        "",
+        "Not pre-registered; no decision rule is attached (#106). Every seat here is a heuristic, "
+        "so no checkpoint is needed. C0, seeds 0-9, CT's protocol: "
+        f"{CT_EPISODES} episodes per condition on the measurement seed block, the measurement "
+        "window, seat 0. Producer = `TruthfulMyopic` (quality 1). Inert = the all-zero action "
+        "(quality 0).",
+        "",
+        "Conditions:",
+        "",
+        *[f"- `R_{c}`: {d}." for c, d in SELF_ENFORCEMENT_CONDITIONS.items()],
+        "",
+        "## R18 leg (i) against the inert-opponent payoff",
+        "",
+        "`R_dev` is seat 0's return as a producer among each trained population, as committed by "
+        "CT (LC 3M, G3b 1M) and ES. `|diff|` is `|R_dev - R_alone|`.",
+        "",
+        "| seed_env | R_alone | R_amid_q0 | "
+        + " | ".join(f"{n} R_dev | diff" for n in names)
+        + " |",
+        "|---|---|---|" + "---|---|" * len(names),
+    ]
+    for r in rows:
+        s = r["seed_env"]
+        cells = [
+            f"{f(populations[n][s]['R_dev'])} | {abs(populations[n][s]['R_dev'] - r['R_alone']):.1e}"
+            for n in names
+        ]
+        lines.append(f"| {s} | {f(r['R_alone'])} | {f(r['R_amid_q0'])} | {' | '.join(cells)} |")
+    lines += [
+        "",
+        "## Mean quality of the trained populations",
+        "",
+        "`qbar`: the acceptance harness's mean period-average quality (`quality.mean_quality` in "
+        "each study's `result.json`) for the same populations.",
+        "",
+        "| seed_env | " + " | ".join(names) + " |",
+        "|---|" + "---|" * len(names),
+    ]
+    for r in rows:
+        s = r["seed_env"]
+        lines.append(
+            f"| {s} | " + " | ".join(f"{populations[n][s]['qbar']:.2e}" for n in names) + " |"
+        )
+    lines += [
+        "",
+        "## Does all-production hold by itself? Seat 0 drops quality among producers",
+        "",
+        "| seed_env | R_producers | R_producers_seat0_q0 | quality_gain |",
+        "|---|---|---|---|",
+    ]
+    for r in rows:
+        lines.append(
+            f"| {r['seed_env']} | {f(r['R_producers'])} | {f(r['R_producers_seat0_q0'])} | "
+            f"{r['quality_gain']:+.4f} |"
+        )
+    gains = [r["quality_gain"] for r in rows]
+    lines += [
+        "",
+        f"- quality_gain: min {min(gains):+.4f}, max {max(gains):+.4f}; positive on "
+        f"{sum(g > 0 for g in gains)} of {len(gains)} seeds.",
+    ]
+    for n in names:
+        same = sum(abs(populations[n][r["seed_env"]]["R_dev"] - r["R_alone"]) < 1e-9 for r in rows)
+        q = [populations[n][r["seed_env"]]["qbar"] for r in rows]
+        lines.append(
+            f"- {n}: R_dev equals R_alone (to 1e-9) on {same} of {len(rows)} seeds; qbar "
+            f"{min(q):.2e} to {max(q):.2e}."
+        )
+    return "\n".join(lines) + "\n"
+
+
+def self_enforcement_report() -> int:
+    """`--self-enforcement`: writes `runs/coordination_trap/self_enforcement.md` and `.json`."""
+    from gosplan.experiments import phase2_acceptance as pa
+
+    rows = pa._pool(self_enforcement, [pa.arm_config("C0", s) for s in range(CT_SEEDS)], 4)
+    populations = committed_populations()
+    CT_DIR.mkdir(parents=True, exist_ok=True)
+    (CT_DIR / "self_enforcement.json").write_text(
+        json.dumps({"rows": rows, "populations": populations}, indent=1) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    report = render_self_enforcement(rows, populations)
+    (CT_DIR / "self_enforcement.md").write_text(report, encoding="utf-8", newline="\n")
+    print(report)
+    return 0
 
 
 def render(results: dict[str, list[dict]], tests: dict[str, dict]) -> str:
@@ -197,6 +403,11 @@ def render(results: dict[str, list[dict]], tests: dict[str, dict]) -> str:
 
 
 def main() -> int:
+    import sys
+
+    if "--self-enforcement" in sys.argv:
+        return self_enforcement_report()
+
     from gosplan.experiments import phase2_acceptance as pa
     from gosplan.experiments.phase1_gate import study_ppo_config
 

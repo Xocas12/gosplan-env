@@ -33,6 +33,10 @@ SECTIONS: tuple[tuple[str, str], ...] = (
     ),
     ("Labelled study CT - record", "runs/CT_record.md"),
     ("Labelled study CT - coordination-trap test (R18)", "runs/coordination_trap/report.md"),
+    (
+        "Labelled study CT - self-enforcement check (descriptive)",
+        "runs/coordination_trap/self_enforcement.md",
+    ),
     ("Labelled study ES - record", "runs/ES_record.md"),
     (
         "Labelled study ES - budget versus exploration schedule (R19)",
