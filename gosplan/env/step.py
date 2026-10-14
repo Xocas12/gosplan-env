@@ -97,7 +97,7 @@ from gosplan.env.planner import (
     update_targets,
 )
 from gosplan.env.production import credit_arrivals, produce_step
-from gosplan.env.reporting import audit_and_penalise, process_reports
+from gosplan.env.reporting import audit_and_penalise, process_reports, report_at_bound
 from gosplan.env.reward import enterprise_reward, val_measured, val_true, welfare_true
 from gosplan.env.state import (
     StepInfo,
@@ -897,7 +897,10 @@ def _step_records(
                 reward=float(reward[i]),
                 report=0.0 if produce else float(state.last_report[i]),
                 report_ratio=0.0 if produce else float(state.last_report_ratio[i]),
-                at_bound=(not produce) and bool(state.last_report_ratio[i] >= rho_max),
+                # CONTRACT rule 8 within AT_BOUND_REL_TOL (#111): a squashed report never lands
+                # exactly on rho_max, so exact equality would miss a policy pinned against it.
+                at_bound=(not produce)
+                and bool(report_at_bound(state.last_report_ratio[i], rho_max)),
                 audited=bool(audited[i]),
                 audit_meas=nan,
                 penalty_arg=nan,

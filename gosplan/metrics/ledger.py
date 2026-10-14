@@ -285,7 +285,10 @@ def bound_binding(ledger: Ledger) -> bool:
             > AT_BOUND_FLAG_THRESHOLD
 
     i.e. more than 1% of reports sat at `rho_max = cfg.tech.report_max_ratio`. PRODUCE rows are not
-    counted in either term. A ledger with no report rows returns `False`.
+    counted in either term. A ledger with no report rows returns `False`. "At `rho_max`" is the
+    environment's `at_bound` column, which counts a report within
+    `gosplan.env.reporting.AT_BOUND_REL_TOL` of the bound (issue #111); this module reads the column
+    and does not re-derive it.
 
     This is the same predicate `Ledger.append` maintains incrementally; it exists so an experiment
     or a test can ask the question of a finished ledger without replaying the appends, and so the
