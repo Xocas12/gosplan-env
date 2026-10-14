@@ -33,7 +33,6 @@ LC_DIR = Path("runs/learner_convergence")
 G3B_RESULT = Path("runs/phase2_acceptance_g3b/result.json")
 G3B_RUN_ROOT = Path("runs/phase2_acceptance_g3b/runs")
 LC_BUDGET = 3_000_000
-BASE_BUDGET = 1_000_000
 LC_SEEDS = 10
 THRESHOLD = 0.05
 BOOTSTRAP_RESAMPLES = 10_000
@@ -252,9 +251,14 @@ def main() -> int:
     from gosplan.experiments import phase2_acceptance as pa
     from gosplan.experiments.phase1_gate import GATE_SIZING, study_ppo_config
 
-    pa.BR_TOTAL_AGENT_STEPS = BASE_BUDGET  # R16, unchanged
     sizing = dataclasses.replace(GATE_SIZING, total_agent_steps=LC_BUDGET)
-    lc = pa.run(LC_DIR, sizing, {"C0": LC_SEEDS, "R7_NULL": 0, "R3_QW": 0}, {"C0": LC_SEEDS})
+    lc = pa.run(
+        LC_DIR,
+        sizing,
+        {"C0": LC_SEEDS, "R7_NULL": 0, "R3_QW": 0},
+        {"C0": LC_SEEDS},
+        br_steps=pa.R16_BR_TOTAL_AGENT_STEPS,  # R16, unchanged
+    )
     lc = json.loads((LC_DIR / "result.json").read_text(encoding="utf-8"))
     g3b = json.loads(G3B_RESULT.read_text(encoding="utf-8"))
     paired = paired_exploitability(
