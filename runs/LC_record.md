@@ -41,6 +41,10 @@ Read the primary result against this before citing it.
   in what the learners converge to.
 - Every posted trade offer is still a buy order. The mean offer is -1.000, and none of the 3M
   populations' offers is a sell. Row 6 stays at zero.
+- The LC report prints row 5 as APPEARS. That is R14's rule computed as pre-registered, not
+  evidence of hoarding that propagates shortage (`runs/G3_record.md` note H1, corrected
+  2026-10-14, #109). Its correlation excess, 1.07, is the largest reported, in an economy with
+  almost no effort.
 
 **Reading of the primary result.** The fall in exploitability is real by R17's rule, but it is not
 convergence to a functioning equilibrium.

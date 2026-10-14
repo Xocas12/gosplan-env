@@ -31,12 +31,13 @@ This is a behavioural result, not a pipeline defect. It was checked three ways:
    - Offers ranged from -1.000 to -0.358, with per-seed means between -0.90 and -0.99.
    - Not one of the offers was a sell offer. With no seller, the matching rule (R9) can execute
      nothing.
-3. **This agrees with row 5.** The same populations push input requests to the upper bound
+3. **The same populations request at the bound.** Their input requests sit at the upper bound
    (request inflation excess 1.96, as at G3). Every enterprise wants more of every input and none
-   parts with any.
+   parts with any. This describes requests and offers. It is not evidence of hoarding that
+   propagates shortage (`runs/G3_record.md` note H1).
 
 Row 6 is therefore evaluated, and it fails under R14's rule: the lower CI bound is not above 0.
-In the terms of PLAN section 4.2: under C0 the learned enterprises hoard rather than barter, so
+In the terms of PLAN section 4.2: under C0 the learned enterprises post only buy offers, so
 horizontal trade does not emerge.
 
 ## Question 2 - the R16 exploitability audit: **NON-CONVERGED**
@@ -61,6 +62,8 @@ horizontal trade does not emerge.
 
 - **Row 2:** excess storming Gini 0.118 [0.086, 0.150] (G3: 0.137).
 - **Row 5:** request inflation excess 1.96, and corr(X, shortfall) excess 0.52 (G3: 1.96 and 0.55).
+  Read these as G3 note H1 reads G3's: R14's rule, not evidence of hoarding that propagates
+  shortage.
 - **Row 7:** C0 hidden reserves 0.173 [0.068, 0.316] (G3: 0.222).
 - **Welfare:** welfare_ratio is 0.0335 (G3: 0.034). specification_gap is 0.0124, with no sign
   change across price seeds 11, 12 and 13.
@@ -73,7 +76,7 @@ horizontal trade does not emerge.
 ## Consequences
 
 - G3 remains NOT PASSED. G3b adds two findings:
-  - Row 6 fails behaviourally, because learners hoard and never offer to sell.
+  - Row 6 fails behaviourally, because learners never offer to sell.
   - Under the revised audit the C0 populations are non-converged (L4).
 - The Phase-3 contrasts (`runs/P3_record.md`) were run before R15, carrying L3. G3b shows that
   even with trade possible, C0 populations do not trade. L3 is therefore unlikely to have changed
@@ -82,3 +85,10 @@ horizontal trade does not emerge.
 - The owner decides at G3/G4 whether a longer-trained or differently configured learner is
   commissioned. That would be a new labelled study, because the numbers here must not be tuned to
   pass.
+
+## Correction (2026-10-14, #109)
+
+Three readings above cited row 5 as hoarding: question 1's third check, its PLAN section 4.2
+sentence, and the first consequence. They now describe what was measured, requests at the bound
+and buy-only offers, because row 5 does not show hoarding that propagates shortage
+(`runs/G3_record.md` note H1). Row 6's result and every number here are unchanged.

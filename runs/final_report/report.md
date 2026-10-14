@@ -389,14 +389,49 @@ _Source: `runs/G3_record.md`_
 | Row | Statistic | Outcome |
 |---|---|---|
 | 2 storming | excess within-period effort Gini 0.137 [0.095, 0.184] | **appears** |
-| 5 hoarding | request inflation excess 1.96 [1.94, 1.98]; corr(X, shortfall) excess 0.55 [0.38, 0.72] | **appears**; see note H1 |
+| 5 hoarding | request inflation excess 1.96 [1.94, 1.98]; corr(X, shortfall) excess 0.55 [0.38, 0.72] | **appears** by R14's rule; not evidence of hoarding that propagates shortage (note H1) |
 | 6 blat | trade volume share 0.0000 | **not evaluable**: defect D1 |
 | 7 hidden reserves | C0 0.222 [0.092, 0.390]; R7_NULL 0.219 [0.055, 0.439] | **failure**: present, but does not vanish under the null |
 | 3 quality (pipeline check) | mean qbar, C0 minus R3_QW: 0.152 [-0.074, 0.339] | **failure** |
 
-**H1.** The learned requests sit at `request_max_multiple = 3.0` (mean inflation 2.96). The
-direction of row 5 is a result. Its magnitude is set by the action bound, and in the spirit of
-CONTRACT rule 8 it is reported that way, not as a free estimate.
+**H1 (corrected 2026-10-14, #109).** Row 5 appears by R14's rule, and the numbers above are that
+rule computed as pre-registered. They are not evidence of input hoarding that propagates shortage
+(Claim A(ii)), and the records no longer cite them as such.
+- **The inflation leg measures a free choice at its bound.** The learned requests sit at
+  `request_max_multiple = 3.0` (per-seed mean inflation 2.81-3.00, mean 2.96). The magnitude is
+  set by the action bound, and in the spirit of CONTRACT rule 8 it is reported that way, not as a
+  free estimate. A request reaches the dynamics only through the allocation weight
+  `(q + 1e-6)^0.7 * (need + 1e-6)^eta_n`, and no reward term charges for it, so raising one's own
+  request raises one's own share at no direct cost. This leg is therefore closer to a pipeline
+  check than to an emergence result. That is an analogy with bunching and padding, not the
+  README's rule: those are direct optima of the reward, inflation pays through the allocation
+  rule, and in the full game inflating could starve one's own suppliers, so dominance is not
+  proven.
+- **A uniform request multiple is allocatively neutral.** It cancels in the allocation's
+  normalisation. With `allocate()` on the C0 planner view, everyone at 1x need and everyone at 3x
+  need give allocations that agree to within the `1e-6` regularisers (relative difference below
+  1e-8 at reset). A lone 1x requester among 3x requesters gets about half its share (0.062 instead
+  of 0.125 of each good it needs), which is why inflating pays individually. At a common multiple
+  near the bound it moves almost no inputs.
+- **The correlation leg does not register request inflation.** `Kornai(3.0)` in every seat
+  (`TruthfulMyopic` effort and reports, requests at 3x need) reproduces the `TruthfulMyopic`
+  trajectory: input stocks differ by at most 2e-6, and the correlation excess is of order 1e-7,
+  the effect of the allocation's regularisers. R14 sets no minimum effect size, so even this
+  passes. On 30 C0 seeds at 10 measurement episodes each the excess is positive on every seed
+  (7e-8 to 1.6e-7), and R14's rule marks that population APPEARS.
+- **An agent that never inflates can pass the correlation leg.** `TruthfulMyopic` with its effort
+  scaled by 0.8 and requests at need gives an excess of +0.41 to +0.54 on the same 30 seeds. Row 5
+  does not appear for it only because its inflation excess is 0. Across the 29 C0 seeds with a
+  defined correlation, the learned correlation has Spearman -0.68 with mean effort, and the
+  collapsed 3M economies (effort about 0.02) give the largest excesses reported: 1.07 (LC) and
+  1.03 (ES), against 0.55 here. The leg tracks effort and stock behaviour, not inflation.
+- The note as first signed called the direction of row 5 a result. That reading is withdrawn. The
+  G3b, CT, LC and ES records are corrected to match, and `tests/unit/test_row5_reading.py` pins
+  the properties above on seeds 0 and 1.
+- Showing propagation would need a different measurement under a labelled revision with its own
+  pre-registration: for example, the share of each good's pool captured by over-requesting seats
+  and the shortfall at seats that did not over-request, or a baseline matched on effort. That is
+  the owner's decision.
 
 **Welfare.**
 - The learned populations reach `welfare_ratio = 0.034` (W 0.067 against `W_oracle` 1.98).
@@ -580,12 +615,13 @@ This is a behavioural result, not a pipeline defect. It was checked three ways:
    - Offers ranged from -1.000 to -0.358, with per-seed means between -0.90 and -0.99.
    - Not one of the offers was a sell offer. With no seller, the matching rule (R9) can execute
      nothing.
-3. **This agrees with row 5.** The same populations push input requests to the upper bound
+3. **The same populations request at the bound.** Their input requests sit at the upper bound
    (request inflation excess 1.96, as at G3). Every enterprise wants more of every input and none
-   parts with any.
+   parts with any. This describes requests and offers. It is not evidence of hoarding that
+   propagates shortage (`runs/G3_record.md` note H1).
 
 Row 6 is therefore evaluated, and it fails under R14's rule: the lower CI bound is not above 0.
-In the terms of PLAN section 4.2: under C0 the learned enterprises hoard rather than barter, so
+In the terms of PLAN section 4.2: under C0 the learned enterprises post only buy offers, so
 horizontal trade does not emerge.
 
 #### Question 2 - the R16 exploitability audit: **NON-CONVERGED**
@@ -610,6 +646,8 @@ horizontal trade does not emerge.
 
 - **Row 2:** excess storming Gini 0.118 [0.086, 0.150] (G3: 0.137).
 - **Row 5:** request inflation excess 1.96, and corr(X, shortfall) excess 0.52 (G3: 1.96 and 0.55).
+  Read these as G3 note H1 reads G3's: R14's rule, not evidence of hoarding that propagates
+  shortage.
 - **Row 7:** C0 hidden reserves 0.173 [0.068, 0.316] (G3: 0.222).
 - **Welfare:** welfare_ratio is 0.0335 (G3: 0.034). specification_gap is 0.0124, with no sign
   change across price seeds 11, 12 and 13.
@@ -622,7 +660,7 @@ horizontal trade does not emerge.
 #### Consequences
 
 - G3 remains NOT PASSED. G3b adds two findings:
-  - Row 6 fails behaviourally, because learners hoard and never offer to sell.
+  - Row 6 fails behaviourally, because learners never offer to sell.
   - Under the revised audit the C0 populations are non-converged (L4).
 - The Phase-3 contrasts (`runs/P3_record.md`) were run before R15, carrying L3. G3b shows that
   even with trade possible, C0 populations do not trade. L3 is therefore unlikely to have changed
@@ -631,6 +669,13 @@ horizontal trade does not emerge.
 - The owner decides at G3/G4 whether a longer-trained or differently configured learner is
   commissioned. That would be a new labelled study, because the numbers here must not be tuned to
   pass.
+
+#### Correction (2026-10-14, #109)
+
+Three readings above cited row 5 as hoarding: question 1's third check, its PLAN section 4.2
+sentence, and the first consequence. They now describe what was measured, requests at the bound
+and buy-only offers, because row 5 does not show hoarding that propagates shortage
+(`runs/G3_record.md` note H1). Row 6's result and every number here are unchanged.
 
 ---
 
@@ -748,6 +793,10 @@ Read the primary result against this before citing it.
   in what the learners converge to.
 - Every posted trade offer is still a buy order. The mean offer is -1.000, and none of the 3M
   populations' offers is a sell. Row 6 stays at zero.
+- The LC report prints row 5 as APPEARS. That is R14's rule computed as pre-registered, not
+  evidence of hoarding that propagates shortage (`runs/G3_record.md` note H1, corrected
+  2026-10-14, #109). Its correlation excess, 1.07, is the largest reported, in an economy with
+  almost no effort.
 
 **Reading of the primary result.** The fall in exploitability is real by R17's rule, but it is not
 convergence to a functioning equilibrium.
@@ -1000,8 +1049,11 @@ The 1M populations are not a trap. Several are so far from equilibrium (seat-0 r
     each seed, for example -1.425 against both for seed 1000.
   - Against all-producers, the same seat is better off.
   - Both learned populations therefore leave a producer similarly short. This fits the input
-    starvation that the hoarding result (row 5) and the buy-only trade offers (row 6, G3b) point
-    to. CT did not measure the producer's input receipts, so this is a reading.
+    starvation that the buy-only trade offers (row 6, G3b) point to. CT did not measure the
+    producer's input receipts, so this is a reading.
+  - Corrected on 2026-10-14 (#109): this reading also cited row 5 as a hoarding result. Row 5
+    does not show hoarding that propagates shortage (`runs/G3_record.md` note H1), so it is no
+    longer cited here.
 - **The learned policy responds only weakly to available inputs.** Seat 0's learned effort rises
   when the other seats are producers: at 3M the median rises from about 0.02 to about 0.14, with
   seed 1007 flat at 0.006. That is still far below what a producer supplies, so the trained policy
@@ -1138,7 +1190,10 @@ this learner: with the 1M runs' exact schedule, a 3M-step run still collapses.
 - Welfare: `welfare_ratio` 0.0000, as in LC.
 - Held-out rows in the harness output (descriptive only):
   - row 2 (storming) and row 5 (hoarding) appear: excess Gini 0.222 (LC 0.220), request-inflation
-    excess 1.79 (LC 1.98);
+    excess 1.79 (LC 1.98). Row 5 appears by R14's rule only. It is not evidence of hoarding that
+    propagates shortage (`runs/G3_record.md` note H1, corrected 2026-10-14, #109), and its
+    correlation excess here (1.03) is among the largest reported, in an economy with almost no
+    effort;
   - row 6 (trade volume) stays at 0.
 - R16 exploitability:
   - Median -0.008 and max 0.173, with 1 of 10 seeds above 5%. LC 3M had median -0.003 and 3 of
