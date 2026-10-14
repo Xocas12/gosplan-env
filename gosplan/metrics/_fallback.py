@@ -67,13 +67,33 @@ Array = np.ndarray
 No function here may rely on numpy-only methods in a signature: the JAX port substitutes its own
 array type behind the same name."""
 
-FALLBACK_ESTIMATOR_VERSION: str = "0.1.0+fallback"
+FALLBACK_ESTIMATOR_VERSION: str = "0.1.1+fallback"
 """Version of this vendored surface, written to the manifest as `estimator_version` when
 `gosplan.metrics.resolve_estimators()` resolves to the fallback (CONTRACT rule 10). It is bumped
 whenever anything here changes - a signature, a result field or an estimator's arithmetic - because
 a bunching number computed under one version is not comparable with one computed under another. It
 is deliberately *not* equal to any `forensics_core` version, and the `+fallback` local segment makes
-that visible at a glance in a manifest."""
+that visible at a glance in a manifest.
+
+0.1.1: `ledger_test` returns R13.6's zero-variance, zero-mean result when every residual is within
+`RECON_ZERO_RTOL` of zero, so that case fires on a ledger that reconciles up to floating-point
+round-off (#110). Every manifest committed before this change says 0.1.0+fallback. `estimate` and
+`cross_section` are unchanged."""
+
+RECON_ZERO_RTOL: float = 1e-9
+"""Relative tolerance under which `ledger_test` counts a residual as zero (#110).
+
+A residual `price_i (reported_i - implied_i)` is zero when its magnitude is at most
+`RECON_ZERO_RTOL * |price_i| * max(|reported_i|, |implied_i|)`, i.e. when the claimed and implied
+supply agree to `math.isclose`'s default relative tolerance.
+
+R13.6 says that zero variance with a zero mean gives `statistic = 0` and `p = 0.5`. A ledger that
+reconciles exactly in arithmetic reconciles only to round-off in floating point, though. Summing
+claims and receipts leaves residuals of about 1e-15 relative to the priced supply, their sample
+variance is not zero, and a t-test on them rejects at about its nominal rate. The truthful Phase-1
+ledgers of the P3 power curve are such a case. A residual above the tolerance is a discrepancy,
+and the test then runs on the raw residuals as before. The value is the standard library's, not a
+calibrated threshold; R13.6 names none."""
 
 
 @dataclass(frozen=True)
@@ -333,6 +353,12 @@ def ledger_test(
     under Leontief; rows with an all-zero `a` row are dropped; `residual_i = price_i (reported_i -
     implied_i)`; the statistic is the t-statistic of the mean residual with a one-sided normal
     p-value (claims exceeding what receipts support).
+
+    Degenerate cases (R13.6): fewer than two kept rows give NaN; zero variance with a zero mean
+    gives `statistic = 0` and `p = 0.5`; zero variance with a non-zero mean gives `±inf` and `p = 0`
+    or `1`. "Zero" is read up to round-off: when every kept residual is within `RECON_ZERO_RTOL` of
+    zero relative to its priced supply, the ledger reconciles and the result is `0` and `0.5`, with
+    the raw residuals still returned (#110).
     """
     import math
 
@@ -357,6 +383,11 @@ def ledger_test(
     n_obs = int(r.size)
     if n_obs < 2:
         return ReconResult(float("nan"), float("nan"), residuals, n_obs)
+    # A ledger that reconciles in arithmetic leaves round-off residuals in floating point; they
+    # are zero for R13.6's degenerate case, not a sample to run a t-test on (#110).
+    priced = np.abs(price[keep]) * np.maximum(np.abs(reported[keep]), np.abs(implied[keep]))
+    if bool(np.all(np.abs(r) <= RECON_ZERO_RTOL * priced)):
+        return ReconResult(0.0, 0.5, residuals, n_obs)
     mean, sd = float(r.mean()), float(r.std(ddof=1))
     if sd == 0.0:
         if mean == 0.0:
