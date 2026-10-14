@@ -734,13 +734,17 @@ Median exploitability went from 0.797 (1M) to -0.003 (3M). Per-seed values are i
 
 Read the primary result against this before citing it.
 
-| C0, seeds 0-9 | Mean effort | Mean return | Fictitious padding | Welfare (mean W) | welfare_ratio |
-|---|---|---|---|---|---|
-| 1M (G3b) | 0.195 | -16.0 | 0.040 | 0.087 | 0.0335 |
-| 3M (LC) | 0.019 | +0.27 | 0.000 | 0.000 on every seed | 0.0000 |
+| C0, seeds 0-9 | Mean effort | Mean return | Fictitious padding | Mean qbar | Welfare (mean W) | welfare_ratio |
+|---|---|---|---|---|---|---|
+| 1M (G3b) | 0.195 | -16.0 | 0.040 | 0.387 (0.06-0.75) | 0.087 | 0.0335 |
+| 3M (LC) | 0.019 | +0.27 | 0.000 | 0.000 (at most 3.4e-5) | 0.000 on every seed | 0.0000 |
 
 - With three times the training, the learned enterprises stop producing: mean effort 0.005-0.036
   on every seed. They also stop padding.
+- They also play quality of about 0: mean qbar (`quality.mean_quality` in `result.json`) is at
+  most 3.4e-5 on every seed, against 0.06-0.75 at 1M. Deliveries are credited `deliv * qbar`, so
+  what these populations deliver is worth almost nothing as an input: a producer among them earns
+  exactly the autarky payoff (`runs/CT_record.md`).
 - Their returns rise from about -16 to about 0. The large losses the 1M populations carried are
   gone.
 - Welfare is exactly 0 on all 10 seeds. The oracle and the truthful-myopic baseline, on the same
@@ -760,12 +764,18 @@ convergence to a functioning equilibrium.
   enterprises' outputs as inputs (near-Leontief, `theta = 8`), so when every supplier produces
   nothing, effort is wasted. **LC does not test this. It is an interpretation, not a finding.**
 
-#### Update (2026-09-30): the coordination-trap reading was tested
+#### Update (2026-09-30, revised 2026-10-14): the coordination-trap reading was tested
 
 See `runs/CT_record.md`. R18 was pre-registered and run as an evaluation-only test. Against the
-truthful-myopic producer, the 3M collapse **is** a coordination trap: producing alone does not pay,
-and everyone producing pays more. The "interpretation, not a finding" caveat above therefore no
-longer applies to that reading. What training does to reach the trap is still untested.
+truthful-myopic producer both of its tests hold at 3M (qbar at most 3.4e-5): producing alone does
+not pay, and everyone producing pays more. R18 calls that conjunction a coordination trap, and
+this update first read it that way.
+
+**Revised 2026-10-14 (#106).** The two tests do not tell a coordination trap from a quality
+free-rider dilemma. Producing alone is compared with the autarky payoff, and among truthful-myopic
+producers an enterprise gains by dropping quality, so all-production is not self-enforcing under
+C0. The "interpretation, not a finding" caveat above therefore still applies to the
+coordination-trap reading. What training does to reach the collapse is untested.
 
 #### Addendum (2026-10-01): training trajectories and a design caveat (descriptive, post hoc)
 
@@ -779,12 +789,13 @@ from the runs' `train_log.jsonl` (`python -m gosplan.experiments.learner_converg
 | median eval return, 3M runs | -191 | -43 | -20 | -6 | -1.3 | -0.01 | 0.49 | 0.71 |
 
 - **The collapse is a steady slide, not a late event.**
-  - Effort falls from about 0.66 to the trap level of about 0.02 by roughly 1.25-1.5M steps, then
-    stays there.
+  - Effort falls from about 0.66 to the collapse level of about 0.02 by roughly 1.25-1.5M steps,
+    then stays there.
   - Each enterprise's own evaluation return rises along the whole path. The learners improve
     their own payoff while welfare falls.
 - **The 1M populations were mid-slide.** Their median effort at 1M steps was already 0.09. G3, G3b
-  and the Phase-3 contrasts therefore describe an economy partway into the trap, which sharpens L5.
+  and the Phase-3 contrasts therefore describe an economy partway into the collapse, which
+  sharpens L5.
 - **Design caveat.**
   - The entropy bonus anneals from 0.01 to 0.001 over the whole run, so LC's budget manipulation
     also stretches the exploration schedule. At the 1M-step mark a 3M run's coefficient is 0.0070,
@@ -800,8 +811,8 @@ from the runs' `train_log.jsonl` (`python -m gosplan.experiments.learner_converg
 
 See `runs/ES_record.md`. R19 was pre-registered and run: 3M-step populations with the 1M runs'
 exact entropy schedule. They collapse just the same, with median effort 0.019 [95% CI 0.012,
-0.023], and land in the same coordination trap. The collapse is a training-length effect for this
-learner, not an artefact of the stretched schedule.
+0.023] and qbar at most 0.003, and both R18 tests hold on them too, with the same caveat. The
+collapse is a training-length effect for this learner, not an artefact of the stretched schedule.
 
 #### Consequences
 
@@ -816,7 +827,10 @@ learner, not an artefact of the stretched schedule.
   learner or configuration change follows from it without a new pre-registration"). Candidates:
   - a learner with a different exploration or population scheme;
   - contrasts at a fixed longer budget;
-  - a direct test of the coordination-trap reading, for example a population seeded with producers.
+  - a direct test of the coordination-trap reading, for example a population seeded with producers;
+  - a test that all-production is self-enforcing (does an enterprise among producers gain by
+    dropping quality or effort?), without which the trap reading cannot be told from a quality
+    free-rider dilemma (#106).
 
 ---
 
@@ -962,7 +976,10 @@ _Source: `runs/CT_record.md`_
 ### Labelled study CT - record (LEAD)
 
 **Status: complete. CT is a labelled study, is evaluation only (no training) and re-evaluates no
-gate.** Written on 2026-09-30; the human sign-off is pending.
+gate.** Written on 2026-09-30; the human sign-off is pending. The reading was revised on
+2026-10-14 (#106): R18's two tests hold at 3M as recorded, but they do not identify a coordination
+trap, and this record no longer calls the 3M state one. The numbers and the pre-registered
+verdicts are unchanged.
 
 - Pre-registration: `spec/P2_REVISION.md` R18, committed in 18864d0 before the CT evaluation. It
   discloses a 2-episode smoke run on one seed made to check the code.
@@ -977,31 +994,71 @@ gate.** Written on 2026-09-30; the human sign-off is pending.
 
 #### Pre-registered outcome (R18)
 
-| Populations | (i) Producing alone does not pay (`d1 = R_dev - R_pop` < 0) | (ii) Everyone producing pays more (`d2 = W_tm - W_pop` > 0) | Coordination trap |
-|---|---|---|---|
-| **3M (primary)** | **yes**: median -1.718 [95% CI -2.240, -1.438] | **yes**: median +0.869 [0.494, 1.303] | **YES** |
-| 1M (contrast) | not shown: median +0.336 [-1.208, 34.004] | yes: median +3.632 [1.539, 40.570] | NO |
+`qbar` is the populations' mean period-average quality over seeds 0-9, from the acceptance
+harness (`quality.mean_quality` in LC's and G3b's `result.json`). R18 names the conjunction of
+(i) and (ii) "coordination trap", and the driver's report prints it under that name; the last
+column gives R18's verdict, and the reading below says why this record does not use the name.
 
-**Reading.** The collapse LC found at 3M is a coordination trap in the textbook sense, against the
-truthful-myopic producer:
+| Populations | qbar | (i) Producing alone does not pay (`d1 = R_dev - R_pop` < 0) | (ii) Everyone producing pays more (`d2 = W_tm - W_pop` > 0) | R18 verdict ("trap": both hold) |
+|---|---|---|---|---|
+| **3M (primary)** | about 0: at most 3.4e-5 on every seed | **yes**: median -1.718 [95% CI -2.240, -1.438] | **yes**: median +0.869 [0.494, 1.303] | **YES** |
+| 1M (contrast) | 0.06-0.75 (median 0.36) | not shown: median +0.336 [-1.208, 34.004] | yes: median +3.632 [1.539, 40.570] | NO |
+
+**What the two tests show at 3M**, against the truthful-myopic producer:
 
 - Every seed's lone producer loses. Seat 0's return when producing alone is between -1.47 and
   -1.43, against -0.74 to +1.05 when it plays the learned policy.
 - When every seat produces, the mean seat return is 1.26-1.32. Every seat is better off on 9 of
   10 seeds, and 95% of seats are on the tenth.
 
-The 1M populations are not a trap. Several are so far from equilibrium (seat-0 returns down to
--39.6) that producing alone would help. This is consistent with L4.
+At 1M test (i) does not hold. Several populations are so far from equilibrium (seat-0 returns
+down to -39.6) that producing alone would help. This is consistent with L4.
+
+**Reading (revised 2026-10-14, #106): the 3M state is not shown to be a coordination trap.**
+(i) shows that the no-production state is stable against the producer, and (ii) that
+all-production Pareto-dominates it. Neither shows that all-production is itself an equilibrium,
+which a coordination trap needs: mutual defection in a prisoner's dilemma passes both tests. Under
+C0, all-production by the truthful-myopic producer is not one (second point below). Source for the
+numbers below: `runs/coordination_trap/self_enforcement.md`
+(`python -m gosplan.experiments.coordination_trap --self-enforcement`; heuristic agents only,
+CT's protocol, descriptive and not pre-registered).
+
+- **Test (i) compares the learned populations with the autarky payoff.** The 3M `R_dev` equals,
+  to the last digit, seat 0's return as a producer when the other 19 seats play the inert
+  all-zero action, on all 10 seeds. ES's `R_dev` is the same number on every seed. So `d1`
+  compares `R_pop` with a constant of the C0 configuration, and a population that had learned
+  only to do nothing (`R_pop = 0`) would pass it. What it does show is that the 3M populations
+  deliver nothing a producer can use.
+- **All-production is not self-enforcing against a quality cut.** C0 rewards `val`, so an
+  enterprise's own quality enters its own reward only as a cost (`kappa_q * q * e`), while the
+  benefit goes to its buyers (deliveries are credited `deliv * qbar`) and to consumers. Among
+  truthful-myopic producers, seat 0 playing the same policy at quality 0 instead of 1 raises its
+  return from 1.10-1.22 to 2.12-2.28, a gain of +1.02 to +1.08 on every seed.
+- **The 3M populations play quality of about 0** (qbar at most 3.4e-5). With every seller at
+  quality 0, every delivered input is worth 0 whatever effort anyone chooses: a producer among
+  truthful-myopic producers who play quality 0 earns exactly the autarky payoff. Low effort can
+  then be read as the best reply to receiving nothing, rather than as the cause of the collapse.
+
+The data therefore fit a quality free-rider dilemma at least as well as a coordination trap, and
+CT cannot tell the two apart. Telling them apart needs a test that all-production is
+self-enforcing: seat 0's return in condition 4, which CT computed but did not record, and whether
+a seat among producers gains by dropping quality or effort. That would be a new pre-registration
+and is the owner's decision. The escape tests in #97 assume a coordination game; a free-rider
+dilemma points instead towards incentive reform such as R3_QW.
 
 #### Descriptive observations (not tested)
 
-- **The lone producer's return barely depends on the budget.**
-  - The producer in seat 0 earns almost the same return against the 1M and the 3M populations of
-    each seed, for example -1.425 against both for seed 1000.
+- **The lone producer's return does not depend on the budget: it is the autarky payoff.**
+  - The producer in seat 0 earns the same return against the 1M and the 3M populations of each
+    seed, for example -1.425 against both for seed 1000. The 1M `R_dev` equals the autarky
+    payoff (to rounding) on 9 of 10 seeds; on 1004 it is lower (-1.4545 against -1.4498).
+  - The 1M against 3M contrast in test (i) is therefore a contrast in `R_pop` only.
   - Against all-producers, the same seat is better off.
-  - Both learned populations therefore leave a producer similarly short. This fits the input
-    starvation that the hoarding result (row 5) and the buy-only trade offers (row 6, G3b) point
-    to. CT did not measure the producer's input receipts, so this is a reading.
+  - At 3M, zero quality alone explains why the producer receives nothing usable. At 1M qbar was
+    0.06-0.75 and `R_dev` is still the autarky payoff on 9 of 10 seeds, so quality alone does
+    not explain the 1M case. There, the input starvation that the hoarding result (row 5) and
+    the buy-only trade offers (row 6, G3b) point to remains a reading: CT did not measure the
+    producer's input receipts, and rows 5 and 6 are themselves under review (#109, #107).
 - **The learned policy responds only weakly to available inputs.** Seat 0's learned effort rises
   when the other seats are producers: at 3M the median rises from about 0.02 to about 0.14, with
   seed 1007 flat at 0.006. That is still far below what a producer supplies, so the trained policy
@@ -1009,19 +1066,30 @@ The 1M populations are not a trap. Several are so far from equilibrium (seat-0 r
 
 #### Limits
 
-- One producer policy was used. A trap against `TruthfulMyopic` does not show that no producing
-  strategy pays alone.
-- CT reuses the 3M populations as trained. Why training reaches the trap is not tested.
+- One producer policy was used. Test (i) failing for `TruthfulMyopic` does not show that no
+  producing strategy pays alone.
+- R18's two tests do not test whether all-production is self-enforcing (see the reading above).
+- CT reuses the 3M populations as trained. Why training reaches the collapse is not tested.
 - No gate is re-evaluated. G3 (NOT PASSED), G3b and LC stand as recorded, and so do limitations
   L1-L5.
 
 #### What this adds to the project's claims
 
-- **This is the first tested mechanism result about the learned C0 economy.** With long enough
-  training, learning enterprises under the C0 planner settle into a Pareto-dominated
-  no-production state that no single enterprise can profitably leave.
+- **What CT shows about the learned C0 economy.** With long enough training, learning
+  enterprises under the C0 planner settle into a no-production, zero-quality state (qbar about
+  0) that all-production by the truthful-myopic producer Pareto-dominates. A producer among them
+  receives nothing usable and earns the autarky payoff.
+- **What it does not show.**
+  - That the state is a coordination trap rather than a quality free-rider dilemma (above).
+  - That no single enterprise can profitably leave it. CT tried one producer policy, and the
+    R16 audit of the same 3M populations found a warm-started best responder gaining more than
+    5% on 3 of 10 seeds (1002 0.429, 1008 0.125, 1006 0.074; `runs/LC_record.md`). The
+    committed best-responder artefacts are manifests only, so whether those gains involve
+    producing cannot be checked. An earlier version of this record said the state was one "that
+    no single enterprise can profitably leave"; that was unsupported, and in tension with the
+    audit.
 - **It is not Claim A.** It is none of the four held-out phenomena.
-- **It rests on the stated learner (L1, L4, L5).** Whether other learners reach the same trap is
+- **It rests on the stated learner (L1, L4, L5).** Whether other learners reach the same state is
   open. That question, and any follow-up, is the owner's decision and needs a new
   pre-registration.
 
@@ -1075,6 +1143,77 @@ Evaluation only (no training): LC's 3M populations (primary) and G3b's 1M popula
 
 ---
 
+## Labelled study CT - self-enforcement check (descriptive)
+
+_Source: `runs/coordination_trap/self_enforcement.md`_
+
+### CT - self-enforcement and the lone producer's payoff (descriptive, post hoc)
+
+Not pre-registered; no decision rule is attached (#106). Every seat here is a heuristic, so no checkpoint is needed. C0, seeds 0-9, CT's protocol: 50 episodes per condition on the measurement seed block, the measurement window, seat 0. Producer = `TruthfulMyopic` (quality 1). Inert = the all-zero action (quality 0).
+
+Conditions:
+
+- `R_alone`: seat 0 producer; the other seats inert (the all-zero action, quality 0).
+- `R_amid_q0`: seat 0 producer; the other seats producers at quality 0.
+- `R_producers`: every seat a producer (quality 1).
+- `R_producers_seat0_q0`: every seat a producer; seat 0 at quality 0.
+
+#### R18 leg (i) against the inert-opponent payoff
+
+`R_dev` is seat 0's return as a producer among each trained population, as committed by CT (LC 3M, G3b 1M) and ES. `|diff|` is `|R_dev - R_alone|`.
+
+| seed_env | R_alone | R_amid_q0 | LC 3M R_dev | diff | ES 3M R_dev | diff | G3b 1M R_dev | diff |
+|---|---|---|---|---|---|---|---|---|
+| 1000 | -1.425313 | -1.425313 | -1.425313 | 0.0e+00 | -1.425313 | 0.0e+00 | -1.425313 | 0.0e+00 |
+| 1001 | -1.447976 | -1.447976 | -1.447976 | 0.0e+00 | -1.447976 | 0.0e+00 | -1.447976 | 0.0e+00 |
+| 1002 | -1.445657 | -1.445657 | -1.445657 | 0.0e+00 | -1.445657 | 0.0e+00 | -1.445657 | 0.0e+00 |
+| 1003 | -1.448223 | -1.448223 | -1.448223 | 0.0e+00 | -1.448223 | 0.0e+00 | -1.448223 | 0.0e+00 |
+| 1004 | -1.449843 | -1.449843 | -1.449843 | 0.0e+00 | -1.449843 | 0.0e+00 | -1.454481 | 4.6e-03 |
+| 1005 | -1.447664 | -1.447664 | -1.447664 | 0.0e+00 | -1.447664 | 0.0e+00 | -1.447664 | 0.0e+00 |
+| 1006 | -1.439691 | -1.439691 | -1.439691 | 0.0e+00 | -1.439691 | 0.0e+00 | -1.439691 | 0.0e+00 |
+| 1007 | -1.453022 | -1.453022 | -1.453022 | 0.0e+00 | -1.453022 | 0.0e+00 | -1.453022 | 0.0e+00 |
+| 1008 | -1.459152 | -1.459152 | -1.459152 | 0.0e+00 | -1.459152 | 0.0e+00 | -1.459152 | 2.2e-16 |
+| 1009 | -1.469815 | -1.469815 | -1.469815 | 0.0e+00 | -1.469815 | 0.0e+00 | -1.469815 | 4.4e-16 |
+
+#### Mean quality of the trained populations
+
+`qbar`: the acceptance harness's mean period-average quality (`quality.mean_quality` in each study's `result.json`) for the same populations.
+
+| seed_env | LC 3M | ES 3M | G3b 1M |
+|---|---|---|---|
+| 1000 | 1.64e-15 | 3.26e-06 | 2.98e-01 |
+| 1001 | 4.96e-06 | 8.47e-04 | 4.79e-01 |
+| 1002 | 4.31e-06 | 7.78e-04 | 2.67e-01 |
+| 1003 | 1.91e-05 | 1.99e-03 | 5.84e-01 |
+| 1004 | 9.99e-12 | 8.75e-07 | 7.47e-01 |
+| 1005 | 1.94e-09 | 1.31e-07 | 5.81e-02 |
+| 1006 | 1.11e-05 | 3.12e-03 | 3.25e-01 |
+| 1007 | 2.85e-15 | 4.08e-06 | 1.20e-01 |
+| 1008 | 3.40e-05 | 1.86e-04 | 5.96e-01 |
+| 1009 | 2.47e-08 | 4.35e-07 | 3.97e-01 |
+
+#### Does all-production hold by itself? Seat 0 drops quality among producers
+
+| seed_env | R_producers | R_producers_seat0_q0 | quality_gain |
+|---|---|---|---|
+| 1000 | 1.210565 | 2.247307 | +1.0367 |
+| 1001 | 1.191086 | 2.251202 | +1.0601 |
+| 1002 | 1.154870 | 2.203874 | +1.0490 |
+| 1003 | 1.202650 | 2.259949 | +1.0573 |
+| 1004 | 1.198429 | 2.257341 | +1.0589 |
+| 1005 | 1.217972 | 2.266195 | +1.0482 |
+| 1006 | 1.096565 | 2.121135 | +1.0246 |
+| 1007 | 1.173955 | 2.232665 | +1.0587 |
+| 1008 | 1.215107 | 2.279637 | +1.0645 |
+| 1009 | 1.187176 | 2.272165 | +1.0850 |
+
+- quality_gain: min +1.0246, max +1.0850; positive on 10 of 10 seeds.
+- LC 3M: R_dev equals R_alone (to 1e-9) on 10 of 10 seeds; qbar 1.64e-15 to 3.40e-05.
+- ES 3M: R_dev equals R_alone (to 1e-9) on 10 of 10 seeds; qbar 1.31e-07 to 3.12e-03.
+- G3b 1M: R_dev equals R_alone (to 1e-9) on 9 of 10 seeds; qbar 5.81e-02 to 7.47e-01.
+
+---
+
 ## Labelled study ES - record
 
 _Source: `runs/ES_record.md`_
@@ -1082,7 +1221,8 @@ _Source: `runs/ES_record.md`_
 ### Labelled study ES - record (LEAD)
 
 **Status: complete. ES is a labelled study and re-evaluates no gate.** G3 (NOT PASSED), G3b, LC and
-CT stand as recorded. Written on 2026-10-03; the human sign-off is pending.
+CT stand as recorded. Written on 2026-10-03; the human sign-off is pending. The reading of the
+R18 test on the ES populations was revised on 2026-10-14 (#106), as CT's was; no number changed.
 
 - Pre-registration: `spec/P2_REVISION.md` R19, committed in 3db46a9 before any ES run.
 - Driver: `gosplan/experiments/entropy_schedule.py`. Report and data:
@@ -1129,13 +1269,15 @@ this learner: with the 1M runs' exact schedule, a 3M-step run still collapses.
   same schedule make it the same computation, so this is a consistency check rather than a
   finding.
 - **After 1M steps the slide continues with the entropy coefficient fixed.** Effort halves again
-  by 1.25M and reaches the trap level of about 0.02 by 1.75M, where it stays. Each enterprise's
-  own evaluation return keeps rising along the way, as in LC.
+  by 1.25M and reaches the collapse level of about 0.02 by 1.75M, where it stays. Each
+  enterprise's own evaluation return keeps rising along the way, as in LC.
 - **Both 3M schedules end in the same place.** LC's longer exploration delays nothing visible
   after 1.25M.
 
 **Outcomes at 3M.**
 - Welfare: `welfare_ratio` 0.0000, as in LC.
+- Quality: mean qbar (`quality.mean_quality` in `result.json`) is 0.000-0.003 per seed (at most
+  0.0031), against at most 3.4e-5 for LC and 0.06-0.75 for the 1M populations.
 - Held-out rows in the harness output (descriptive only):
   - row 2 (storming) and row 5 (hoarding) appear: excess Gini 0.222 (LC 0.220), request-inflation
     excess 1.79 (LC 1.98);
@@ -1147,36 +1289,44 @@ this learner: with the 1M runs' exact schedule, a 3M-step run still collapses.
     shown.
   - By R17's convergence rule (max <= 5%) the ES populations are **not converged** either.
 
-**R18 coordination-trap test on the ES populations (R18's rules unchanged; trap: YES).**
+**R18 test on the ES populations (R18's rules unchanged; both tests hold, which R18 calls "trap:
+YES"; qbar 0.000-0.003).**
 
 | Test | Result |
 |---|---|
 | (i) Producing alone does not pay | `d1` median -1.785 [-2.056, -1.449] |
 | (ii) Everyone producing pays more | `d2` median +1.111 [+0.678, +1.295] |
 
-- A lone truthful-myopic producer in seat 0 earns between -1.47 and -1.43 on every seed. The same
-  narrow band appeared against the LC and G3b populations (CT).
+- A lone truthful-myopic producer in seat 0 earns between -1.47 and -1.43 on every seed. That is
+  the autarky payoff: on every seed it equals, to the last digit, CT's `R_dev` against the LC
+  populations and seat 0's return against 19 inert seats
+  (`runs/coordination_trap/self_enforcement.md`).
 - When everyone produces, **every seat is better off on all 10 seeds**.
 - Seat 0's learned effort rises from about 0.02 to between 0.03 and 0.45 (median about 0.15)
   when the other seats are producers. This matches CT's finding that the learned policy has
   partly unlearned production.
+- As for LC (`runs/CT_record.md`, revised 2026-10-14, #106), the two tests do not show a
+  coordination trap. They do not test whether all-production is self-enforcing, and under C0 it
+  is not: among truthful-myopic producers an enterprise gains by dropping quality.
 
 #### Limits
 
 - One alternative schedule was tested. ES separates budget from *this* schedule; it does not
   exhaust the learner's exploration design.
 - The learning rate is constant in every study, so no learning-rate schedule was tested.
-- The study learner is the only learner (L1, L4). Whether other learners reach the same trap is
+- The study learner is the only learner (L1, L4). Whether other learners reach the same state is
   open.
-- The trap test uses one producer policy, `TruthfulMyopic`, as in CT.
+- The R18 test uses one producer policy, `TruthfulMyopic`, as in CT.
 - No gate is re-evaluated. Limitations L1-L5 stand.
 
 #### Consequences
 
 - **L5 is sharpened, not changed.** The budget dependence of learned-economy outcomes is a
   training-length effect for this learner. It is not an artefact of the annealing schedule.
-- The project's mechanism result now holds under both 3M schedules. Given enough training, C0
-  learners settle into a Pareto-dominated no-production coordination trap.
+- CT's finding now holds under both 3M schedules. Given enough training, C0 learners settle into
+  a no-production, zero-quality state that all-production by the truthful-myopic producer
+  Pareto-dominates. Neither CT nor ES shows that this state is a coordination trap rather than a
+  quality free-rider dilemma (#106).
 - Any follow-up is the owner's decision and needs a new pre-registration (#97).
 
 ---

@@ -1,7 +1,8 @@
 # Labelled study ES - record (LEAD)
 
 **Status: complete. ES is a labelled study and re-evaluates no gate.** G3 (NOT PASSED), G3b, LC and
-CT stand as recorded. Written on 2026-10-03; the human sign-off is pending.
+CT stand as recorded. Written on 2026-10-03; the human sign-off is pending. The reading of the
+R18 test on the ES populations was revised on 2026-10-14 (#106), as CT's was; no number changed.
 
 - Pre-registration: `spec/P2_REVISION.md` R19, committed in 3db46a9 before any ES run.
 - Driver: `gosplan/experiments/entropy_schedule.py`. Report and data:
@@ -48,13 +49,15 @@ this learner: with the 1M runs' exact schedule, a 3M-step run still collapses.
   same schedule make it the same computation, so this is a consistency check rather than a
   finding.
 - **After 1M steps the slide continues with the entropy coefficient fixed.** Effort halves again
-  by 1.25M and reaches the trap level of about 0.02 by 1.75M, where it stays. Each enterprise's
-  own evaluation return keeps rising along the way, as in LC.
+  by 1.25M and reaches the collapse level of about 0.02 by 1.75M, where it stays. Each
+  enterprise's own evaluation return keeps rising along the way, as in LC.
 - **Both 3M schedules end in the same place.** LC's longer exploration delays nothing visible
   after 1.25M.
 
 **Outcomes at 3M.**
 - Welfare: `welfare_ratio` 0.0000, as in LC.
+- Quality: mean qbar (`quality.mean_quality` in `result.json`) is 0.000-0.003 per seed (at most
+  0.0031), against at most 3.4e-5 for LC and 0.06-0.75 for the 1M populations.
 - Held-out rows in the harness output (descriptive only):
   - row 2 (storming) and row 5 (hoarding) appear: excess Gini 0.222 (LC 0.220), request-inflation
     excess 1.79 (LC 1.98);
@@ -66,34 +69,42 @@ this learner: with the 1M runs' exact schedule, a 3M-step run still collapses.
     shown.
   - By R17's convergence rule (max <= 5%) the ES populations are **not converged** either.
 
-**R18 coordination-trap test on the ES populations (R18's rules unchanged; trap: YES).**
+**R18 test on the ES populations (R18's rules unchanged; both tests hold, which R18 calls "trap:
+YES"; qbar 0.000-0.003).**
 
 | Test | Result |
 |---|---|
 | (i) Producing alone does not pay | `d1` median -1.785 [-2.056, -1.449] |
 | (ii) Everyone producing pays more | `d2` median +1.111 [+0.678, +1.295] |
 
-- A lone truthful-myopic producer in seat 0 earns between -1.47 and -1.43 on every seed. The same
-  narrow band appeared against the LC and G3b populations (CT).
+- A lone truthful-myopic producer in seat 0 earns between -1.47 and -1.43 on every seed. That is
+  the autarky payoff: on every seed it equals, to the last digit, CT's `R_dev` against the LC
+  populations and seat 0's return against 19 inert seats
+  (`runs/coordination_trap/self_enforcement.md`).
 - When everyone produces, **every seat is better off on all 10 seeds**.
 - Seat 0's learned effort rises from about 0.02 to between 0.03 and 0.45 (median about 0.15)
   when the other seats are producers. This matches CT's finding that the learned policy has
   partly unlearned production.
+- As for LC (`runs/CT_record.md`, revised 2026-10-14, #106), the two tests do not show a
+  coordination trap. They do not test whether all-production is self-enforcing, and under C0 it
+  is not: among truthful-myopic producers an enterprise gains by dropping quality.
 
 ## Limits
 
 - One alternative schedule was tested. ES separates budget from *this* schedule; it does not
   exhaust the learner's exploration design.
 - The learning rate is constant in every study, so no learning-rate schedule was tested.
-- The study learner is the only learner (L1, L4). Whether other learners reach the same trap is
+- The study learner is the only learner (L1, L4). Whether other learners reach the same state is
   open.
-- The trap test uses one producer policy, `TruthfulMyopic`, as in CT.
+- The R18 test uses one producer policy, `TruthfulMyopic`, as in CT.
 - No gate is re-evaluated. Limitations L1-L5 stand.
 
 ## Consequences
 
 - **L5 is sharpened, not changed.** The budget dependence of learned-economy outcomes is a
   training-length effect for this learner. It is not an artefact of the annealing schedule.
-- The project's mechanism result now holds under both 3M schedules. Given enough training, C0
-  learners settle into a Pareto-dominated no-production coordination trap.
+- CT's finding now holds under both 3M schedules. Given enough training, C0 learners settle into
+  a no-production, zero-quality state that all-production by the truthful-myopic producer
+  Pareto-dominates. Neither CT nor ES shows that this state is a coordination trap rather than a
+  quality free-rider dilemma (#106).
 - Any follow-up is the owner's decision and needs a new pre-registration (#97).
