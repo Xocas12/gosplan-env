@@ -57,7 +57,10 @@ this learner: with the 1M runs' exact schedule, a 3M-step run still collapses.
 - Welfare: `welfare_ratio` 0.0000, as in LC.
 - Held-out rows in the harness output (descriptive only):
   - row 2 (storming) and row 5 (hoarding) appear: excess Gini 0.222 (LC 0.220), request-inflation
-    excess 1.79 (LC 1.98);
+    excess 1.79 (LC 1.98). Row 5 appears by R14's rule only. It is not evidence of hoarding that
+    propagates shortage (`runs/G3_record.md` note H1, corrected 2026-10-14, #109), and its
+    correlation excess here (1.03) is among the largest reported, in an economy with almost no
+    effort;
   - row 6 (trade volume) stays at 0.
 - R16 exploitability:
   - Median -0.008 and max 0.173, with 1 of 10 seeds above 5%. LC 3M had median -0.003 and 3 of

@@ -1,0 +1,4 @@
+# #109: a new test that pins what row 5's two legs measure on C0 and checks that the records no
+# longer cite row 5 as evidence of hoarding that propagates shortage. Remove this entry once the
+# change has landed on main.
+tests/unit/test_row5_reading.py

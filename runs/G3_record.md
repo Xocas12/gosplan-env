@@ -26,14 +26,49 @@
 | Row | Statistic | Outcome |
 |---|---|---|
 | 2 storming | excess within-period effort Gini 0.137 [0.095, 0.184] | **appears** |
-| 5 hoarding | request inflation excess 1.96 [1.94, 1.98]; corr(X, shortfall) excess 0.55 [0.38, 0.72] | **appears**; see note H1 |
+| 5 hoarding | request inflation excess 1.96 [1.94, 1.98]; corr(X, shortfall) excess 0.55 [0.38, 0.72] | **appears** by R14's rule; not evidence of hoarding that propagates shortage (note H1) |
 | 6 blat | trade volume share 0.0000 | **not evaluable**: defect D1 |
 | 7 hidden reserves | C0 0.222 [0.092, 0.390]; R7_NULL 0.219 [0.055, 0.439] | **failure**: present, but does not vanish under the null |
 | 3 quality (pipeline check) | mean qbar, C0 minus R3_QW: 0.152 [-0.074, 0.339] | **failure** |
 
-**H1.** The learned requests sit at `request_max_multiple = 3.0` (mean inflation 2.96). The
-direction of row 5 is a result. Its magnitude is set by the action bound, and in the spirit of
-CONTRACT rule 8 it is reported that way, not as a free estimate.
+**H1 (corrected 2026-10-14, #109).** Row 5 appears by R14's rule, and the numbers above are that
+rule computed as pre-registered. They are not evidence of input hoarding that propagates shortage
+(Claim A(ii)), and the records no longer cite them as such.
+- **The inflation leg measures a free choice at its bound.** The learned requests sit at
+  `request_max_multiple = 3.0` (per-seed mean inflation 2.81-3.00, mean 2.96). The magnitude is
+  set by the action bound, and in the spirit of CONTRACT rule 8 it is reported that way, not as a
+  free estimate. A request reaches the dynamics only through the allocation weight
+  `(q + 1e-6)^0.7 * (need + 1e-6)^eta_n`, and no reward term charges for it, so raising one's own
+  request raises one's own share at no direct cost. This leg is therefore closer to a pipeline
+  check than to an emergence result. That is an analogy with bunching and padding, not the
+  README's rule: those are direct optima of the reward, inflation pays through the allocation
+  rule, and in the full game inflating could starve one's own suppliers, so dominance is not
+  proven.
+- **A uniform request multiple is allocatively neutral.** It cancels in the allocation's
+  normalisation. With `allocate()` on the C0 planner view, everyone at 1x need and everyone at 3x
+  need give allocations that agree to within the `1e-6` regularisers (relative difference below
+  1e-8 at reset). A lone 1x requester among 3x requesters gets about half its share (0.062 instead
+  of 0.125 of each good it needs), which is why inflating pays individually. At a common multiple
+  near the bound it moves almost no inputs.
+- **The correlation leg does not register request inflation.** `Kornai(3.0)` in every seat
+  (`TruthfulMyopic` effort and reports, requests at 3x need) reproduces the `TruthfulMyopic`
+  trajectory: input stocks differ by at most 2e-6, and the correlation excess is of order 1e-7,
+  the effect of the allocation's regularisers. R14 sets no minimum effect size, so even this
+  passes. On 30 C0 seeds at 10 measurement episodes each the excess is positive on every seed
+  (7e-8 to 1.6e-7), and R14's rule marks that population APPEARS.
+- **An agent that never inflates can pass the correlation leg.** `TruthfulMyopic` with its effort
+  scaled by 0.8 and requests at need gives an excess of +0.41 to +0.54 on the same 30 seeds. Row 5
+  does not appear for it only because its inflation excess is 0. Across the 29 C0 seeds with a
+  defined correlation, the learned correlation has Spearman -0.68 with mean effort, and the
+  collapsed 3M economies (effort about 0.02) give the largest excesses reported: 1.07 (LC) and
+  1.03 (ES), against 0.55 here. The leg tracks effort and stock behaviour, not inflation.
+- The note as first signed called the direction of row 5 a result. That reading is withdrawn. The
+  G3b, CT, LC and ES records are corrected to match, and `tests/unit/test_row5_reading.py` pins
+  the properties above on seeds 0 and 1.
+- Showing propagation would need a different measurement under a labelled revision with its own
+  pre-registration: for example, the share of each good's pool captured by over-requesting seats
+  and the shortfall at seats that did not over-request, or a baseline matched on effort. That is
+  the owner's decision.
 
 **Welfare.**
 - The learned populations reach `welfare_ratio = 0.034` (W 0.067 against `W_oracle` 1.98).
