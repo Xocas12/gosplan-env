@@ -1,0 +1,4 @@
+# #110: a new test file pinning ledger_test's degenerate case under round-off, the reconciliation
+# power curve on the Phase-1 and C0 ledgers, and the qualification in the records. It edits no
+# existing test. Remove this entry once the change has landed on main.
+tests/unit/test_reconciliation_roundoff.py

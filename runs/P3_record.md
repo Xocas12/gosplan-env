@@ -64,6 +64,18 @@ Seed-paired deltas are on `welfare_ratio`: IQM with a 95% bootstrap CI over 15 s
     change.
 - **Reconciliation power.** The per-(period, good) form (S4 amendment) has size 0.05 and power
   0.90 at a 5% inflated share, and 1.00 from 10% up.
+  - **Qualified 2026-10-14 (#110): this holds only for a noiseless Phase-1 ledger**, and it says
+    nothing about how large an inflation the test detects. Under Phase-1 delivery the truthful
+    per-good residuals are zero up to floating-point round-off (at most 1.3e-15 of the claimed
+    supply). `ledger_test` 0.1.0+fallback ran its t-test on that round-off, so the size of 0.05
+    is one replicate of 20 rejecting on rounding noise; with round-off taken as R13.6's
+    zero-variance case (0.1.1+fallback) the size is 0.00 and the power unchanged. Once any claim
+    is inflated, rejection depends on how many (period, good) keys carry one: x1.000001 gives the
+    same curve as x1.2.
+  - On C0 (seed 0) the truthful per-good residuals are one-signed (claims exceed receipts by 1.6%
+    on average), and the test rejects every truthful ledger at every factor. None of the ledgers
+    tried has null noise around zero, so there is no power figure to carry into the
+    forensics-core coupling. `runs/estimator_bias/reconciliation.md` has the numbers.
 - **S4 amendment:** the "reused" 30-seed arms were retrained under spec 2.0.x, because the config
   hashes changed. The G2 artefacts were left untouched.
 

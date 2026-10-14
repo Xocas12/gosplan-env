@@ -45,7 +45,11 @@ Outputs
                                             curve and the out-of-scope note above
     `runs/estimator_bias/bias_curves.png`   bias and coverage against `w`, per estimator setting
     `runs/estimator_bias/power_curve.png`   reconciliation power against known fictitious share
-    `runs/<config-hash>/`                   per-run directories with `manifest.json` (CONTRACT rule
+    `runs/estimator_bias/reconciliation.md` the reconciliation supplement of #110: the null
+                                            residuals, and the curve against the inflation factor
+                                            on the Phase-1, single-mechanism and C0 ledgers (with
+                                            `reconciliation.json`; `--reconciliation` alone)
+    `runs/<config-hash>/`                  per-run directories with `manifest.json` (CONTRACT rule
                                             10, estimator version included)
 
     PLAN section 12.5 names no artefact paths for WO-034; these follow the `runs/<experiment>/`
@@ -210,7 +214,8 @@ def run(
       5. Compute `REPORTED_STATISTICS` against each truth source separately: bias, RMSE over seeds,
          and empirical CI coverage against `NOMINAL_CI_COVERAGE`.
       6. Run `forensics_core.reconciliation.ledger_test` on ledgers whose fictitious output share is
-         known by construction, sweeping that share to obtain the power curve.
+         known by construction, sweeping that share to obtain the power curve, and write the
+         reconciliation supplement of #110 beside it (`reconciliation_supplement`).
       7. Write `table.parquet`, `report.md`, `bias_curves.png` and `power_curve.png`, each stating
          the estimator package and version that produced it.
 
@@ -292,6 +297,7 @@ def run(
 
     stats = summarise(rows)
     power = reconciliation_power(cfg)
+    reconciliation_supplement(out_dir)
     backend = _backend()
     result = {
         "arms": tuple({"w": k[0], "rho_cap": k[1]} for k in arms),
@@ -322,6 +328,7 @@ def run(
         "table": str(out_dir / TABLE_PATH.name),
         "bias_fig": str(out_dir / BIAS_FIG_PATH.name),
         "power_fig": str(out_dir / POWER_FIG_PATH.name),
+        "reconciliation": str(out_dir / RECON_REPORT_PATH.name),
     }
     return result
 
@@ -338,10 +345,22 @@ def main() -> int:
     coverage or large bias at small `w` is the study's finding, reported as such, and never a reason
     to re-tune the pre-registered settings of PLAN section 4.5 after the fact.
 
+    `--reconciliation` writes only the reconciliation supplement of #110
+    (`runs/estimator_bias/reconciliation.md` and `.json`), which needs heuristic agents and no
+    training run.
+
     Realises: PLAN sections 7.2, 12.5 (WO-034), 13. Owning WO: **WO-034**.
     """
+    import sys
+
     from gosplan.config import p1_default_config
 
+    if "--reconciliation" in sys.argv[1:]:
+        sup = reconciliation_supplement()
+        print(
+            f"reconciliation supplement: {len(sup['ledgers'])} ledgers; {RECON_REPORT_PATH.as_posix()}"
+        )
+        return 0
     res = run(p1_default_config(), ESTIMATOR_GRID)
     print(f"estimator-bias: {len(res['estimates'])} estimates; report {res['artefacts']['report']}")
     return 0
@@ -376,6 +395,43 @@ POWER_SHARES: tuple[float, ...] = (0.0, 0.05, 0.1, 0.2, 0.3, 0.5)
 POWER_REPLICATES = 20
 POWER_INFLATION = 1.2
 POWER_ALPHA = 0.05
+
+POWER_INFLATIONS: tuple[float, ...] = (1.2, 1.01, 1.0001, 1.000001)
+"""Inflation factors of the reconciliation supplement (#110): S4's 1.2 and the three smaller
+factors #110 tried on the same ledgers. Not pre-registered; the supplement says so."""
+
+RECON_LEDGERS: tuple[tuple[str, str], ...] = (
+    ("phase1", "Phase 1 (S4's pre-registered ledger)"),
+    ("phase1+channel_noise", "Phase 1 + C0's channel noise"),
+    ("phase1+report_lag", "Phase 1 + C0's report lag"),
+    ("phase1+stochastic_delivery", "Phase 1 + the locked stochastic delivery"),
+    ("phase1+input_holding_loss", "Phase 1 + the locked input holding loss"),
+    ("phase1+ministry", "Phase 1 + C0's ministry layer"),
+    ("C0", "C0, seed 0 (the Phase-2 baseline)"),
+)
+"""The ledgers of the reconciliation supplement (#110), as (name, label). Each `phase1+...` ledger
+switches on one mechanism the Phase-2 baseline adds, at its `p2_default_config()` value, over the
+Phase-1 configuration; `C0` is `phase2_acceptance.arm_config("C0", 0)`. Built by
+`recon_ledger_config`."""
+
+RECON_REPORT_PATH = OUT_DIR / "reconciliation.md"
+"""The reconciliation supplement (#110): null residuals and the curve against inflation size."""
+
+RECON_JSON_PATH = OUT_DIR / "reconciliation.json"
+"""The numbers behind `RECON_REPORT_PATH`."""
+
+RECONCILIATION_CAVEAT: tuple[str, ...] = (
+    "**This curve holds only for a noiseless Phase-1 ledger (#110).** Under Phase-1 delivery the "
+    "truthful per-(period, good) residuals are zero up to floating-point round-off, so the size "
+    "says how `ledger_test` treats rounding noise, not how often it raises a false alarm on a "
+    "ledger with noise in it. Up to estimator 0.1.0+fallback the test ran its t-test on that "
+    "round-off; from 0.1.1+fallback it treats it as zero. Once any claim is inflated, its residual "
+    "dwarfs the round-off, and rejection depends on how many (period, good) keys carry an "
+    "inflated claim, not on how much: in `reconciliation.md`, x1.000001 gives the same curve as "
+    "x1.2. That file also gives the null residuals and the same curves on C0, whose truthful "
+    "ledgers do not reconcile.",
+)
+"""The qualification `render_report` prints under the S4 power curve (#110)."""
 
 
 def arm_grid() -> tuple[tuple[float, float], ...]:
@@ -506,7 +562,11 @@ def measure_rho_seed(job: tuple) -> list[list[float]]:
     return out
 
 
-def reconciliation_power(cfg: EnvConfig) -> dict[str, object]:
+def reconciliation_power(
+    cfg: EnvConfig,
+    inflations: tuple[float, ...] = (POWER_INFLATION,),
+    replicates: int = POWER_REPLICATES,
+) -> dict[str, object]:
     """Rejection rate of `ledger_test` at `POWER_ALPHA` against the share of enterprise-periods whose
     claim is inflated by `POWER_INFLATION` (P3 revision S4).
 
@@ -514,21 +574,50 @@ def reconciliation_power(cfg: EnvConfig) -> dict[str, object]:
     each good against the supply implied by buyers' receipts of it"): `reported_supply` is the
     sellers' claimed intermediate supply `(1 - phi_j) * sum R_i`, `received_inputs` is a one-hot row
     carrying the buyers' total receipts of good `j` at the next DELIVER, `io_matrix` the matching
-    unit row and `prices` `p_j`. Ledgers: `TruthfulMyopic` on `cfg`, `POWER_REPLICATES` episodes;
-    the post-hoc inflation draw uses a local generator keyed by replicate (analysis outside
-    `gosplan/env/`, CONTRACT rule 9 does not apply)."""
-    from gosplan.agents.heuristic import TruthfulMyopic
-    from gosplan.env.env import GosplanEnv
+    unit row and `prices` `p_j`. Ledgers: `TruthfulMyopic` on `cfg`, `replicates` episodes; the
+    post-hoc inflation draw uses a local generator keyed by replicate (analysis outside
+    `gosplan/env/`, CONTRACT rule 9 does not apply).
+
+    `rejection_rate` is S4's curve at `POWER_INFLATION`. Two additions (#110) say what that curve
+    can and cannot show. `by_inflation` repeats it for every factor in `inflations` on the same
+    ledgers and the same draws, so two curves differ only in the factor. `null` describes the
+    residuals with no claim inflated (`null_residuals`): when they are zero up to round-off, the
+    size is a property of how the test treats rounding noise, and the curve measures how many
+    (period, good) keys carry an inflated claim rather than how large the inflation is."""
     from gosplan.env.prices import initial_prices
     from gosplan.metrics import resolve_estimators
-    from gosplan.metrics.ledger import Ledger
 
     test = resolve_estimators().reconciliation_ledger_test
-    j_n = cfg.supply.n_sectors
     phi = np.asarray(cfg.supply.final_demand_share, dtype=float)
     prices = np.asarray(initial_prices(cfg), dtype=float)
+    episodes = truthful_ledgers(cfg, replicates)
+    curves = {
+        str(f): _rejection_curve(episodes, phi, prices, f, test)
+        for f in dict.fromkeys((POWER_INFLATION, *inflations))
+    }
+    return {
+        "alpha": POWER_ALPHA,
+        "inflation": POWER_INFLATION,
+        "replicates": replicates,
+        "form": "per (period, good)",
+        "rejection_rate": curves[str(POWER_INFLATION)],
+        "by_inflation": {str(f): curves[str(f)] for f in inflations},
+        "null": null_residuals(episodes, phi, prices, test),
+    }
+
+
+def truthful_ledgers(cfg: EnvConfig, replicates: int = POWER_REPLICATES) -> list[tuple]:
+    """S4's power ledgers: `replicates` `TruthfulMyopic` episodes on `cfg`, at
+    `seed_env = cfg.tech.seed_env + 5000 + rep`. Per episode, `(reports, receipts, shipped)`: the
+    REPORT rows, and per period the buyers' total receipts of each good and the sellers' total
+    shipments of each good at that period's DELIVER (the `produce` rows with `k_step == 0`)."""
+    from gosplan.agents.heuristic import TruthfulMyopic
+    from gosplan.env.env import GosplanEnv
+    from gosplan.metrics.ledger import Ledger
+
+    j_n = cfg.supply.n_sectors
     episodes = []
-    for rep in range(POWER_REPLICATES):
+    for rep in range(replicates):
         env = GosplanEnv(cfg)
         ledger = Ledger()
         env.attach_ledger(ledger)
@@ -540,42 +629,294 @@ def reconciliation_power(cfg: EnvConfig) -> dict[str, object]:
             obs, _r, done, _i = env.step(agent.act(obs, env.phase(), rng))
         reports = [r for r in ledger.records if r.phase == "report"]
         receipts: dict[int, np.ndarray] = {}
+        shipped: dict[int, np.ndarray] = {}
         for r in ledger.records:
             if r.phase == "produce" and r.k_step == 0:
                 receipts[r.t_period] = receipts.get(r.t_period, np.zeros(j_n)) + np.asarray(r.deliv)
-        episodes.append((reports, receipts))
+                shipped.setdefault(r.t_period, np.zeros(j_n))[r.sector] += r.shipped
+        episodes.append((reports, receipts, shipped))
+    return episodes
+
+
+def _per_good_call(reports, receipts, phi, inflate, inflation: float):
+    """The per-(period, good) arguments of S4's `ledger_test` call: `(keys, supply, received,
+    unit)`, or `None` with fewer than two keys. `inflate` marks the REPORT rows whose claim is
+    multiplied by `inflation`."""
+    j_n = phi.shape[0]
+    claimed: dict[tuple[int, int], float] = {}
+    for rec, up in zip(reports, inflate, strict=True):
+        if rec.t_period + 1 not in receipts:
+            continue
+        key = (rec.t_period, rec.sector)
+        claimed[key] = claimed.get(key, 0.0) + rec.report * (inflation if up else 1.0)
+    keys = sorted(claimed)
+    if len(keys) < 2:
+        return None
+    supply = np.array([(1.0 - phi[g]) * claimed[(t, g)] for t, g in keys])
+    received = np.zeros((len(keys), j_n))
+    unit = np.zeros((len(keys), j_n))
+    for row, (t, g) in enumerate(keys):
+        received[row, g] = receipts[t + 1][g]
+        unit[row, g] = 1.0
+    return keys, supply, received, unit
+
+
+def _rejection_curve(episodes, phi, prices, inflation: float, test) -> dict[str, float]:
+    """Rejection rate at `POWER_ALPHA` per share in `POWER_SHARES`, claims inflated by
+    `inflation`. The draw of which rows are inflated depends on the replicate and the share only,
+    so curves at different factors use the same rows."""
     curve = {}
     for share in POWER_SHARES:
         rejections = []
-        for rep, (reports, receipts) in enumerate(episodes):
+        for rep, (reports, receipts, _shipped) in enumerate(episodes):
             gen = np.random.default_rng([rep, round(share * 1000)])
             inflate = gen.random(len(reports)) < share
-            claimed: dict[tuple[int, int], float] = {}
-            for rec, up in zip(reports, inflate, strict=True):
-                if rec.t_period + 1 not in receipts:
-                    continue
-                key = (rec.t_period, rec.sector)
-                claimed[key] = claimed.get(key, 0.0) + rec.report * (POWER_INFLATION if up else 1.0)
-            keys = sorted(claimed)
-            if len(keys) < 2:
+            call = _per_good_call(reports, receipts, phi, inflate, inflation)
+            if call is None:
                 continue
-            supply = np.array([(1.0 - phi[g]) * claimed[(t, g)] for t, g in keys])
-            received = np.zeros((len(keys), j_n))
-            unit = np.zeros((len(keys), j_n))
-            for row, (t, g) in enumerate(keys):
-                received[row, g] = receipts[t + 1][g]
-                unit[row, g] = 1.0
+            keys, supply, received, unit = call
             res = test(supply, received, unit, prices[[g for _, g in keys]])
             if np.isfinite(res.p_value):
                 rejections.append(res.p_value < POWER_ALPHA)
         curve[str(share)] = float(np.mean(rejections)) if rejections else float("nan")
+    return curve
+
+
+def null_residuals(episodes, phi, prices, test) -> dict[str, object]:
+    """The residuals of S4's per-(period, good) call with no claim inflated (#110).
+
+    `relative` is the residual over the priced claimed supply, `(claimed - received) / claimed`,
+    pooled over every key of every episode: `mean`, `sd`, `max_abs`, `min` and `n_keys`.
+    `max_abs_shipment_gap` is the largest `|received - (1 - phi_j) shipped_j| / received` over the
+    same keys, i.e. how far the buyers' receipts sit from what the sellers shipped; when it is
+    round-off, any non-zero residual lies between the claims and the shipments. `statistic` and
+    `p_value` are per replicate, and `size` is the share of replicates rejected at `POWER_ALPHA`."""
+    rel, ship_gap, stats, pvals = [], [], [], []
+    for reports, receipts, shipped in episodes:
+        call = _per_good_call(reports, receipts, phi, np.zeros(len(reports), dtype=bool), 1.0)
+        if call is None:
+            continue
+        keys, supply, received, unit = call
+        res = test(supply, received, unit, prices[[g for _, g in keys]])
+        rel.extend((np.asarray(res.residuals) / (prices[[g for _, g in keys]] * supply)).tolist())
+        for t, g in keys:
+            got, sent = receipts[t + 1][g], (1.0 - phi[g]) * shipped[t + 1][g]
+            ship_gap.append(abs(got - sent) / got if got > 0 else abs(got - sent))
+        stats.append(float(res.statistic))
+        pvals.append(float(res.p_value))
+    r = np.asarray(rel, dtype=float)
+    finite = [p for p in pvals if np.isfinite(p)]
     return {
-        "alpha": POWER_ALPHA,
-        "inflation": POWER_INFLATION,
-        "replicates": POWER_REPLICATES,
-        "form": "per (period, good)",
-        "rejection_rate": curve,
+        "n_keys": int(r.size),
+        "relative_mean": float(r.mean()) if r.size else float("nan"),
+        "relative_sd": float(r.std(ddof=1)) if r.size > 1 else float("nan"),
+        "relative_max_abs": float(np.abs(r).max()) if r.size else float("nan"),
+        "relative_min": float(r.min()) if r.size else float("nan"),
+        "max_abs_shipment_gap": float(max(ship_gap)) if ship_gap else float("nan"),
+        "statistic": stats,
+        "p_value": pvals,
+        "size": float(np.mean([p < POWER_ALPHA for p in finite])) if finite else float("nan"),
     }
+
+
+_RECON_MECHANISMS: dict[str, dict[str, tuple[str, ...]]] = {
+    "phase1": {},
+    "phase1+channel_noise": {"information": ("channel_noise",)},
+    "phase1+report_lag": {"information": ("report_lag",)},
+    "phase1+stochastic_delivery": {"supply": ("delivery_timing", "arrival_probs")},
+    "phase1+input_holding_loss": {"supply": ("input_holding_loss",)},
+    "phase1+ministry": {
+        "information": ("ministry_passthrough", "n_ministries", "ministry_pad"),
+    },
+}
+"""The `p2_default_config()` fields each `phase1+...` ledger of `RECON_LEDGERS` copies onto the
+Phase-1 configuration. The values are read from `p2_default_config()`, never restated here."""
+
+
+def recon_ledger_config(name: str) -> EnvConfig:
+    """The configuration of one `RECON_LEDGERS` entry (see there)."""
+    from gosplan.config import p1_default_config, p2_default_config
+    from gosplan.experiments import _g2
+    from gosplan.experiments.phase2_acceptance import arm_config
+
+    if name == "C0":
+        return arm_config("C0", 0)
+    p2 = p2_default_config()
+    overrides = {
+        section: {f: getattr(getattr(p2, section), f) for f in names}
+        for section, names in _RECON_MECHANISMS[name].items()
+    }
+    return _g2.with_overrides(p1_default_config(), overrides)
+
+
+def _mechanism_values(name: str) -> str:
+    """`field = value` for the fields a `RECON_LEDGERS` entry sets, for the report."""
+    from gosplan.config import p2_default_config
+
+    if name not in _RECON_MECHANISMS:
+        return "every C0 setting"
+    p2 = p2_default_config()
+    parts = [
+        f"{f} = {getattr(getattr(p2, section), f)}"
+        for section, names in _RECON_MECHANISMS[name].items()
+        for f in names
+    ]
+    return ", ".join(parts) if parts else "no change"
+
+
+def reconciliation_supplement(out_dir: Path = OUT_DIR) -> dict[str, object]:
+    """The reconciliation supplement of #110: for every `RECON_LEDGERS` entry, S4's per-(period,
+    good) power curve at every factor in `POWER_INFLATIONS`, with the null residuals beside it.
+
+    Takes: `out_dir`, where `reconciliation.json` and `reconciliation.md` are written. Returns:
+    the JSON-able result, `{"estimator", "estimator_version", "alpha", "replicates", "shares",
+    "inflations", "ledgers": {name: {"label", "settings", "by_inflation", "null"}}}`.
+
+    Descriptive and not pre-registered. S4 fixed the Phase-1 ledger and the factor 1.2; the other
+    ledgers and factors are here because the Phase-1 ledger reconciles to round-off under truthful
+    play, so its curve cannot say how large an inflation the test detects (#110). Heuristic agents
+    only, minutes on one core."""
+    import json
+
+    backend = _backend()
+    ledgers = {}
+    for name, label in RECON_LEDGERS:
+        power = reconciliation_power(recon_ledger_config(name), POWER_INFLATIONS)
+        ledgers[name] = {
+            "label": label,
+            "settings": _mechanism_values(name),
+            "by_inflation": power["by_inflation"],
+            "null": power["null"],
+        }
+    sup = {
+        "estimator": backend[0],
+        "estimator_version": backend[1],
+        "alpha": POWER_ALPHA,
+        "replicates": POWER_REPLICATES,
+        "shares": list(POWER_SHARES),
+        "inflations": list(POWER_INFLATIONS),
+        "ledgers": ledgers,
+    }
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / RECON_JSON_PATH.name).write_text(
+        json.dumps(sup, indent=2) + "\n", encoding="utf-8", newline="\n"
+    )
+    (out_dir / RECON_REPORT_PATH.name).write_text(
+        render_reconciliation(sup), encoding="utf-8", newline="\n"
+    )
+    return sup
+
+
+def render_reconciliation(sup: dict) -> str:
+    """`reconciliation.md` from the result of `reconciliation_supplement`. Pure."""
+    shares = [str(s) for s in sup["shares"]]
+    led = sup["ledgers"]
+    lines = [
+        "# Reconciliation power against inflation size, and the null it rests on (#110)",
+        "",
+        "Supplement to the S4 power curve in `report.md`: descriptive, added after the P3 run, and "
+        "not pre-registered. Written by `python -m gosplan.experiments.estimator_bias "
+        f"--reconciliation`. Estimator: {sup['estimator']} {sup['estimator_version']}.",
+        "",
+        "The call is S4's: per (period, good), the sellers' claimed intermediate supply "
+        "`(1 - phi_j) sum R_i` against the buyers' receipts of good j at the next DELIVER, "
+        f"{sup['replicates']} TruthfulMyopic episodes per ledger at `seed_env + 5000 + rep`, "
+        f"alpha = {sup['alpha']}. Which claims are inflated is drawn as in S4, from the replicate "
+        "and the share only, so the rows for one ledger differ in the inflation factor alone.",
+        "",
+        "## Null residuals (no claim inflated)",
+        "",
+        "Relative residual = (claimed - received) / claimed, pooled over every (period, good) "
+        "key of every episode. Shipment gap = the largest |received - (1 - phi_j) shipped_j| / "
+        "received over the same keys. Size = share of episodes rejected with no claim inflated.",
+        "",
+        "| ledger | settings | keys | mean | sd | max abs | shipment gap | size |",
+        "|---|---|---|---|---|---|---|---|",
+    ]
+    for d in led.values():
+        n = d["null"]
+        lines.append(
+            f"| {d['label']} | {d['settings']} | {n['n_keys']} | {n['relative_mean']:.2e} | "
+            f"{n['relative_sd']:.2e} | {n['relative_max_abs']:.2e} | "
+            f"{n['max_abs_shipment_gap']:.2e} | {n['size']:.2f} |"
+        )
+    lines += [
+        "",
+        "## Rejection rate by inflated share and inflation factor",
+        "",
+        "| ledger | factor | " + " | ".join(f"share {s}" for s in shares) + " |",
+        "|---|---|" + "---|" * len(shares),
+    ]
+    for d in led.values():
+        for f, curve in d["by_inflation"].items():
+            lines.append(
+                f"| {d['label']} | x{f} | " + " | ".join(f"{curve[s]:.2f}" for s in shares) + " |"
+            )
+    from gosplan.metrics._fallback import RECON_ZERO_RTOL as tol
+
+    lines += ["", "## Reading", ""]
+    exact, one_signed, two_signed = [], [], []
+    for d in led.values():
+        curves = list(d["by_inflation"].values())
+        n = d["null"]
+        if n["size"] >= 1.0:
+            factor = (
+                " Every truthful episode is already rejected, so every curve is 1.00 and says "
+                "nothing about the inflation."
+            )
+        elif all(c == curves[0] for c in curves[1:]):
+            factor = (
+                " The curve is the same at every factor: rejection depends on how many (period, "
+                "good) keys carry an inflated claim, not on how much the claim is inflated."
+            )
+        else:
+            factor = " The curve moves with the factor."
+        if n["relative_max_abs"] <= tol:
+            exact.append(d["label"])
+            lines.append(
+                f"- {d['label']}: the truthful ledger reconciles to round-off (largest relative "
+                f"residual {n['relative_max_abs']:.1e}), so there is no null noise; size "
+                f"{n['size']:.2f}." + factor
+            )
+            continue
+        (one_signed if n["relative_min"] >= -tol else two_signed).append(d["label"])
+        sign = (
+            f"; the most negative is {n['relative_min']:+.1e}, which is round-off, so claims "
+            "exceed receipts wherever the two differ"
+            if n["relative_min"] >= -tol
+            else f"; the smallest is {n['relative_min']:+.2e}"
+        )
+        lines.append(
+            f"- {d['label']}: the truthful residuals are not zero (mean "
+            f"{n['relative_mean']:+.2e} of the claimed supply, sd {n['relative_sd']:.2e}{sign}), "
+            f"and the test rejects {n['size']:.2f} of the truthful episodes." + factor
+        )
+    gap = max(d["null"]["max_abs_shipment_gap"] for d in led.values())
+    sizes = sorted({f"{d['null']['size']:.2f}" for d in led.values()})
+    if gap <= tol:
+        lines += [
+            "",
+            "On every ledger the buyers' receipts equal `(1 - phi_j)` times what the sellers "
+            f"shipped, to {gap:.1e}, so a non-zero null residual is a gap between the claims and "
+            "the shipments. Delivery timing moves when inputs arrive, not how much is delivered "
+            "(`planner.deliver`, P2 revision R6). Under the ministry layer, delivery obligations "
+            "are the ministry-forwarded claims, not the sellers' own (R10.3).",
+        ]
+    if not two_signed:
+        lines += [
+            "",
+            "No ledger here has null residuals spread around zero: "
+            f"{len(exact)} reconcile to round-off and {len(one_signed)} have residuals of one "
+            f"sign, and the sizes are {' and '.join(sizes)}. None of them gives a power curve at "
+            "the nominal size. A curve that measures detection of a given inflation needs a ledger "
+            "whose claims and receipts differ by noise, and choosing that noise is a design "
+            "decision this supplement does not make.",
+        ]
+    else:
+        lines += ["", "Ledgers with null residuals of both signs: " + ", ".join(two_signed) + "."]
+    lines.append("")
+    return "\n".join(lines)
 
 
 def _backend() -> tuple[str, str]:
@@ -708,7 +1049,7 @@ def render_report(res: dict, grid) -> str:
             f"- share {share}: rejection rate {rate:.2f}"
             + (" (size)" if float(share) == 0.0 else "")
         )
-    lines += ["", "Figures: `bias_curves.png`, `power_curve.png`.", ""]
+    lines += ["", *RECONCILIATION_CAVEAT, "", "Figures: `bias_curves.png`, `power_curve.png`.", ""]
     return "\n".join(lines)
 
 

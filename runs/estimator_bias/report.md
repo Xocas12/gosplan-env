@@ -57,4 +57,6 @@ Notes (read before the numbers):
 - share 0.3: rejection rate 1.00
 - share 0.5: rejection rate 1.00
 
+**This curve holds only for a noiseless Phase-1 ledger (#110).** Under Phase-1 delivery the truthful per-(period, good) residuals are zero up to floating-point round-off, so the size says how `ledger_test` treats rounding noise, not how often it raises a false alarm on a ledger with noise in it. Up to estimator 0.1.0+fallback the test ran its t-test on that round-off; from 0.1.1+fallback it treats it as zero. Once any claim is inflated, its residual dwarfs the round-off, and rejection depends on how many (period, good) keys carry an inflated claim, not on how much: in `reconciliation.md`, x1.000001 gives the same curve as x1.2. That file also gives the null residuals and the same curves on C0, whose truthful ledgers do not reconcile.
+
 Figures: `bias_curves.png`, `power_curve.png`.

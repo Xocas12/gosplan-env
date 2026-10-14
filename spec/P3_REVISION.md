@@ -124,6 +124,18 @@ windows.
   - The per-good form has size 0.05 and power 0.90 at a 5% inflated share.
   - G3's row-7 `reconciliation_stat` was computed under R13.5 and is therefore uninformative. The
     G3 record says so. Row 7's pass rule never used it.
+- **Qualified (2026-10-14, after the P3 run; #110).** The size 0.05 and power 0.90 above hold only
+  for a noiseless Phase-1 ledger, and they do not support the switch to the per-good form.
+  - Under Phase-1 delivery the truthful per-good residuals are zero up to floating-point round-off
+    (at most 1.3e-15 of the claimed supply). `ledger_test` 0.1.0+fallback ran its t-test on that
+    round-off, and the size of 0.05 is one replicate of 20 rejecting on it. From 0.1.1+fallback,
+    residuals within round-off take R13.6's zero-variance case and the size is 0.00.
+  - Once any claim is inflated, rejection depends on how many (period, good) keys carry an
+    inflated claim, not on the factor: x1.000001 gives the same curve as x1.2.
+  - On C0 (seed 0), the truthful per-good residuals are one-signed (claims exceed receipts by
+    1.6% on average), and the test rejects every truthful ledger at every factor.
+  - The switch still stands on the R13.5 ground above: a statistic of about -77 under truthful play.
+  - `runs/estimator_bias/reconciliation.md` has the numbers. The design above is unchanged.
 
 Digit tests and calibration claims stay out of scope.
 
