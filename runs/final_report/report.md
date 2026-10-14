@@ -550,9 +550,10 @@ _Source: `runs/G3b_record.md`_
 ### Labelled study G3b - record (LEAD)
 
 **Status: G3b does not change G3.** G3 stays **NOT PASSED** as recorded in `runs/G3_record.md`.
-G3b was approved at G3 (owner decision 2, delegated) to answer two questions. Row 6 now fails on
-learned behaviour, and the revised audit finds the populations far from equilibrium. Written on
-2026-09-28. The human sign-off is pending.
+G3b was approved at G3 (owner decision 2, delegated) to answer two questions. Row 6 trades
+nothing, but under the trade rule (R9) a sale never pays the seller, so row 6 is not evaluable
+(corrected on 2026-10-14; see the correction at the end). The revised audit finds the populations
+far from equilibrium. Written on 2026-09-28. The human sign-off is pending.
 
 - Source: `runs/phase2_acceptance_g3b/report.md` and `result.json`.
 - Spec 2.1.0: R15 (trade offers posted at REPORT) and R16 (the revised exploitability audit).
@@ -561,14 +562,15 @@ learned behaviour, and the revised audit finds the populations far from equilibr
 - The run started on 2026-09-28 at 07:51 UTC and ended at 21:08 UTC.
 - Limitations L1 and L2 carry forward. L3 (no trade was possible) is lifted for G3b only.
 
-#### Question 1 - row 6 (blat), after the D1 fix: **FAILURE (does not appear)**
+#### Question 1 - row 6 (blat), after the D1 fix: **NOT EVALUABLE under R9** (nothing trades)
 
 | Statistic | Value |
 |---|---|
 | trade volume share, mean over 30 seeds [95% CI] | 0 [0, 0] |
 | matched trade pairs, all 30 seeds, 100 measurement episodes each | 0 |
 
-This is a behavioural result, not a pipeline defect. It was checked three ways:
+The zero is not a pipeline defect, and it is not evidence of learned hoarding either. It was
+checked three ways:
 
 1. **The fix works.** The pre-run smoke test (tiny untrained policies under spec 2.1.0) matched
    166 and 335 trade pairs. Offers are posted at REPORT, stored, and executed by the next period's
@@ -580,13 +582,16 @@ This is a behavioural result, not a pipeline defect. It was checked three ways:
    - Offers ranged from -1.000 to -0.358, with per-seed means between -0.90 and -0.99.
    - Not one of the offers was a sell offer. With no seller, the matching rule (R9) can execute
      nothing.
-3. **This agrees with row 5.** The same populations push input requests to the upper bound
-   (request inflation excess 1.96, as at G3). Every enterprise wants more of every input and none
-   parts with any.
+3. **The trade rule predicts it.** Under R9 a sale gives the seller nothing back, so selling
+   never raises the seller's own reward (see the correction at the end). A learner that never
+   offers to sell is doing what the rule rewards, whatever it has learned about barter.
 
-Row 6 is therefore evaluated, and it fails under R14's rule: the lower CI bound is not above 0.
-In the terms of PLAN section 4.2: under C0 the learned enterprises hoard rather than barter, so
-horizontal trade does not emerge.
+Row 6 is therefore **not evaluable under R9**. Applied mechanically, R14's rule gives "does not
+appear" (the lower CI bound is not above 0), and the study report prints that verdict. But no
+individually rewarded learner gains from selling under R9, so a zero is what the rule predicts
+whatever the learners do. It cannot tell enterprises that hoard rather than barter from a market
+that never pays a seller. Horizontal trade does not occur here; whether it would emerge under a
+rule that pays the seller is untested.
 
 #### Question 2 - the R16 exploitability audit: **NON-CONVERGED**
 
@@ -622,7 +627,8 @@ horizontal trade does not emerge.
 #### Consequences
 
 - G3 remains NOT PASSED. G3b adds two findings:
-  - Row 6 fails behaviourally, because learners hoard and never offer to sell.
+  - Row 6 is not evaluable under R9: learners never offer to sell, and under R9 a sale never
+    pays the seller (see the correction below).
   - Under the revised audit the C0 populations are non-converged (L4).
 - The Phase-3 contrasts (`runs/P3_record.md`) were run before R15, carrying L3. G3b shows that
   even with trade possible, C0 populations do not trade. L3 is therefore unlikely to have changed
@@ -631,6 +637,51 @@ horizontal trade does not emerge.
 - The owner decides at G3/G4 whether a longer-trained or differently configured learner is
   commissioned. That would be a new labelled study, because the numbers here must not be tuned to
   pass.
+
+#### Correction (2026-10-14): row 6 is not evaluable under R9 (#107)
+
+Question 1 first recorded row 6 as "FAILURE (does not appear)" and read it as "under C0 the learned
+enterprises hoard rather than barter". Its check 3 read the buy-only offers as agreeing with row 5,
+and the consequences said "Row 6 fails behaviourally, because learners hoard and never offer to
+sell". Those readings claim more than the zero shows, and they are corrected above. No number
+changes.
+
+- **A sale gives the seller nothing back.** R9.3 executes `X_ij -= x` for the seller and
+  `X_bj += (1 - tau) x` for the buyer. No good, money or credit returns to the seller, so R9.4's
+  "no money moves; ... payments cancel" leaves no payment to cancel.
+- **The seller's own reward cannot rise.** The only trade term in the reward is each enterprise's
+  own `trade_surplus` (R9.5): the change in its own intended output through coverage. Coverage
+  never falls as a stock grows.
+  - A sale is never worth more than 0 to the seller. It is worth exactly 0 when the seller's stock
+    of the sold good still covers its need after the sale.
+  - It is worth less than 0 when the sale takes the stock below need, unless another input already
+    holds the seller's output down: one it holds none of, or, with a Leontief aggregator
+    (`theta = inf`), one whose coverage is no higher than the sold good's after the sale. Then it
+    is worth exactly 0.
+  - A buy never lowers the buyer's surplus.
+  - The gain from moving an input to where coverage binds goes wholly to the buyer.
+- **Nothing else pays the seller.** The planner never sees input stocks, cost depends on effort
+  only, and PPO advantages are computed per agent, so parameter sharing does not pass the buyer's
+  gain back. An offer is one number per good, so a seller cannot also buy that good. Matching is
+  anonymous and no observation shows who traded with whom, so reciprocity cannot be learned
+  either.
+- **Checked** in `tests/unit/test_trade_seller_incentive.py`:
+  - hand-worked cases: a sale that leaves the seller's stock above its need gains it exactly 0; a
+    sale that takes the stock below need loses; and a sale below need gains exactly 0 when the
+    seller holds none of another needed input, or, under `theta = inf`, when another needed
+    input's coverage is lower than the sold good's after the sale;
+  - 300 random states of `p2_default_config()`: wherever the sale executed (70 cases), the
+    seller's own surplus never rose, and a buy never lowered the buyer's.
+
+Selling is weakly dominated for every individually rewarded learner, so the buy-only, zero-volume
+outcome is built into the trade rule. Row 6 shows that no one sold. It cannot show that the C0
+institution suppresses barter, and so cannot bear on Claim A(iii). G3 stays NOT PASSED, and
+question 2 is unaffected.
+
+Evaluating row 6 needs a trade rule in which a sale pays the seller, for example a swap leg in which
+the buyer ships back goods of equal plan value. That would be a spec revision and a new labelled
+study, and it is the owner's decision. The correction is carried into `runs/LC_record.md`,
+`runs/CT_record.md`, `runs/P3_record.md` and `README.md`.
 
 ---
 
@@ -747,7 +798,10 @@ Read the primary result against this before citing it.
   configuration, reach W of 1.98 and 1.06, so the environment supports production. The collapse is
   in what the learners converge to.
 - Every posted trade offer is still a buy order. The mean offer is -1.000, and none of the 3M
-  populations' offers is a sell. Row 6 stays at zero.
+  populations' offers is a sell. Row 6 stays at zero. Under R9 a sale never pays the seller, so
+  this is what the trade rule predicts for any individually rewarded learner: row 6 is not
+  evaluable under R9 and says nothing about barter (`runs/G3b_record.md`, correction of
+  2026-10-14).
 
 **Reading of the primary result.** The fall in exploitability is real by R17's rule, but it is not
 convergence to a functioning equilibrium.
@@ -1000,8 +1054,13 @@ The 1M populations are not a trap. Several are so far from equilibrium (seat-0 r
     each seed, for example -1.425 against both for seed 1000.
   - Against all-producers, the same seat is better off.
   - Both learned populations therefore leave a producer similarly short. This fits the input
-    starvation that the hoarding result (row 5) and the buy-only trade offers (row 6, G3b) point
-    to. CT did not measure the producer's input receipts, so this is a reading.
+    starvation that the hoarding result (row 5) points to. CT did not measure the producer's input
+    receipts, so this is a reading.
+  - The buy-only trade offers of G3b are not evidence of input starvation. Under R9 a sale never
+    pays the seller and a buy never lowers the buyer's own surplus, so an individually rewarded
+    learner gains nothing by selling and loses nothing by buying, whatever its inputs. Buy-only
+    offers are what the rule predicts with or without starvation. Row 6 is not evaluable under R9
+    (`runs/G3b_record.md`, correction of 2026-10-14).
 - **The learned policy responds only weakly to available inputs.** Seat 0's learned effort rises
   when the other seats are producers: at 3M the median rises from about 0.02 to about 0.14, with
   seed 1007 flat at 0.006. That is still far below what a producer supplies, so the trained policy
@@ -1566,9 +1625,11 @@ unit-tested. The owner's command is in the report: install the SDK, add a creden
 #### Update (2026-09-28): G3b complete
 
 See `runs/G3b_record.md`. With trade possible (spec 2.1.0), C0 populations post only buy offers,
-so row 6 still does not appear. That makes it unlikely, though not shown by a re-run, that L3
-changed the contrasts' C0 leg. The revised audit (R16) finds the C0 populations non-converged
-(median exploitability 0.80). This is limitation **L4**, and it applies to every contrast above.
+so nothing trades. Under R9 a sale never pays the seller, so row 6 is not evaluable rather than a
+behavioural failure (G3b record, correction of 2026-10-14). That makes it unlikely, though not
+shown by a re-run, that L3 changed the contrasts' C0 leg. The revised audit (R16) finds the C0
+populations non-converged (median exploitability 0.80). This is limitation **L4**, and it applies
+to every contrast above.
 
 #### Update (2026-09-29): LC complete
 

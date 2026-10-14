@@ -83,9 +83,11 @@ unit-tested. The owner's command is in the report: install the SDK, add a creden
 ## Update (2026-09-28): G3b complete
 
 See `runs/G3b_record.md`. With trade possible (spec 2.1.0), C0 populations post only buy offers,
-so row 6 still does not appear. That makes it unlikely, though not shown by a re-run, that L3
-changed the contrasts' C0 leg. The revised audit (R16) finds the C0 populations non-converged
-(median exploitability 0.80). This is limitation **L4**, and it applies to every contrast above.
+so nothing trades. Under R9 a sale never pays the seller, so row 6 is not evaluable rather than a
+behavioural failure (G3b record, correction of 2026-10-14). That makes it unlikely, though not
+shown by a re-run, that L3 changed the contrasts' C0 leg. The revised audit (R16) finds the C0
+populations non-converged (median exploitability 0.80). This is limitation **L4**, and it applies
+to every contrast above.
 
 ## Update (2026-09-29): LC complete
 

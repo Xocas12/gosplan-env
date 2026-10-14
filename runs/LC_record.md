@@ -40,7 +40,10 @@ Read the primary result against this before citing it.
   configuration, reach W of 1.98 and 1.06, so the environment supports production. The collapse is
   in what the learners converge to.
 - Every posted trade offer is still a buy order. The mean offer is -1.000, and none of the 3M
-  populations' offers is a sell. Row 6 stays at zero.
+  populations' offers is a sell. Row 6 stays at zero. Under R9 a sale never pays the seller, so
+  this is what the trade rule predicts for any individually rewarded learner: row 6 is not
+  evaluable under R9 and says nothing about barter (`runs/G3b_record.md`, correction of
+  2026-10-14).
 
 **Reading of the primary result.** The fall in exploitability is real by R17's rule, but it is not
 convergence to a functioning equilibrium.

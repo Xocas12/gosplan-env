@@ -1,0 +1,4 @@
+# #107: a new test file pinning what a sale is worth to the seller under R9, which the row-6
+# readings in the G3b, LC, CT and P3 records now rest on. No existing test is edited. Remove this
+# entry once the change has landed on main.
+tests/unit/test_trade_seller_incentive.py

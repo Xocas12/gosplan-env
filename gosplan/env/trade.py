@@ -163,6 +163,20 @@ def match_trades(
     the step-0 action that carries the offers (AMBIGUITY-023 item 8); the step machine always
     passes it. The frozen four-argument call stays valid wherever trade is off
     (`horizontal_visibility = 0`); with trade on, omitting `effort` raises rather than guessing.
+
+    **What a sale is worth to the seller under R9.** A sale has no return leg: the seller's stock
+    falls by `x`, the buyer's rises by `(1 - tau) x`, and no good, money or credit goes back, so
+    R9.4's "payments cancel" has no payment to cancel. Coverage never falls as a stock grows, so a
+    sale is never worth more than 0 to the seller. It is worth exactly 0 when the seller's stock of
+    the good still covers its need after the sale. When the sale takes the stock below need it is
+    worth less than 0, unless another input already holds the seller's output down: with `theta`
+    finite, a needed input the seller holds none of (its `Yhat` is then already 0); with
+    `theta = inf`, another needed good whose coverage is no higher than the sold good's after the
+    sale. In those cases it is worth exactly 0. A buy never lowers the buyer's surplus. The gain
+    from moving an input to where coverage binds (the wash-trade paragraph above) goes wholly to
+    the buyer, and selling is weakly dominated for an individually rewarded learner
+    (`tests/unit/test_trade_seller_incentive.py`). This is why row 6 is not evaluable under R9
+    (`runs/G3b_record.md`).
     """
     state, surplus, _sold = trade_stage(state, offers, cfg, t, effort=effort)
     return state, surplus

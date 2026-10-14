@@ -41,7 +41,7 @@ studies, and that is how they must be cited.
 | G1 | `runs/G1_decision.md` | Phase-1 values chosen (the owner delegated the decision) |
 | G2 | `runs/G2_record.md` | **not passed**: PPO did not recover the single-enterprise DP optimum in three attempts. Criteria 2-4 were run afterwards as a labelled study |
 | G3 | `runs/G3_record.md` | **not passed**: rows 2 and 5 appear; row 7 fails its null test; row 3 and hygiene fail; row 6 was not evaluable because of a trade defect (D1); the exploitability audit was inconclusive (D2) |
-| G3b | `runs/G3b_record.md` | labelled study after the D1 fix (R15) and the revised audit (R16): row 6 **fails behaviourally** (learners post only buy offers, so nothing trades), and the revised audit finds the populations **non-converged** (median exploitability 0.80) |
+| G3b | `runs/G3b_record.md` | labelled study after the D1 fix (R15) and the revised audit (R16): row 6 is **not evaluable under R9** (learners post only buy offers, so nothing trades, and under R9 a sale never pays the seller), and the revised audit finds the populations **non-converged** (median exploitability 0.80) |
 | LC | `runs/LC_record.md` | labelled study (R17): tripling the training budget lowers exploitability (median 0.80 to 0.00) but the populations do not converge, and the C0 economy **collapses to near-zero output** (effort 0.02, welfare 0 on every seed) |
 | CT | `runs/CT_record.md` | labelled study (R18, evaluation only): the 3M collapse **is a coordination trap**. A lone producer loses (median -1.72 [-2.24, -1.44]), and everyone producing leaves every seat better off (median +0.87 [+0.49, +1.30]). The 1M populations are not a trap: they are too far from equilibrium |
 | ES | `runs/ES_record.md` | labelled study (R19): with the 1M runs' exact entropy schedule, 3M-step training **still collapses** (median effort 0.019 [0.012, 0.023]) into the same coordination trap. The collapse is driven by training length, not the stretched schedule |
@@ -78,6 +78,10 @@ through the five-term reward of PLAN §2.9 produce (i) hidden reserves and repor
 (ii) input hoarding and propagated shortage, (iii) horizontal barter, and (iv) storming *in excess
 of what input timing forces* - none of which is written into any transition rule or reward term
 (CONTRACT rule 7).
+
+Part (iii) cannot be tested under the current trade rule (`spec/P2_REVISION.md` R9). A sale gives
+the seller nothing back, so no individually rewarded learner gains from selling, and row 6 (blat)
+is not evaluable (`runs/G3b_record.md`).
 
 Bunching, padding and quality degradation are **not** part of Claim A. They are direct optima of the
 reward under agent control, and serve as pipeline checks: if they fail to appear, the optimiser is
