@@ -461,22 +461,32 @@ attached, behaviour is unchanged. `GosplanEnv.step` also copies the state field-
 
 **Reason.** Issue #105, against gate G3's row 2 (PLAN section 4.1). `phenomenon_storming`'s
 docstring said the excess measures effort deferred beyond what input arrival forces, and that
-under uniform arrival any Gini excess is behavioural. Neither holds for the statistic as built.
+under uniform arrival any Gini excess is behavioural; the `SupplyConfig.arrival_probs` docstring
+said the same of any effort-Gini excess. Neither holds for the statistic as built.
 The truthful-myopic baseline sets effort from its target alone, and the target moves once a
 period, so its within-period Gini is 0: it is exactly 0 in all 100 committed row-2 measurements,
 where the excess equals the learned Gini. The Gini is also symmetric in step order, so it cannot
 tell deferred effort from effort pulled forward.
 
-**Change.** Patch, docstring only. `phenomenon_storming` in `spec/spec.py` now says what the excess
-does and does not show, and that row 2 as computed is not evidence for storming. No signature,
-field or computation moved: R13.1's operationalisation and R14's pass rule are unchanged.
-`SPEC_VERSION` 2.1.0 -> 2.1.1, mirrored in `gosplan/config.py`. The configuration hash does not
-include `spec_version`, so no run directory moves. The same correction is made to the
-implementation's docstring in `gosplan/metrics/phenomena.py` and recorded as an update in
-`runs/G3_record.md`, `G3b_record.md`, `LC_record.md` and `ES_record.md`.
+**Change.** Patch, docstring only. In `spec/spec.py`, `phenomenon_storming` now says what the
+excess does and does not show, and that row 2 as computed is not evidence for storming, and
+`SupplyConfig.arrival_probs` says only that uniform-random arrival pushes nothing late on average.
+No signature, field, default or computation moved: R13.1's operationalisation, R14's pass rule and
+the locked `arrival_probs` value are unchanged. `SPEC_VERSION` 2.1.0 -> 2.1.1, mirrored in
+`gosplan/config.py`. The configuration hash does not include `spec_version`, so no run directory
+moves. The same correction is made everywhere outside the spec that repeated the claim:
+`phenomenon_storming` in `gosplan/metrics/phenomena.py`, `SupplyConfig.arrival_probs` in
+`gosplan/config.py`, the `delivery_timing` notes in the `gosplan/params.py` registry (notes only,
+no arm moves, so CONTRACT rule 11 is not engaged), the stochastic-timing line of `produce`'s
+docstring in `gosplan/env/production.py` (prose only, no code), and the row-2 parameter note in
+the gate G3 module `tests/acceptance/gate_g3_phase2.py` (docstring only; the gate is not re-run).
+It is recorded as an update in `runs/G3_record.md`, `G3b_record.md`, `LC_record.md` and
+`ES_record.md`.
 
 **Affected work orders.** None reissued. WO-030 (the docstring of its function) and WO-031 and its
-labelled re-runs G3b, LC and ES (how row 2 is read). Their numbers stand as computed.
+labelled re-runs G3b, LC and ES (how row 2 is read). Their numbers stand as computed. WO-003 (the
+`arrival_probs` docstring of the config mirror) and WO-005 (one docstring line of `produce`) change
+in prose only.
 
 **Golden files.** Not committed (git-ignored). Regenerated locally for the embedded
 `spec_version`: golden parity 151 passed.

@@ -792,8 +792,9 @@ REGISTRY: tuple[ParamSpec, ...] = (
             "Within-period arrival of delivered inputs; `uniform` means everything is available "
             "at step 0. PLAN section 3 source cell: storming mechanism; locked section 4.2 - the "
             "locked Phase-2 setting is `stochastic` with "
-            "`arrival_probs = (0.25, 0.25, 0.25, 0.25)`, uniform-random arrival, so there is no "
-            "mechanical backloading and any effort-Gini excess is behavioural."
+            "`arrival_probs = (0.25, 0.25, 0.25, 0.25)`, uniform-random arrival, so nothing "
+            "pushes effort late on average. Effort that follows inputs on hand is uneven within "
+            "a period too, so unevenness alone is not behavioural (spec 2.1.1)."
         ),
         plan_section="3; 2.6; 4.2",
     ),

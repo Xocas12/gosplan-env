@@ -186,8 +186,7 @@ def produce_step(
                      `X` is constant across the period apart from consumption
         stochastic   each delivered unit arrives at step k ~ Categorical(cfg.supply.arrival_probs)
                      drawn with purpose "arrival"; the locked Phase-2 value is uniform-random
-                     arrival, so no backloading is mechanical and any effort-Gini excess is
-                     behavioural (PLAN section 4.2)
+                     arrival, so nothing pushes effort late on average (PLAN section 4.2)
         backloaded   arrival_probs concentrated on late steps
 
     Binds: `tests/unit/test_production.py` (the WO-005 must-pass list) - T-U7 on `coverage`; the

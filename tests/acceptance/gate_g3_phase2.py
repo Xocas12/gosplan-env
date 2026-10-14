@@ -20,8 +20,8 @@ oracle gap recorded; JAX parity.* Four conditions:
 
          row 2 storming          `delivery_timing = "stochastic"`,
                                  `arrival_probs = (0.25, 0.25, 0.25, 0.25)` (uniform-random
-                                 arrival, so no mechanical backloading and any Gini excess is
-                                 behavioural), `yield_sigma` x1
+                                 arrival, so nothing pushes effort late on average),
+                                 `yield_sigma` x1
          row 5 hoarding          `alloc_eta_request = 0.7`, `input_complementarity = 8`,
                                  `input_holding_loss = 0.01`
          row 6 blat              `horizontal_visibility = 1.0`, `trade_tau = 0.05`
